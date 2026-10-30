@@ -16,6 +16,7 @@ class LegacyMigrationTests(TransactionTestCase):
         before = [("flow", "0002_schedule_lock")]
         after = [("flow", "0004_backfill_roles_and_passes")]
         executor = MigrationExecutor(connection)
+        latest = executor.loader.graph.leaf_nodes()
         executor.migrate(before)
         try:
             apps = executor.loader.project_state(before).apps
@@ -24,16 +25,38 @@ class LegacyMigrationTests(TransactionTestCase):
             Room = apps.get_model("flow", "Room")
             Activity = apps.get_model("flow", "Activity")
             Registration = apps.get_model("flow", "Registration")
-            owner = User.objects.create(email="old-owner@example.test", name="Организатор")
-            person = User.objects.create(email="old-person@example.test", name="Участник")
+            owner = User.objects.create(
+                email="old-owner@example.test", name="Организатор"
+            )
+            person = User.objects.create(
+                email="old-person@example.test", name="Участник"
+            )
             start = timezone.now()
-            event = Event.objects.create(owner=owner, title="Событие", description="Событие", starts_at=start,
-                                         ends_at=start+timedelta(hours=2), city="Москва", venue="Зал", format="Очно", topic="Наука", kind="Встреча")
+            event = Event.objects.create(
+                owner=owner,
+                title="Событие",
+                description="Событие",
+                starts_at=start,
+                ends_at=start + timedelta(hours=2),
+                city="Москва",
+                venue="Зал",
+                format="Очно",
+                topic="Наука",
+                kind="Встреча",
+            )
             room = Room.objects.create(event=event, name="Зал", capacity=10)
             for number in range(2):
-                activity = Activity.objects.create(event=event, room=room, title=f"Лекция {number}",
-                                                   starts_at=start+timedelta(hours=number), ends_at=start+timedelta(hours=number+1), capacity=10)
-                Registration.objects.create(user=person, activity=activity, created_at=start)
+                activity = Activity.objects.create(
+                    event=event,
+                    room=room,
+                    title=f"Лекция {number}",
+                    starts_at=start + timedelta(hours=number),
+                    ends_at=start + timedelta(hours=number + 1),
+                    capacity=10,
+                )
+                Registration.objects.create(
+                    user=person, activity=activity, created_at=start
+                )
             executor = MigrationExecutor(connection)
             executor.migrate(after)
             apps = executor.loader.project_state(after).apps
@@ -49,16 +72,29 @@ class LegacyMigrationTests(TransactionTestCase):
             ticket = Enrollment.objects.get(user_id=person.pk, event_id=event.pk)
             self.assertEqual(ticket.created_at, start)
         finally:
-            MigrationExecutor(connection).migrate(after)
+            MigrationExecutor(connection).migrate(latest)
 
 
 class ProductionConfigTests(SimpleTestCase):
     def read_config(self, **changes):
         # A fresh process is needed: changing environment variables after Django
         # initializes would not exercise the actual deployment configuration.
-        env = {key: value for key, value in os.environ.items()
-               if key not in {"DATABASE_URL", "VERCEL", "DJANGO_DEBUG", "DJANGO_SECRET_KEY", "DJANGO_HTTPS_REDIRECT", "DJANGO_TRUST_PROXY"}}
-        env.update(DJANGO_DEBUG="0", DJANGO_SECRET_KEY="isolated-config-test-secret-" * 3)
+        env = {
+            key: value
+            for key, value in os.environ.items()
+            if key
+            not in {
+                "DATABASE_URL",
+                "VERCEL",
+                "DJANGO_DEBUG",
+                "DJANGO_SECRET_KEY",
+                "DJANGO_HTTPS_REDIRECT",
+                "DJANGO_TRUST_PROXY",
+            }
+        }
+        env.update(
+            DJANGO_DEBUG="0", DJANGO_SECRET_KEY="isolated-config-test-secret-" * 3
+        )
         env.update(changes)
         code = """
 import json
@@ -71,8 +107,14 @@ print(json.dumps({
     "trusted_proxy": getattr(s, "SECURE_PROXY_SSL_HEADER", None),
 }))
 """
-        return subprocess.run([sys.executable, "-c", code], env=env, cwd=Path(__file__).resolve().parents[2],
-                              capture_output=True, text=True, timeout=20)
+        return subprocess.run(
+            [sys.executable, "-c", code],
+            env=env,
+            cwd=Path(__file__).resolve().parents[2],
+            capture_output=True,
+            text=True,
+            timeout=20,
+        )
 
     def test_production_enables_secure_cookies_and_https(self):
         result = self.read_config(DJANGO_TRUST_PROXY="0")
@@ -95,8 +137,11 @@ print(json.dumps({
         self.assertIn("persistent PostgreSQL", result.stderr)
 
     def test_postgresql_url_is_decoded_and_only_supported_options_used(self):
-        result = self.read_config(VERCEL="1", VERCEL_URL="preview.example.test",
-                                  DATABASE_URL="postgresql://test%40user:pass%2Fword@localhost:5433/test%20db?sslmode=require&connect_timeout=5&ignored=value")
+        result = self.read_config(
+            VERCEL="1",
+            VERCEL_URL="preview.example.test",
+            DATABASE_URL="postgresql://test%40user:pass%2Fword@localhost:5433/test%20db?sslmode=require&connect_timeout=5&ignored=value",
+        )
         self.assertEqual(result.returncode, 0, result.stderr)
         settings = json.loads(result.stdout)
         database = settings["database"]
@@ -104,7 +149,9 @@ print(json.dumps({
         self.assertEqual(database["PASSWORD"], "pass/word")
         self.assertEqual(database["NAME"], "test db")
         self.assertEqual(database["PORT"], 5433)
-        self.assertEqual(database["OPTIONS"], {"sslmode": "require", "connect_timeout": "5"})
+        self.assertEqual(
+            database["OPTIONS"], {"sslmode": "require", "connect_timeout": "5"}
+        )
         self.assertEqual(database["CONN_MAX_AGE"], 0)
         self.assertIn("preview.example.test", settings["hosts"])
         self.assertIn("https://preview.example.test", settings["origins"])

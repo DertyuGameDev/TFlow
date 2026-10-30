@@ -1,3 +1,4 @@
+:root{--font-size-min:12px}
 @font-face{font-family:Golos;src:url('/static/fonts/golos.ttf') format('truetype');font-weight:100 900;font-display:swap}
 *{box-sizing:border-box}
 body{margin:0;background:#f6f7f8;color:#24272d;font:14px/1.5 Golos,Arial,sans-serif}
@@ -34,7 +35,19 @@ h1{font-size:28px;line-height:1.2;letter-spacing:-.8px;margin:0 0 8px}
 .error-summary{background:#fff0ed;padding:12px;border-radius:8px;margin-bottom:16px}
 ul.errorlist{list-style:none;margin:0;padding:0}
 .password-help{font-size:12px;color:#626b78;line-height:1.5;margin:2px 0 0}
-footer{text-align:center;font-size:11px;color:#626b78;margin-top:16px}
+footer{text-align:center;font-size:var(--font-size-min);color:#626b78;margin-top:16px}
 @media(max-width:350px){.auth-shell{padding-inline:14px}.auth-card{padding:20px 18px}h1{font-size:25px}.intro{font-size:12px}.organizer-switch{gap:12px}}
 @media(prefers-reduced-motion:reduce){*{scroll-behavior:auto!important}.toggle-track:before{transition:none}}
 @media(forced-colors:active){.toggle-track{background:CanvasText;border:1px solid ButtonText;box-shadow:none}.toggle-track:before{background:Canvas;border:1px solid ButtonText;box-shadow:none}}
+
+.interest-field{border:0;padding:0;margin:0 0 22px;min-width:0}
+.interest-field legend{padding:0;font-size:12px;font-weight:500}
+.interest-field>p{font-size:var(--font-size-min);line-height:1.7;color:#818995;margin:7px 0 12px}
+#id_interests{display:flex;flex-wrap:wrap;gap:8px}
+#id_interests>div{min-width:0;max-width:100%}
+#id_interests label{display:flex;align-items:center;gap:7px;position:relative;border:1px solid #dfe3e9;border-radius:12px;padding:10px 12px;min-height:44px;background:#fff;color:#626d7d;font-size:12px;line-height:1.5;cursor:pointer;overflow-wrap:anywhere}
+#id_interests label::before{content:'+';width:14px;flex-shrink:0;text-align:center;font-size:16px;line-height:1}
+#id_interests input{position:absolute;width:1px;height:1px;margin:0;padding:0;opacity:0}
+#id_interests label:has(input:checked){background:#fff6cf;border-color:#dfbf37;color:#63521b}
+#id_interests label:has(input:checked)::before{content:'✓';font-size:13px}
+#id_interests label:has(input:focus-visible){outline:3px solid #1769e8;outline-offset:3px}

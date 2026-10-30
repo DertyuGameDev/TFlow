@@ -16,6 +16,45 @@ from flow.serializers import milliseconds
 
 @override_settings(PASSWORD_HASHERS=FAST_HASHER)
 class RoleAndPassTests(Scenario, TestCase):
+    def test_one_profile_qr_admits_user_to_each_registered_event(self):
+        self.publish()
+        other_event = Event.objects.create(
+            owner=self.owner,
+            title="Второе событие",
+            description="Вторая встреча",
+            starts_at=self.start,
+            ends_at=self.start + timedelta(hours=2),
+            city="Москва",
+            venue="Другой зал",
+            format="Очно",
+            topic="Наука",
+            kind="Встреча",
+            status="published",
+        )
+        image = self.participant.get("/api/profile/qr").content
+        code = {"qr": f"https://example.test/#pass/{self.person.pass_token}"}
+        for event in [self.event, other_event]:
+            self.request(
+                f"events/{event.pk}/check-in",
+                "post",
+                code,
+                status=409,
+                code="NOT_REGISTERED",
+            )
+            self.request(
+                f"events/{event.pk}/registration", "post", client=self.participant
+            )
+            result = self.request(f"events/{event.pk}/check-in", "post", code)
+            self.assertTrue(result["admitted"])
+            self.assertEqual(result["attendee"]["id"], self.person.pk)
+            self.assertEqual(self.participant.get("/api/profile/qr").content, image)
+        self.assertEqual(CheckIn.objects.filter(user=self.person).count(), 2)
+        self.assertTrue(
+            self.request(f"events/{self.event.pk}/check-in", "post", code)[
+                "already_checked_in"
+            ]
+        )
+
     @override_settings(DEBUG=True)
     def test_demo_entrypoints_removed_even_in_development(self):
         self.assertEqual(Client().post("/demo-login/").status_code, 404)
@@ -78,7 +117,8 @@ class RoleAndPassTests(Scenario, TestCase):
             {
                 "role": "organizer",
                 "email": "host@example.test",
-                "name": "Новый организатор",
+                "first_name": "Новый",
+                "last_name": "Организатор",
                 "password1": password,
                 "password2": password,
             },
@@ -101,7 +141,8 @@ class RoleAndPassTests(Scenario, TestCase):
         data = {
             "role": "organizer",
             "email": "switch@example.test",
-            "name": "Новый участник",
+            "first_name": "Новый",
+            "last_name": "участник",
             "password1": "Unrelated-new-strong-44!",
             "password2": "mismatch",
         }

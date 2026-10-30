@@ -14,6 +14,7 @@ from .models import (
     Room,
     ScheduleLock,
     User,
+    WaitlistEntry,
 )
 
 
@@ -211,48 +212,149 @@ def save_activity(user, data, *, event_id=None, activity_id=None):
                         event_id=activity.event_id,
                         message=f"Обновлена активность «{activity.title}». Проверьте время и аудиторию в своём расписании.",
                     )
-                    for uid in activity.registrations.values_list("user_id", flat=True)
+                    for uid in set(
+                        activity.registrations.values_list("user_id", flat=True)
+                    )
+                    | set(activity.waitlist.values_list("user_id", flat=True))
                 ]
             )
+        promote_waitlist_locked(activity)
+        if activity_id:
+            for participant in User.objects.filter(registrations__activity=activity):
+                retry_user_waitlists_locked(participant)
         return activity
 
 
-def register(user, activity_id):
-    with schedule_write():
-        try:
-            activity = Activity.objects.select_related("event").get(pk=activity_id)
-        except Activity.DoesNotExist as error:
-            raise FlowError("NOT_FOUND", "Активность не найдена", 404) from error
-        if Registration.objects.filter(user=user, activity=activity).exists():
-            raise FlowError("ALREADY_REGISTERED", "Вы уже записаны на эту активность")
-        if activity.event.status != "published":
-            raise FlowError(
-                "NOT_PUBLISHED", "Регистрация на неопубликованную программу недоступна"
-            )
-        if activity.starts_at <= timezone.now():
-            raise FlowError(
-                "REGISTRATION_CLOSED", "Регистрация закрыта: активность уже началась"
-            )
-        if activity.registrations.count() >= activity.capacity:
-            raise FlowError(
-                "NO_SEATS", "Свободные места закончились. Выберите другую активность"
-            )
-        if Registration.objects.filter(
+def participant_conflict(user, activity):
+    return (
+        Registration.objects.filter(
             user=user,
             activity__starts_at__lt=activity.ends_at,
             activity__ends_at__gt=activity.starts_at,
+        )
+        .exclude(activity=activity)
+        .exists()
+    )
+
+
+def registration_activity(activity_id):
+    try:
+        activity = Activity.objects.select_related("event").get(pk=activity_id)
+    except Activity.DoesNotExist as error:
+        raise FlowError("NOT_FOUND", "Активность не найдена", 404) from error
+    if activity.event.status != "published":
+        raise FlowError(
+            "NOT_PUBLISHED", "Регистрация на неопубликованную программу недоступна"
+        )
+    if activity.starts_at <= timezone.now():
+        raise FlowError(
+            "REGISTRATION_CLOSED", "Регистрация закрыта: активность уже началась"
+        )
+    return activity
+
+
+def promote_waitlist_locked(activity):
+    """Called only inside schedule_write(), including for capacity changes.
+
+    A ticket is secured when joining the queue. Conflicting people keep their
+    position while the next eligible person receives the seat.
+    """
+    if activity.event.status != "published" or activity.starts_at <= timezone.now():
+        return
+    free = activity.capacity - activity.registrations.count()
+    if free <= 0:
+        return
+    for entry in activity.waitlist.select_related("user").order_by("id"):
+        if not entry.user.is_active or participant_conflict(entry.user, activity):
+            continue
+        if not EventRegistration.objects.filter(
+            user=entry.user, event=activity.event
         ).exists():
+            continue
+        _, created = Registration.objects.get_or_create(
+            user=entry.user, activity=activity
+        )
+        entry.delete()
+        if created:
+            free -= 1
+            Notification.objects.create(
+                user=entry.user,
+                event=activity.event,
+                message=f"Место освободилось! Вы автоматически записаны на «{activity.title}» из листа ожидания. Время и аудитория — в вашей программе.",
+            )
+        if free <= 0:
+            break
+
+
+def retry_user_waitlists_locked(user):
+    # Cancelling a conflicting registration can make an already free seat usable.
+    for entry in list(
+        user.waitlist_entries.select_related("activity__event").order_by("id")
+    ):
+        promote_waitlist_locked(entry.activity)
+
+
+def join_waitlist(user, activity_id):
+    with schedule_write():
+        activity = registration_activity(activity_id)
+        if activity.registrations.filter(user=user).exists():
+            raise FlowError("ALREADY_REGISTERED", "Вы уже записаны на эту активность")
+        if activity.waitlist.filter(user=user).exists():
+            return
+        if participant_conflict(user, activity):
             raise FlowError(
                 "PARTICIPANT_CONFLICT",
                 "Это время занято другой активностью в вашем расписании",
             )
+        if activity.registrations.count() < activity.capacity:
+            raise FlowError(
+                "SEATS_AVAILABLE", "На активность есть места — запишитесь напрямую"
+            )
+        enroll_locked(user, activity.event)
+        WaitlistEntry.objects.create(user=user, activity=activity)
+
+
+def leave_waitlist(user, activity_id):
+    with schedule_write():
+        WaitlistEntry.objects.filter(user=user, activity_id=activity_id).delete()
+
+
+def register(user, activity_id):
+    with schedule_write():
+        activity = registration_activity(activity_id)
+        if Registration.objects.filter(user=user, activity=activity).exists():
+            raise FlowError("ALREADY_REGISTERED", "Вы уже записаны на эту активность")
+        if activity.registrations.count() >= activity.capacity:
+            raise FlowError(
+                "NO_SEATS", "Свободные места закончились. Выберите другую активность"
+            )
+        if participant_conflict(user, activity):
+            raise FlowError(
+                "PARTICIPANT_CONFLICT",
+                "Это время занято другой активностью в вашем расписании",
+            )
+        # Fill eligible queued places first; a new request cannot jump the queue.
+        promote_waitlist_locked(activity)
+        if activity.registrations.filter(user=user).exists():
+            return
+        if activity.registrations.count() >= activity.capacity:
+            # Return instead of raising: an exception would roll back promotions.
+            return False
         enroll_locked(user, activity.event)
         Registration.objects.create(user=user, activity=activity)
+        activity.waitlist.filter(user=user).delete()
+    return True
 
 
 def cancel(user, activity_id):
     with schedule_write():
-        Registration.objects.filter(user=user, activity_id=activity_id).delete()
+        removed, _ = Registration.objects.filter(
+            user=user, activity_id=activity_id
+        ).delete()
+        if removed:
+            activity = Activity.objects.select_related("event").get(pk=activity_id)
+            promote_waitlist_locked(activity)
+            retry_user_waitlists_locked(user)
 
 
 def enroll_locked(user, event):
@@ -282,8 +384,17 @@ def cancel_event(user, event_id):
             raise FlowError(
                 "ALREADY_CHECKED_IN", "Вход уже подтверждён. Отменить этот билет нельзя"
             )
+        activities = list(
+            Activity.objects.filter(
+                event_id=event_id, registrations__user=user
+            ).select_related("event")
+        )
+        WaitlistEntry.objects.filter(user=user, activity__event_id=event_id).delete()
         Registration.objects.filter(user=user, activity__event_id=event_id).delete()
         EventRegistration.objects.filter(user=user, event_id=event_id).delete()
+        for activity in activities:
+            promote_waitlist_locked(activity)
+        retry_user_waitlists_locked(user)
 
 
 def move_event(user, event_id, data):
@@ -351,6 +462,14 @@ def move_event(user, event_id, data):
                 for uid in recipients
             ]
         )
+        for activity in activities:
+            # Use the new event dates/status when processing its queues.
+            activity.event = event
+            promote_waitlist_locked(activity)
+        for participant in User.objects.filter(
+            registrations__activity__event=event
+        ).distinct():
+            retry_user_waitlists_locked(participant)
 
 
 def attendee_by_qr(user, event_id, raw):

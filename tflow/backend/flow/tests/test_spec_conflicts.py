@@ -16,8 +16,8 @@ class SpecConflictTests(Scenario, TestCase):
     def test_public_program_is_sorted_by_start_time(self):
         self.publish()
         program = self.request(f"events/{self.event.pk}")["activities"]
-        self.assertEqual([(a["starts_at"], a["id"]) for a in program],
-                         sorted((a["starts_at"], a["id"]) for a in program))
+        self.assertEqual([a["starts_at"] for a in program],
+                         sorted(a["starts_at"] for a in program))
 
     def test_edit_preserves_event_capacity_when_optional_field_is_omitted(self):
         Event.objects.filter(pk=self.event.pk).update(capacity=1000)

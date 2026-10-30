@@ -9,7 +9,10 @@ from .models import (
     EventRegistration,
     Membership,
     Registration,
+    UserAvatar,
+    WaitlistEntry,
 )
+from .names import split_name
 
 
 def milliseconds(value):
@@ -31,15 +34,29 @@ def identity(user):
 def profile(user):
     if not user.is_authenticated:
         return None
+    updated = (
+        UserAvatar.objects.filter(user=user)
+        .values_list("updated_at", flat=True)
+        .first()
+    )
+    avatar_url = f"/api/profile/avatar?v={updated.timestamp():.6f}" if updated else None
+    first_name, last_name = (
+        (user.first_name, user.last_name)
+        if user.first_name or user.last_name
+        else split_name(user.name)
+    )
     return {
         "id": user.pk,
         "name": user.name,
+        "first_name": first_name,
+        "last_name": last_name,
         "email": user.email,
         "city": user.city,
         "about": user.about,
         "interests": user.interests,
         "role": user.role,
         "pass_token": str(user.pass_token),
+        "avatar_url": avatar_url,
     }
 
 
@@ -127,15 +144,32 @@ def event_json(event):
 
 
 def activities_for(user):
-    return Activity.objects.select_related("room", "event").annotate(
-        taken=Count("registrations"),
-        registered=Exists(
-            Registration.objects.filter(
-                activity_id=OuterRef("pk"),
-                user_id=user.pk if user.is_authenticated else "",
-            )
-        ),
-    ).order_by("starts_at", "id")
+    uid = user.pk if user.is_authenticated else ""
+    return (
+        Activity.objects.select_related("room", "event")
+        .annotate(
+            taken=Count("registrations", distinct=True),
+            registered=Exists(
+                Registration.objects.filter(activity_id=OuterRef("pk"), user_id=uid)
+            ),
+            waitlist_id=Subquery(
+                WaitlistEntry.objects.filter(
+                    activity_id=OuterRef("pk"), user_id=uid
+                ).values("id")[:1]
+            ),
+            waiting_count=Coalesce(
+                Subquery(
+                    WaitlistEntry.objects.filter(activity_id=OuterRef("pk"))
+                    .order_by()
+                    .values("activity_id")
+                    .annotate(n=Count("id"))
+                    .values("n")
+                ),
+                Value(0),
+            ),
+        )
+        .order_by("starts_at", "title", "id")
+    )
 
 
 def activity_json(activity, schedule=False):
@@ -158,6 +192,13 @@ def activity_json(activity, schedule=False):
         room_name=activity.room.name,
         taken=activity.taken,
         registered=int(activity.registered),
+        waiting_count=activity.waiting_count,
+        waitlisted=int(activity.waitlist_id is not None),
+        waitlist_position=(
+            activity.waitlist.filter(pk__lte=activity.waitlist_id).count()
+            if activity.waitlist_id
+            else 0
+        ),
     )
     if schedule:
         data.update(
@@ -184,10 +225,16 @@ def bootstrap(user):
         if user.is_authenticated
         else []
     )
+    waitlist = (
+        activities_for(user).filter(waitlist__user=user)
+        if user.is_authenticated
+        else []
+    )
     notifications = user.notifications.all()[:50] if user.is_authenticated else []
     return {
         "events": [event_json(event) for event in visible_events(user)],
         "schedule": [activity_json(activity, schedule=True) for activity in schedule],
+        "waitlist": [activity_json(activity, schedule=True) for activity in waitlist],
         "communities": [
             {
                 "id": c.pk,

@@ -1,6 +1,7 @@
 from datetime import datetime, timezone as dt_timezone
 from django import forms
 from django.core.exceptions import ValidationError
+from .names import full_name, split_name
 
 
 def validate_text(value):
@@ -84,10 +85,34 @@ class RoomInput(forms.Form):
 
 
 class ProfileInput(forms.Form):
-    name = forms.CharField(min_length=2, max_length=80)
+    # The legacy name payload stays supported for existing API clients.
+    name = forms.CharField(required=False, min_length=2, max_length=80)
+    first_name = forms.CharField(required=False, max_length=80)
+    last_name = forms.CharField(required=False, max_length=80)
     city = forms.CharField(min_length=2, max_length=80)
     about = forms.CharField(required=False, max_length=1000)
     interests = forms.CharField(required=False, max_length=300)
+
+    def clean(self):
+        data = super().clean()
+        if "first_name" in self.data or "last_name" in self.data:
+            for field, label in [("first_name", "имя"), ("last_name", "фамилию")]:
+                if not data.get(field):
+                    self.add_error(field, f"Укажите {label}")
+            data["name"] = full_name(
+                data.get("first_name", ""), data.get("last_name", "")
+            )
+            if len(data["name"]) > 80:
+                self.add_error(
+                    "last_name",
+                    "Имя и фамилия вместе должны быть не длиннее 80 символов",
+                )
+        elif data.get("name"):
+            data["first_name"], data["last_name"] = split_name(data["name"])
+        else:
+            self.add_error("first_name", "Укажите имя")
+            self.add_error("last_name", "Укажите фамилию")
+        return data
 
 
 class MoveEventInput(forms.Form):

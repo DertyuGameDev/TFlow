@@ -586,7 +586,8 @@ class SessionTests(TestCase):
             "/register/",
             {
                 "email": "new@example.test",
-                "name": "Новый участник",
+                "first_name": "Новый",
+                "last_name": "Участник",
                 "password1": password,
                 "password2": password,
                 "next": "https://attacker.example",
