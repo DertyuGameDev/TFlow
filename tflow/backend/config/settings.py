@@ -71,8 +71,9 @@ TEMPLATES = [
         },
     }
 ]
-WSGI_APPLICATION = "config.wsgi.application"
-ASGI_APPLICATION = "config.asgi.application"
+WSGI_APPLICATION = "backend.config.wsgi.application" if IS_VERCEL else "config.wsgi.application"
+if not IS_VERCEL:
+    ASGI_APPLICATION = "config.asgi.application"
 AUTH_USER_MODEL = "flow.User"
 AUTH_PASSWORD_VALIDATORS = [
     {
