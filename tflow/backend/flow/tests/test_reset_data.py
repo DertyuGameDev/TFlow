@@ -20,7 +20,9 @@ class ResetDataTests(Scenario, TransactionTestCase):
                 self.assertEqual(model.objects.count(), 0, model.__name__)
         self.assertEqual(ScheduleLock.objects.count(), 1)
         client = Client()
-        self.assertEqual(client.get("/api/health").json(), {"ok": True, "backend": "django"})
+        self.assertEqual(
+            client.get("/api/health").json(), {"ok": True, "backend": "django"}
+        )
         self.assertEqual(client.get("/api/bootstrap").json()["events"], [])
         self.assertEqual(client.get("/api/auth/me").json()["user"], None)
         self.assertEqual(User.objects.count(), 0)
