@@ -1,0 +1,12 @@
+node_modules
+.venv
+.wrangler
+.sites-runtime
+backend/data
+backend/staticfiles
+backend/flow/tests
+outputs
+work
+.env*
+!.env.example
+**/__pycache__

@@ -8,16 +8,14 @@ from flow.serializers import milliseconds
 @override_settings(PASSWORD_HASHERS=FAST_HASHER)
 class RoleAndPassTests(Scenario, TestCase):
     @override_settings(DEBUG=True)
-    def test_local_demo_roles_have_separate_sessions(self):
-        participant, organizer = Client(), Client()
-        self.assertEqual(participant.post("/demo-login/", {"demo_role": "participant"}).status_code, 302)
-        self.assertEqual(organizer.post("/demo-login/", {"demo_role": "organizer"}).status_code, 302)
-        self.assertEqual(participant.get("/api/auth/me").json()["user"]["role"], "participant")
-        self.assertEqual(organizer.get("/api/auth/me").json()["user"]["role"], "organizer")
+    def test_demo_entrypoints_removed_even_in_development(self):
+        self.assertEqual(Client().post("/demo-login/").status_code, 404)
+        self.assertNotContains(Client().get("/login/"), "Демо-")
+        self.request("demo", "post", status=404, code="NOT_FOUND")
 
     def test_participant_cannot_create_events_or_seed_demo(self):
         self.request("events", "post", self.event_body(), client=self.participant, status=403, code="FORBIDDEN")
-        self.request("demo", "post", client=self.participant, status=403, code="FORBIDDEN")
+        self.request("demo", "post", client=self.participant, status=404, code="NOT_FOUND")
 
     def test_role_guard_even_if_participant_is_event_owner(self):
         self.event.owner = self.person

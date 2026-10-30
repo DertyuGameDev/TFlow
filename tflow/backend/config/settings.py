@@ -1,12 +1,14 @@
 import os
 from pathlib import Path
-from urllib.parse import unquote, urlparse
+from urllib.parse import parse_qs, unquote, urlparse
 
 BASE_DIR = Path(__file__).resolve().parent.parent
 PROJECT_DIR = BASE_DIR.parent
 DATA_DIR = BASE_DIR / "data"
-DATA_DIR.mkdir(exist_ok=True)
-DEBUG = os.environ.get("DJANGO_DEBUG", "1") == "1"
+IS_VERCEL = os.environ.get("VERCEL") == "1"
+DEBUG = os.environ.get("DJANGO_DEBUG", "0" if IS_VERCEL else "1") == "1"
+if not IS_VERCEL:
+    DATA_DIR.mkdir(exist_ok=True)
 SECRET_KEY = os.environ.get("DJANGO_SECRET_KEY", "")
 if not SECRET_KEY:
     if not DEBUG:
@@ -26,6 +28,12 @@ if not SECRET_KEY:
 
 ALLOWED_HOSTS = os.environ.get("DJANGO_ALLOWED_HOSTS", "127.0.0.1,localhost,[::1]").split(",")
 CSRF_TRUSTED_ORIGINS = [v for v in os.environ.get("DJANGO_CSRF_TRUSTED_ORIGINS", "").split(",") if v]
+if IS_VERCEL:
+    for key in ("VERCEL_URL", "VERCEL_PROJECT_PRODUCTION_URL", "VERCEL_BRANCH_URL"):
+        host = os.environ.get(key, "")
+        if host and "/" not in host:
+            ALLOWED_HOSTS.append(host)
+            CSRF_TRUSTED_ORIGINS.append(f"https://{host}")
 INSTALLED_APPS = [
     "django.contrib.auth", "django.contrib.contenttypes", "django.contrib.sessions",
     "django.contrib.messages", "django.contrib.staticfiles", "flow",
@@ -64,6 +72,8 @@ DATABASES = {"default": {
     "OPTIONS": {"timeout": 30, "transaction_mode": "IMMEDIATE"},
     "TEST": {"NAME": str(DATA_DIR / "test.sqlite3")},
 }}
+if IS_VERCEL and not os.environ.get("DATABASE_URL"):
+    raise RuntimeError("Vercel requires a persistent PostgreSQL DATABASE_URL")
 if os.environ.get("DATABASE_URL"):
     url = urlparse(os.environ["DATABASE_URL"])
     if url.scheme not in {"postgres", "postgresql"}:
@@ -71,7 +81,10 @@ if os.environ.get("DATABASE_URL"):
     DATABASES = {"default": {
         "ENGINE": "django.db.backends.postgresql", "NAME": unquote(url.path.lstrip("/")),
         "USER": unquote(url.username or ""), "PASSWORD": unquote(url.password or ""),
-        "HOST": url.hostname, "PORT": url.port or 5432, "CONN_MAX_AGE": 60,
+        "HOST": url.hostname, "PORT": url.port or 5432, "CONN_MAX_AGE": 0 if IS_VERCEL else 60,
+        "OPTIONS": {key: values[-1] for key, values in parse_qs(url.query).items()
+                    if key in {"sslmode", "channel_binding", "connect_timeout"}},
+        "DISABLE_SERVER_SIDE_CURSORS": IS_VERCEL,
     }}
 
 LANGUAGE_CODE = "ru-ru"
@@ -96,11 +109,13 @@ SECURE_HSTS_SECONDS = 31536000 if not DEBUG else 0
 SECURE_HSTS_INCLUDE_SUBDOMAINS = not DEBUG
 SECURE_HSTS_PRELOAD = not DEBUG
 # Enable only behind a trusted reverse proxy which overwrites X-Forwarded-Proto.
-if os.environ.get("DJANGO_TRUST_PROXY", "0") == "1":
+if IS_VERCEL or os.environ.get("DJANGO_TRUST_PROXY", "0") == "1":
     SECURE_PROXY_SSL_HEADER = ("HTTP_X_FORWARDED_PROTO", "https")
 STATIC_URL = "/static/"
 STATIC_ROOT = BASE_DIR / "staticfiles"
 STATICFILES_DIRS = [PROJECT_DIR / "public"]
+if (PROJECT_DIR / "dist").is_dir():
+    STATICFILES_DIRS.append(("app", PROJECT_DIR / "dist"))
 WHITENOISE_ROOT = PROJECT_DIR / "dist"
 WHITENOISE_USE_FINDERS = DEBUG
 STORAGES = {"default": {"BACKEND": "django.core.files.storage.FileSystemStorage"},

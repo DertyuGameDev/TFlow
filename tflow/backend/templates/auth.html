@@ -8,4 +8,4 @@
 {% if mode == 'register' %}<p class="password-help">Пароль — от 8 символов. Используйте буквы и цифры, избегайте распространённых паролей.</p>{% endif %}
 <button class="primary" type="submit">{% if mode == 'register' %}Зарегистрироваться{% else %}Войти{% endif %}<span aria-hidden="true">↗</span></button></form>
 <p class="switch">{% if mode == 'register' %}Уже есть аккаунт? <a href="/login/?next={{ next|urlencode }}">Войти</a>{% else %}Впервые здесь? <a href="/register/?next={{ next|urlencode }}">Зарегистрироваться</a>{% endif %}</p>
-{% if allow_demo %}<div class="demo-form"><div class="demo-role-buttons"><form method="post" action="/demo-login/">{% csrf_token %}<button class="secondary" type="submit" name="demo_role" value="organizer">Демо-организатор</button></form><form method="post" action="/demo-login/">{% csrf_token %}<button class="secondary" type="submit" name="demo_role" value="participant">Демо-участник</button></form></div><p>Только для локальной разработки</p></div>{% endif %}</section><footer>ТФлоу · Мероприятия без накладок</footer></main></body></html>
+</section><footer>ТФлоу · Мероприятия без накладок</footer></main></body></html>

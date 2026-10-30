@@ -1,0 +1,11 @@
+{
+  "$schema": "https://openapi.vercel.sh/vercel.json",
+  "framework": "django",
+  "regions": ["fra1"],
+  "functions": {
+    "backend/config/wsgi.py": {
+      "maxDuration": 60,
+      "includeFiles": "dist/**"
+    }
+  }
+}

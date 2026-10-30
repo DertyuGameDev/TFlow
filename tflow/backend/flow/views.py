@@ -1,4 +1,3 @@
-import ipaddress
 import json
 import logging
 from pathlib import Path
@@ -13,7 +12,6 @@ from django.views.decorators.cache import never_cache
 from django.views.decorators.csrf import ensure_csrf_cookie
 from .auth_forms import LoginForm, RegisterForm
 from .contracts import ActivityInput, EventInput, FlowError, MoveEventInput, ProfileInput, RoomInput, validate
-from .demo import initialize_demo
 from .models import Activity, Bookmark, Community, EventRegistration, Membership, Registration, User
 from .serializers import activities_for, activity_json, bootstrap, event_json, identity, milliseconds, visible_events
 from . import services
@@ -26,13 +24,6 @@ def safe_next(request):
     return value if value.startswith("/") and not value.startswith("//") and url_has_allowed_host_and_scheme(value, allowed_hosts={request.get_host()}, require_https=request.is_secure()) else "/"
 
 
-def local_demo_available(request):
-    try:
-        return settings.DEBUG and ipaddress.ip_address(request.META.get("REMOTE_ADDR", "")).is_loopback
-    except ValueError:
-        return False
-
-
 @never_cache
 def login_view(request):
     if request.user.is_authenticated:
@@ -41,7 +32,7 @@ def login_view(request):
     if request.method == "POST" and form.is_valid():
         login(request, form.get_user())
         return redirect(safe_next(request))
-    return render(request, "auth.html", {"form": form, "mode": "login", "next": safe_next(request), "allow_demo": local_demo_available(request)})
+    return render(request, "auth.html", {"form": form, "mode": "login", "next": safe_next(request)})
 
 
 @never_cache
@@ -57,27 +48,6 @@ def register_view(request):
             login(request, user)
             return redirect(safe_next(request))
     return render(request, "auth.html", {"form": form, "mode": "register", "next": safe_next(request)})
-
-
-def demo_login_view(request):
-    if request.method != "POST":
-        return HttpResponseNotAllowed(["POST"])
-    if not local_demo_available(request):
-        return HttpResponse(status=404)
-    participant = request.POST.get("demo_role") == "participant"
-    user_id = "local_participant" if participant else "local_seedy"
-    user, created = User.objects.get_or_create(pk=user_id, defaults={"email": "participant@tflow.test" if participant else "seedy@sites.test",
-                                                                   "name": "Демо-участник" if participant else "Демо-организатор",
-                                                                   "role": "participant" if participant else "organizer"})
-    if created:
-        user.set_unusable_password()
-        user.save(update_fields=["password"])
-    if user.has_usable_password():
-        return HttpResponse("Для этого аккаунта используйте обычный вход", status=403)
-    login(request, user, backend="django.contrib.auth.backends.ModelBackend")
-    if not participant:
-        initialize_demo(user)
-    return redirect(safe_next(request))
 
 
 def logout_view(request):
@@ -184,9 +154,7 @@ def dispatch_api(request, path):
             raise FlowError("VALIDATION", "Не удалось прочитать данные формы", 400) from error
         if not isinstance(body, dict):
             raise FlowError("VALIDATION", "Ожидается объект с полями формы", 400)
-    if path == "demo" and method == "POST":
-        initialize_demo(user)
-    elif path == "profile" and method == "PATCH":
+    if path == "profile" and method == "PATCH":
         values = validate(ProfileInput, body)
         for key, value in values.items():
             setattr(user, key, value)
