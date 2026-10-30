@@ -21,16 +21,32 @@ class LoginForm(AuthenticationForm):
         return self.cleaned_data["username"].strip().lower()
 
 
+class OrganizerSwitch(forms.CheckboxInput):
+    def __init__(self, attrs=None):
+        super().__init__(
+            attrs={"role": "switch", **(attrs or {})},
+            check_test=lambda value: value == "organizer",
+        )
+
+    def format_value(self, value):
+        return "organizer"
+
+    def value_from_datadict(self, data, files, name):
+        # An unchecked HTML switch is omitted from POST. Keep role validation
+        # and existing explicit participant/organizer form submissions intact.
+        return data.get(name, "participant")
+
+
 class RegisterForm(UserCreationForm):
     role = forms.ChoiceField(
-        label="Я хочу",
+        label="Организовывать",
         required=False,
         choices=[
             ("participant", "Участвовать"),
-            ("organizer", "Организовывать события"),
+            ("organizer", "Организовывать"),
         ],
         initial="participant",
-        widget=forms.RadioSelect,
+        widget=OrganizerSwitch,
     )
     email = forms.EmailField(
         label="Электронная почта",
