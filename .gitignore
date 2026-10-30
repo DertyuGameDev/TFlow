@@ -218,3 +218,10 @@ __marimo__/
 
 # Streamlit
 .streamlit/secrets.toml
+
+# Browser verification artifacts
+/.playwright-mcp/
+
+# Application source (override the Python template's lib/ rule)
+!tflow/lib/
+!tflow/lib/**

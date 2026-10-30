@@ -1,0 +1,98 @@
+import assert from 'node:assert/strict';
+import { randomUUID } from 'node:crypto';
+
+const base = process.argv[2] || 'http://127.0.0.1:4174';
+if (!['localhost','127.0.0.1'].includes(new URL(base).hostname)) throw new Error('These identity-header tests may run only against the local built Worker.');
+const run = randomUUID().slice(0,8);
+const owner = `test-owner-${run}`, p1 = `test-participant-${run}`, p2 = `test-other-${run}`;
+let checks = 0;
+async function api(path, { user=owner, method='GET', body, status=200, code, headers={} }={}) {
+  const result = await fetch(`${base}/api/${path}`, { method, headers: {
+    ...(user ? {'oai-authenticated-user-id':user,'oai-authenticated-user-email':`${user}@example.test`} : {}),
+    ...(body !== undefined ? {'Content-Type':'application/json'} : {}), ...headers,
+  },body:body!==undefined ? JSON.stringify(body):undefined });
+  const json=await result.json();
+  assert.equal(result.status,status,`${method} ${path}: ${JSON.stringify(json)}`);
+  if(code)assert.equal(json.code,code,`${path}: ${JSON.stringify(json)}`);
+  checks++;
+  return json;
+}
+const start=Date.now()+25*86400000;
+const event={title:`E2E ${run}`,description:'Integration test of the complete EventFlow registration contract.',starts_at:start,ends_at:start+12*3600000,city:'Мурманск',venue:'Тестовая площадка',address:'Тестовый адрес',format:'Очно',topic:'Разработка',kind:'Хакатон',cover:'mint'};
+await api('events',{user:null,method:'POST',body:event,status:401});
+await api('events',{method:'POST',body:event,status:403,headers:{origin:'https://other.example'}});
+await api('events',{method:'POST',body:{...event,ends_at:start-1},status:400});
+const {id:eid}=await api('events',{method:'POST',body:event,status:201});
+await api(`events/${eid}`,{user:p1,status:404});
+await api(`events/${eid}/publish`,{method:'POST',body:{},status:400});
+const {id:r1}=await api(`events/${eid}/rooms`,{method:'POST',body:{name:'Аудитория 1',capacity:2},status:201});
+const {id:r2}=await api(`events/${eid}/rooms`,{method:'POST',body:{name:'Аудитория 2',capacity:3},status:201});
+const activity=(title,room_id,s,e,capacity)=>({title,room_id,starts_at:start+s*3600000,ends_at:start+e*3600000,capacity,description:'Test activity',speaker:'Test speaker'});
+const av=activity('Активность A',r1,0,1,1);
+const bv=activity('Активность B',r2,.5,1.5,2);
+const cv=activity('Активность C',r1,1,2,2);
+const dv=activity('Активность D',r2,2,3,2);
+const {id:a}=await api(`events/${eid}/activities`,{method:'POST',body:av,status:201});
+const {id:b}=await api(`events/${eid}/activities`,{method:'POST',body:bv,status:201});
+const {id:c}=await api(`events/${eid}/activities`,{method:'POST',body:cv,status:201});
+const {id:d}=await api(`events/${eid}/activities`,{method:'POST',body:dv,status:201});
+await api(`events/${eid}/activities`,{method:'POST',body:activity('Пересечение',r1,.5,1.5,2),status:409,code:'ROOM_CONFLICT'});
+await api(`events/${eid}/activities`,{method:'POST',body:activity('Слишком много мест',r1,4,5,3),status:409,code:'ROOM_CAPACITY'});
+await api(`events/${eid}/activities`,{method:'POST',body:activity('За пределами дат',r1,13,14,1),status:409,code:'EVENT_DATES'});
+await api(`activities/${a}/registration`,{user:p1,method:'POST',body:{},status:409,code:'NOT_PUBLISHED'});
+await api(`events/${eid}/publish`,{method:'POST',body:{}});
+await api(`activities/${a}/registration`,{user:p1,method:'POST',body:{}});
+await api(`activities/${a}/registration`,{user:p1,method:'POST',body:{},status:409,code:'ALREADY_REGISTERED'});
+await api(`activities/${b}/registration`,{user:p1,method:'POST',body:{},status:409,code:'PARTICIPANT_CONFLICT'});
+await api(`activities/${a}/registration`,{user:p2,method:'POST',body:{},status:409,code:'NO_SEATS'});
+await api(`activities/${a}/registration`,{user:p2,method:'DELETE'});
+let detail=await api(`events/${eid}`,{user:p1});
+assert.equal(detail.activities.find(x=>x.id===a).taken,1,'Another user must not cancel my registration');
+await api(`activities/${a}/registration`,{user:p1,method:'DELETE'});
+const contenders=Array.from({length:20},(_,i)=>`race-${run}-${i}`);
+const race=await Promise.all(contenders.map(async user=>{
+  const result=await fetch(`${base}/api/activities/${a}/registration`,{method:'POST',headers:{'Content-Type':'application/json','oai-authenticated-user-id':user,'oai-authenticated-user-email':`${user}@example.test`},body:'{}'});
+  return {user,status:result.status,body:await result.json()};
+}));
+assert.equal(race.filter(r=>r.status===200).length,1,JSON.stringify(race));
+assert.equal(race.filter(r=>r.status===409&&r.body.code==='NO_SEATS').length,19,JSON.stringify(race));
+checks+=20;
+detail=await api(`events/${eid}`);
+assert.equal(detail.activities.find(x=>x.id===a).taken,1);
+await api(`activities/${a}/registration`,{user:race.find(r=>r.status===200).user,method:'DELETE'});
+const sameUser=`same-user-race-${run}`;
+const sameUserRace=await Promise.all([a,b].map(async id=>{
+  const result=await fetch(`${base}/api/activities/${id}/registration`,{method:'POST',headers:{'Content-Type':'application/json','oai-authenticated-user-id':sameUser,'oai-authenticated-user-email':`${sameUser}@example.test`},body:'{}'});
+  return {id,status:result.status,body:await result.json()};
+}));
+assert.equal(sameUserRace.filter(r=>r.status===200).length,1,JSON.stringify(sameUserRace));
+assert.equal(sameUserRace.filter(r=>r.status===409&&r.body.code==='PARTICIPANT_CONFLICT').length,1,JSON.stringify(sameUserRace));
+await api(`activities/${sameUserRace.find(r=>r.status===200).id}/registration`,{user:sameUser,method:'DELETE'});
+checks+=2;
+await api(`activities/${c}/registration`,{user:p1,method:'POST',body:{}});
+await api(`activities/${d}/registration`,{user:p1,method:'POST',body:{}});
+await api(`activities/${d}`,{method:'PATCH',body:{...dv,starts_at:start+1.5*3600000,ends_at:start+2.5*3600000},status:409,code:'ENROLLED_CONFLICT'});
+await api(`activities/${c}`,{method:'PATCH',body:{...cv,starts_at:start+.5*3600000},status:409,code:'ROOM_CONFLICT'});
+await api(`rooms/${r1}`,{method:'PATCH',body:{name:'Малый зал',capacity:1},status:409,code:'ROOM_CAPACITY'});
+await api(`activities/${c}`,{user:p2,method:'PATCH',body:cv,status:403});
+await api(`rooms/${r1}`,{user:p2,method:'PATCH',body:{name:'Взлом',capacity:50},status:403});
+await api(`events/${eid}`,{user:p2,method:'PATCH',body:event,status:403});
+await api(`events/${eid}/participants`,{user:p2,status:403});
+await api(`events/${eid}`,{method:'PATCH',body:{...event,ends_at:start+1.5*3600000},status:409,code:'EVENT_DATES'});
+await api(`activities/${c}`,{method:'PATCH',body:{...cv,title:'Обновлённая активность',room_id:r2,starts_at:start+4*3600000,ends_at:start+5*3600000}});
+const state=await api('bootstrap',{user:p1});
+const changed=state.schedule.find(s=>s.id===c);
+assert.equal(changed.title,'Обновлённая активность');
+assert.equal(changed.room_name,'Аудитория 2');
+assert.equal(changed.starts_at,start+4*3600000);
+assert.ok(state.notifications.some(n=>n.event_id===eid));
+await api('notifications',{user:p1,method:'PATCH',body:{}});
+await api(`events/${eid}/bookmark`,{user:p1,method:'POST',body:{}});
+assert.equal((await api('bootstrap',{user:p1})).events.find(e=>e.id===eid).saved,1);
+await api(`events/${eid}/bookmark`,{user:p1,method:'DELETE'});
+await api('profile',{user:p1,method:'PATCH',body:{name:'Тестовый участник',city:'Мурманск',about:'Проверка сохранения',interests:'AI'}});
+assert.equal((await api('bootstrap',{user:p1})).profile.name,'Тестовый участник');
+const rows=await api(`events/${eid}/participants`);
+assert.equal(rows.length,2);
+assert.ok(rows.every(r=>r.id===p1));
+console.log(JSON.stringify({ok:true,checks,concurrentRequests:20,lastSeatWinners:1,eventId:eid,verified:['authentication','ownership','draft visibility','room overlap','room capacity','event dates','duplicate registration','participant overlap','last seat race','simultaneous conflicting registrations','cancellation isolation','adjacent intervals','move conflict','live schedule','notifications','bookmarks','profile','participant list']},null,2));
