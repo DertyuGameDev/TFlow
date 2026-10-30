@@ -16,7 +16,7 @@ function App() {
       .then(setSession).catch(reason => { if (reason.name !== "AbortError") setError(reason.message); });
     return () => controller.abort();
   }, []);
-  if (error) return <main className="connection-error"><h1>Не удалось подключиться к серверу</h1><p>Убедитесь, что Django запущен, и обновите страницу.</p><button className="button primary" onClick={() => window.location.reload()}>Повторить</button></main>;
+  if (error) return <main className="connection-error"><h1>Не удалось загрузить ТФлоу</h1><p>Проверьте подключение к интернету и попробуйте ещё раз.</p><button className="button primary" onClick={() => window.location.reload()}>Повторить</button></main>;
   if (!session) return <main className="loading-state" role="status">Подключаемся к ТФлоу…</main>;
   return <TFlow user={session.user} onUserChange={user => setSession({user})} />;
 }

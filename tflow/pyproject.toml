@@ -1,3 +1,21 @@
+[project]
+name = "tflow"
+version = "0.3.0"
+requires-python = ">=3.12,<3.13"
+dependencies = [
+  "asgiref==3.13.0",
+  "django==5.2.18",
+  "gunicorn==23.0.0",
+  "packaging==26.3",
+  "pillow==13.0.0",
+  "psycopg==3.3.6",
+  "psycopg-binary==3.3.6",
+  "qrcode==8.2",
+  "sqlparse==0.6.0",
+  "typing-extensions==4.16.0",
+  "whitenoise==6.12.0",
+]
+
 [tool.vercel]
 entrypoint = "backend.config.wsgi:application"
 
