@@ -1,5 +1,7 @@
 # ТФлоу
 
+Сайт: https://tflow-one.vercel.app/ · GitLab: https://gitlab.t-education.com/hack-mmk-25/tflow/-/tree/main
+
 Платформа мероприятий по ТЗ EventFlow в жёлто-белом стиле референса Т Банка. Backend полностью на Python/Django, интерфейс — React/TypeScript. Каталог, программа, аудитории, регистрация на активности, личное расписание, кабинет организатора, сообщества и избранное.
 
 ## Быстрый запуск
