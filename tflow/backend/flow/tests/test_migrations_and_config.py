@@ -49,7 +49,8 @@ class LegacyMigrationTests(TransactionTestCase):
             ticket = Enrollment.objects.get(user_id=person.pk, event_id=event.pk)
             self.assertEqual(ticket.created_at, start)
         finally:
-            MigrationExecutor(connection).migrate(after)
+            executor = MigrationExecutor(connection)
+            executor.migrate(executor.loader.graph.leaf_nodes())
 
 
 class ProductionConfigTests(SimpleTestCase):

@@ -1,7 +1,7 @@
 "use client";
 import { useState, type FormEvent } from "react";
 import { AlertCircle, ArrowRight, LoaderCircle } from "lucide-react";
-import { CITIES, TOPICS, type Activity, type Community, type FlowEvent, type Profile, type Room } from "../../lib/types";
+import { CITIES, TOPICS, type Activity, type Community, type FlowEvent, type Room } from "../../lib/types";
 import { fromLocalInput, localInput } from "../../lib/time";
 export type Send = (path:string,method:string,body?:unknown)=>Promise<unknown>;
 type Props={ send:Send;done:()=>void };
@@ -11,7 +11,7 @@ export function useSubmit(action:(data:FormData)=>Promise<void>) {
   return {error,busy,submit};
 }
 export function FormError({error}:{error:string}){return error?<div className="form-error" role="alert"><AlertCircle size={18}/><span>{error}</span></div>:null;}
-export function Submit({busy,label}:{busy:boolean;label:string}){return <button className="button primary" type="submit" disabled={busy}>{busy?<LoaderCircle className="spin" size={18}/>:null}{busy?"Сохраняем…":label}{!busy&&<ArrowRight size={17}/>}</button>;}
+export function Submit({busy,label,disabled=false}:{busy:boolean;label:string;disabled?:boolean}){return <button className="button primary" type="submit" disabled={busy||disabled}>{busy?<LoaderCircle className="spin" size={18}/>:null}{busy?"Сохраняем…":label}{!busy&&<ArrowRight size={17}/>}</button>;}
 export function EventForm({event,communities,send,done}:{event?:FlowEvent;communities:Community[]}&Props){
   const start=event?.starts_at??Date.now()+86400000;
   const {submit,error,busy}=useSubmit(async d=>{
@@ -47,8 +47,4 @@ export function ActivityForm({event,rooms,activity,send,done}:{event:FlowEvent;r
     <p className="muted small">При переносе проверим занятость аудитории и расписания всех записанных участников. Изменение с конфликтами будет отклонено.</p>
     <FormError error={error}/><div className="form-footer"><Submit busy={busy} label={activity?"Сохранить изменения":"Добавить активность"}/></div>
   </form>;
-}
-export function ProfileForm({profile,send,done}:{profile:Profile}&Props){
-  const {submit,error,busy}=useSubmit(async d=>{await send("profile","PATCH",Object.fromEntries(d));done();});
-  return <form className="flow-form" onSubmit={submit}><label>Имя и фамилия<input name="name" required minLength={2} maxLength={80} defaultValue={profile.name}/></label><label>Город<input name="city" required minLength={2} maxLength={80} defaultValue={profile.city}/></label><label>О себе<textarea name="about" maxLength={1000} rows={4} defaultValue={profile.about} placeholder="Чем занимаетесь и какие задачи вам интересны"/></label><label>Интересы<input name="interests" maxLength={300} defaultValue={profile.interests} placeholder="Дизайн, AI, предпринимательство"/></label><FormError error={error}/><div className="form-footer"><Submit busy={busy} label="Сохранить профиль"/></div></form>;
 }

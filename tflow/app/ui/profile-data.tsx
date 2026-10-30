@@ -1,0 +1,37 @@
+import { useEffect, useState, type FormEvent } from "react";
+import { Check, ChevronDown } from "lucide-react";
+import type { FlowEvent, ParticipantData, Profile, RequiredProfileField } from "../../lib/types";
+import { ApiError } from "../../lib/api-error";
+import { PROFILE_FIELDS, REQUIREMENT_FIELDS, profileValue, type ProfileFieldDefinition } from "../../lib/profile-fields";
+import { FormError, Submit, type Send } from "./forms";
+
+function DataField({field,value,onChange,errors=[],required=false,prefix}:{field:ProfileFieldDefinition;value:string;onChange:(value:string)=>void;errors?:string[];required?:boolean;prefix:string}){
+  const id=`${prefix}-${field.key}`,errorId=`${id}-error`;
+  const attrs={id,name:field.key,value,onChange:(e:React.ChangeEvent<HTMLInputElement|HTMLTextAreaElement>)=>onChange(e.target.value),required,maxLength:field.maxLength,placeholder:field.placeholder,autoComplete:field.autocomplete,"aria-invalid":errors.length>0?true:undefined,"aria-describedby":errors.length?errorId:undefined};
+  return <div className={`form-field ${field.type==="textarea"?"profile-field-wide":""}`}><label htmlFor={id}>{field.label}{required&&<span aria-hidden="true"> *</span>}</label>{field.type==="textarea"?<textarea {...attrs} rows={3}/>:<input {...attrs} type={field.type??"text"} min={field.type==="date"?"1900-01-01":undefined} max={field.type==="date"?new Date().toLocaleDateString("en-CA"):undefined} minLength={field.key==="name"||field.key==="city"?2:undefined}/>} {errors.length>0&&<span className="profile-field-error" id={errorId}>{errors.join(" ")}</span>}</div>;
+}
+
+export function ParticipantDetails({data,showEmpty=false}:{data:Partial<ParticipantData>;showEmpty?:boolean}){
+  return <dl className="profile-data-grid">{PROFILE_FIELDS.filter(field=>field.key!=="name"&&(showEmpty||data[field.key])).map(field=><div key={field.key} className={field.type==="textarea"?"profile-field-wide":""}><dt>{field.label}</dt><dd className={!data[field.key]?"unfilled":""}>{data[field.key]?profileValue(field.key,data[field.key]!):"Не указано"}</dd></div>)}</dl>;
+}
+
+export function ExpandedProfileForm({profile,send,done}:{profile:Profile;send:Send;done:()=>void}){
+  const [values,setValues]=useState<ParticipantData>(profile),[error,setError]=useState(""),[fields,setFields]=useState<Record<string,string[]>>({}),[busy,setBusy]=useState(false);
+  async function submit(e:FormEvent){e.preventDefault();setBusy(true);setError("");setFields({});try{const {email:_,...data}=Object.fromEntries(PROFILE_FIELDS.map(f=>[f.key,values[f.key]??""]));await send("profile","PATCH",data);done();}catch(e){setError((e as Error).message);if(e instanceof ApiError)setFields(e.fields);}finally{setBusy(false);}}
+  return <form className="flow-form expanded-profile-form" onSubmit={submit}><p className="muted small">Заполняйте в удобном темпе. При записи данные получит организатор, а повторно вводить их не придётся.</p>{["Контакты","Работа и учёба","О себе"].map(group=><fieldset className="profile-field-group" key={group}><legend>{group}</legend><div className="profile-form-grid">{PROFILE_FIELDS.filter(field=>field.group===group&&field.key!=="email").map(field=><DataField key={field.key} field={field} value={values[field.key]??""} onChange={value=>setValues({...values,[field.key]:value})} errors={fields[field.key]} required={field.key==="name"} prefix="profile"/>)}</div></fieldset>)}<p className="profile-email-note">Почта аккаунта: {profile.email}</p><FormError error={error}/><div className="form-footer"><Submit busy={busy} label="Сохранить профиль"/></div></form>;
+}
+
+export function CompleteRegistrationForm({profile,event,path,missing,send,done}:{profile:Profile;event:FlowEvent;path:string;missing:RequiredProfileField[];send:Send;done:()=>void}){
+  const [keys,setKeys]=useState(missing),[values,setValues]=useState<Partial<ParticipantData>>({}),[error,setError]=useState(""),[fields,setFields]=useState<Record<string,string[]>>({}),[busy,setBusy]=useState(false);
+  async function submit(e:FormEvent){e.preventDefault();setBusy(true);setError("");setFields({});try{await send(path,"POST",Object.fromEntries(keys.map(key=>[key,values[key]??profile[key]??""])));done();}catch(e){setError((e as Error).message);if(e instanceof ApiError){setFields(e.fields);if(e.code==="PROFILE_INCOMPLETE")setKeys(current=>Array.from(new Set([...current,...e.missing_fields])));}}finally{setBusy(false);}}
+  return <form className="flow-form complete-registration-form" onSubmit={submit}><div className="registration-form-context"><strong>{event.title}</strong><p>Организатору нужны ещё эти данные. Сохраним их в вашем профиле и сразу завершим запись.</p></div>{keys.map(key=>{const field=REQUIREMENT_FIELDS.find(f=>f.key===key);return field?<DataField key={key} field={field} value={values[key]??profile[key]??""} onChange={value=>setValues({...values,[key]:value})} required errors={fields[key]} prefix="registration"/>:null;})}<p className="muted small">Организатор получит данные вашего профиля вместе с регистрацией.</p><FormError error={error}/><div className="form-footer"><Submit busy={busy} label="Сохранить и записаться"/></div></form>;
+}
+
+export function RegistrationSettings({event,send,refresh}:{event:FlowEvent;send:Send;refresh:()=>Promise<void>}){
+  const savedKey=(event.required_profile_fields??[]).join(",");
+  const [selected,setSelected]=useState<RequiredProfileField[]>(event.required_profile_fields??[]),[busy,setBusy]=useState(false),[error,setError]=useState(""),[saved,setSaved]=useState(false);
+  useEffect(()=>{setSelected(savedKey?savedKey.split(",") as RequiredProfileField[]:[]);},[savedKey]);
+  const dirty=[...selected].sort().join(",")!==[...(event.required_profile_fields??[])].sort().join(",");
+  async function submit(e:FormEvent){e.preventDefault();setBusy(true);setError("");setSaved(false);try{await send(`events/${event.id}/requirements`,"PATCH",{required_profile_fields:selected});await refresh();setSaved(true);}catch(e){setError((e as Error).message);}finally{setBusy(false);}}
+  return <details className="registration-settings"><summary><div><h2>Данные при записи</h2><p>Имя и почта{event.required_profile_fields?.length?` + ${event.required_profile_fields.length} ${event.required_profile_fields.length===1?"поле":event.required_profile_fields.length<5?"поля":"полей"}`:" — без дополнительных требований"}</p></div><ChevronDown size={20} aria-hidden="true"/></summary><form className="flow-form" onSubmit={submit}><p className="muted small">Выберите обязательные поля. Если в профиле участника их нет, попросим заполнить только недостающее перед записью.</p><fieldset className="requirement-options"><legend className="sr-only">Обязательные поля профиля</legend>{REQUIREMENT_FIELDS.map(field=><label key={field.key}><input type="checkbox" checked={selected.includes(field.key as RequiredProfileField)} onChange={e=>{setSaved(false);setSelected(current=>e.target.checked?[...current,field.key as RequiredProfileField]:current.filter(key=>key!==field.key));}}/><span>{field.label}</span></label>)}</fieldset><p className="muted small">Все заполненные данные профиля появятся в карточке участника. Новые требования действуют для новых записей, уже выданные билеты сохранятся.</p><FormError error={error}/><div className="requirements-save"><Submit busy={busy} disabled={!dirty} label="Сохранить требования"/>{saved&&<span role="status"><Check size={16}/>Сохранено</span>}</div></form></details>;
+}

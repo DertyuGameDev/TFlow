@@ -1,5 +1,6 @@
 from django.db.models import Count, Exists, OuterRef, Q, Subquery, Value
 from django.db.models.functions import Coalesce
+from .profile_data import participant_profile
 from .models import (
     Activity,
     Bookmark,
@@ -32,12 +33,8 @@ def profile(user):
     if not user.is_authenticated:
         return None
     return {
+        **participant_profile(user),
         "id": user.pk,
-        "name": user.name,
-        "email": user.email,
-        "city": user.city,
-        "about": user.about,
-        "interests": user.interests,
         "role": user.role,
         "pass_token": str(user.pass_token),
     }
@@ -108,6 +105,7 @@ def event_json(event):
         "cover",
         "status",
         "community_id",
+        "required_profile_fields",
     ]
     data = {key: getattr(event, key) for key in keys}
     data.update(
