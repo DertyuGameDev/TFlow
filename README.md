@@ -50,6 +50,15 @@ npm start
 
 [Архитектура и требования](./tflow/docs/requirements.md) · [Результаты проверки](./tflow/docs/verification.md)
 
+## GitLab CI и Spirit
+
+[GitLab CI](./.gitlab-ci.yml) проверяет frontend и Django на PostgreSQL, собирает
+приложение и сохраняет архив релиза с контрольной суммой. Репозиторий и проверенный
+релиз размещены на выделенной VM `vm1` в Spirit. У приложения отдельная постоянная
+PostgreSQL; запуском управляет systemd. Выкладка релиза выполняется отдельно от push.
+Команды установки и текущий статус публичного HTTPS —
+в [инструкции Spirit](./tflow/deploy/spirit/README.md).
+
 ## Заметка команды из начального README
 
 Рофлянчик
