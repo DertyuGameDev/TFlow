@@ -57,10 +57,11 @@ import { Avatar, AvatarForm } from "./ui/avatar";
 import { CityPicker } from "./ui/city-picker";
 import { BrandLogo } from "./ui/brand-logo";
 import { OrganizerIntro } from "./ui/organizer-intro";
+import { Calendar } from "./ui/calendar";
 
-type Route = { view: string; id?: string };
+type Route = { view: string; id?: string; mode?: string };
 type DialogState =
-  | { type: "create" }
+  | { type: "create"; startsAt?: number }
   | { type: "edit" | "move" | "cancel"; event: FlowEvent }
   | { type: "profile" | "avatar" }
   | { type: "filters" }
@@ -81,9 +82,10 @@ const go = (view: string, id?: string) => {
   window.scrollTo({ top: 0, behavior: "instant" });
 };
 const routeFromHash = (organizer: boolean): Route => {
-  const [view, id] = location.hash.slice(1).split("/");
+  const [view, id, mode] = location.hash.slice(1).split("/");
   const valid = [
     "events",
+    "calendar",
     "tickets",
     "profile",
     "saved",
@@ -98,7 +100,7 @@ const routeFromHash = (organizer: boolean): Route => {
     "places",
   ];
   return valid.includes(view)
-    ? { view, id }
+    ? { view, id, mode }
     : { view: organizer ? "organizer" : "events" };
 };
 const loginLink = (view = "events", id?: string) =>
@@ -953,15 +955,17 @@ export function TFlow({
     setDate("");
     setTopic("");
   };
+  const calendarNav = { id: "calendar", name: "Календарь", icon: CalendarDays };
   const nav = organizerArea
     ? [
         { id: "organizer", name: "Мои события", icon: CalendarDays },
+        calendarNav,
         { id: "scan", name: "Сканировать", icon: ScanLine },
         { id: "profile", name: "Профиль", icon: Users },
       ]
     : [
         { id: "events", name: "События", icon: Search },
-        { id: "schedule", name: "Программа", icon: CalendarDays },
+        calendarNav,
         { id: "tickets", name: "Мои билеты", icon: Ticket },
         { id: "profile", name: "Профиль", icon: Users },
       ];
@@ -973,6 +977,7 @@ export function TFlow({
   const brandDestination = organizerArea ? "organizer" : "events";
   const activeNav = (id: string) =>
     route.view === id ||
+    (id === "calendar" && route.view === "schedule") ||
     (organizer && id === "organizer" && route.view === "manage") ||
     (!organizerArea && id === "events" && route.view === "event") ||
     (!organizerArea && id === "profile" && route.view === "pass");
@@ -1743,72 +1748,110 @@ export function TFlow({
                 )}
               </>
             )}
-            {route.view === "schedule" && (
+            {["calendar", "schedule"].includes(route.view) && (
               <>
-                <Heading
-                  title="Моя программа"
-                  text="Ваши активности и очередь — в одном месте"
-                >
-                  {data.schedule.length > 0 && (
-                    <a
-                      className="button secondary"
-                      href="/api/schedule/calendar"
-                      download
-                    >
-                      <Download size={17} />В календарь · .ics
-                    </a>
-                  )}
-                </Heading>
-                {data.schedule.length > 0 ? (
+                {user ? (
                   <>
-                    <p className="calendar-hint">
-                      В файл войдут только подтверждённые активности с
-                      напоминанием за 30 минут. После переноса скачайте его
-                      заново — это разовый экспорт.
-                    </p>
-                    <ActivityProgram
-                      personal
-                      activities={data.schedule}
-                      {...programActions}
+                    <Calendar
+                      data={data}
+                      userId={user.userId}
+                      initialDate={route.id}
+                      initialView={route.mode}
+                      canCreate={organizer}
+                      onCreate={(startsAt) =>
+                        setDialog({ type: "create", startsAt })
+                      }
+                      onBrowse={() => go("events")}
+                      onOpenEvent={(entry) =>
+                        go(
+                          entry.source === "owned" ? "manage" : "event",
+                          entry.eventId,
+                        )
+                      }
                     />
+                    {(data.schedule.length > 0 || data.waitlist.length > 0) && (
+                      <>
+                        <Heading
+                          title="Моя программа"
+                          text="Ваши активности и очередь — в одном месте"
+                        >
+                          {data.schedule.length > 0 && (
+                            <a
+                              className="button secondary"
+                              href="/api/schedule/calendar"
+                              download
+                            >
+                              <Download size={17} />В календарь · .ics
+                            </a>
+                          )}
+                        </Heading>
+                        {data.schedule.length > 0 && (
+                          <>
+                            <p className="calendar-hint">
+                              В файл войдут только подтверждённые активности с
+                              напоминанием за 30 минут. После переноса скачайте
+                              его заново — это разовый экспорт.
+                            </p>
+                            <ActivityProgram
+                              personal
+                              activities={data.schedule}
+                              {...programActions}
+                            />
+                          </>
+                        )}
+                        {data.waitlist.length > 0 && (
+                          <section className="personal-waitlist">
+                            <div className="section-title">
+                              <h2>Лист ожидания</h2>
+                              <span>{data.waitlist.length}</span>
+                            </div>
+                            <p>
+                              Место освободится — запишем вас автоматически и
+                              уведомим. Если время будет занято, сохраним
+                              очередь и пропустим следующего участника. Отмена
+                              билета также убирает вас из очередей этого
+                              события.
+                            </p>
+                            {data.waitlist.map((a) => (
+                              <div className="waitlist-item" key={a.id}>
+                                <p>
+                                  {dateLabel(a.starts_at, { year: "numeric" })}
+                                </p>
+                                <ActivityCard
+                                  activity={a}
+                                  personal
+                                  {...programActions}
+                                />
+                              </div>
+                            ))}
+                          </section>
+                        )}
+                      </>
+                    )}
                   </>
                 ) : (
-                  <Empty
-                    title="Пока нет активностей"
-                    text="Откройте программу события и выберите интересные встречи."
-                  >
-                    <button
-                      className="button primary"
-                      onClick={() => go("events")}
+                  <>
+                    <Heading
+                      title="Ваш календарь"
+                      text="События и активности, на которые вы записались"
+                    />
+                    <Empty
+                      icon={CalendarDays}
+                      title="Все планы — в одном месте"
+                      text="Войдите, чтобы видеть свои события в календаре месяца и расписание дня по часам."
                     >
-                      Найти событие
-                      <ArrowRight size={17} />
-                    </button>
-                  </Empty>
-                )}
-                {data.waitlist.length > 0 && (
-                  <section className="personal-waitlist">
-                    <div className="section-title">
-                      <h2>Лист ожидания</h2>
-                      <span>{data.waitlist.length}</span>
-                    </div>
-                    <p>
-                      Место освободится — запишем вас автоматически и уведомим.
-                      Если время будет занято, сохраним очередь и пропустим
-                      следующего участника. Отмена билета также убирает вас из
-                      очередей этого события.
-                    </p>
-                    {data.waitlist.map((a) => (
-                      <div className="waitlist-item" key={a.id}>
-                        <p>{dateLabel(a.starts_at, { year: "numeric" })}</p>
-                        <ActivityCard
-                          activity={a}
-                          personal
-                          {...programActions}
-                        />
-                      </div>
-                    ))}
-                  </section>
+                      <a
+                        className="button primary"
+                        href={loginLink("calendar")}
+                      >
+                        Войти
+                        <ArrowRight size={17} />
+                      </a>
+                      <a className="text-button" href={signupLink("calendar")}>
+                        Создать аккаунт
+                      </a>
+                    </Empty>
+                  </>
                 )}
               </>
             )}
@@ -1928,7 +1971,11 @@ export function TFlow({
           </div>
         </footer>
       </main>
-      <nav className="mobile-bottom-nav" aria-label="Мобильная навигация">
+      <nav
+        className="mobile-bottom-nav"
+        aria-label="Мобильная навигация"
+        style={{ gridTemplateColumns: `repeat(${nav.length},minmax(0,1fr))` }}
+      >
         {nav.map(({ id, name, icon: Icon }) => (
           <a
             className={activeNav(id) ? "active" : ""}
@@ -1968,6 +2015,9 @@ export function TFlow({
           onClose={() => setDialog(null)}
         >
           <QuickEventForm
+            initialStart={
+              dialog.type === "create" ? dialog.startsAt : undefined
+            }
             event={
               dialog.type === "edit" || dialog.type === "move"
                 ? dialog.event

@@ -126,6 +126,38 @@ class RoleAndPassTests(Scenario, TestCase):
         self.assertEqual(response.status_code, 302)
         self.assertEqual(client.get("/api/auth/me").json()["user"]["role"], "organizer")
 
+    def test_organizer_switch_initial_state(self):
+        for query, checked in [("", False), ("?role=organizer", True)]:
+            with self.subTest(query=query):
+                response = Client().get(f"/register/{query}")
+                widget = str(response.context["form"]["role"])
+                self.assertIn('type="checkbox"', widget)
+                self.assertIn('role="switch"', widget)
+                self.assertIn('value="organizer"', widget)
+                self.assertEqual(" checked" in widget, checked)
+
+    def test_organizer_switch_survives_validation_error_and_can_be_disabled(self):
+        client = Client()
+        data = {
+            "role": "organizer",
+            "email": "switch@example.test",
+            "first_name": "Новый",
+            "last_name": "участник",
+            "password1": "Unrelated-new-strong-44!",
+            "password2": "mismatch",
+        }
+        response = client.post("/register/", data)
+        self.assertEqual(response.status_code, 200)
+        self.assertIn(" checked", str(response.context["form"]["role"]))
+        self.assertFalse(User.objects.filter(email=data["email"]).exists())
+
+        # Unchecking a native checkbox removes its name from the browser POST.
+        del data["role"]
+        data["password2"] = data["password1"]
+        response = client.post("/register/", data)
+        self.assertEqual(response.status_code, 302)
+        self.assertEqual(client.get("/api/auth/me").json()["user"]["role"], "participant")
+
     def test_qr_image_is_private_and_real_png(self):
         self.request("profile/qr", client=Client(), status=401)
         result = self.participant.get("/api/profile/qr")

@@ -8,16 +8,18 @@ export function QuickEventForm({
   event,
   move = false,
   city = "Москва",
+  initialStart,
   send,
   done,
 }: {
   event?: FlowEvent;
   move?: boolean;
   city?: string;
+  initialStart?: number;
   send: Send;
   done: (id?: string) => void;
 }) {
-  const start = event?.starts_at ?? Date.now() + 86400000;
+  const start = event?.starts_at ?? initialStart ?? Date.now() + 86400000;
   const [startValue, setStartValue] = useState(localInput(start));
   const [endValue, setEndValue] = useState(
     localInput(event?.ends_at ?? start + 2 * 3600000),
