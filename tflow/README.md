@@ -1,4 +1,4 @@
-# ТФлоу 0.2: Django + React
+# ТФлоу 0.3: Django + React
 
 ## Разработка
 

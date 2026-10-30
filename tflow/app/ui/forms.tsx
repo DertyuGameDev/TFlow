@@ -5,13 +5,13 @@ import { CITIES, TOPICS, type Activity, type Community, type FlowEvent, type Pro
 import { fromLocalInput, localInput } from "../../lib/time";
 export type Send = (path:string,method:string,body?:unknown)=>Promise<unknown>;
 type Props={ send:Send;done:()=>void };
-function useSubmit(action:(data:FormData)=>Promise<void>) {
+export function useSubmit(action:(data:FormData)=>Promise<void>) {
   const [error,setError]=useState(""),[busy,setBusy]=useState(false);
   async function submit(e:FormEvent<HTMLFormElement>){e.preventDefault();setError("");setBusy(true);try{await action(new FormData(e.currentTarget));}catch(e){setError(e instanceof Error?e.message:"Не удалось сохранить");}finally{setBusy(false);}}
   return {error,busy,submit};
 }
 export function FormError({error}:{error:string}){return error?<div className="form-error" role="alert"><AlertCircle size={18}/><span>{error}</span></div>:null;}
-function Submit({busy,label}:{busy:boolean;label:string}){return <button className="button primary" type="submit" disabled={busy}>{busy?<LoaderCircle className="spin" size={18}/>:null}{busy?"Сохраняем…":label}{!busy&&<ArrowRight size={17}/>}</button>;}
+export function Submit({busy,label}:{busy:boolean;label:string}){return <button className="button primary" type="submit" disabled={busy}>{busy?<LoaderCircle className="spin" size={18}/>:null}{busy?"Сохраняем…":label}{!busy&&<ArrowRight size={17}/>}</button>;}
 export function EventForm({event,communities,send,done}:{event?:FlowEvent;communities:Community[]}&Props){
   const start=event?.starts_at??Date.now()+86400000;
   const {submit,error,busy}=useSubmit(async d=>{

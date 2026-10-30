@@ -32,12 +32,14 @@ class EventInput(forms.Form):
     kind = forms.CharField(min_length=2, max_length=60)
     cover = forms.ChoiceField(choices=[(v, v) for v in ["yellow", "photo", "blue", "mint", "peach", "violet"]])
     community_id = forms.CharField(required=False, max_length=100)
+    capacity = forms.IntegerField(required=False, min_value=1, max_value=100000)
 
     def clean(self):
         data = super().clean()
         if data.get("starts_at") and data.get("ends_at") and data["starts_at"] >= data["ends_at"]:
             self.add_error("ends_at", "Окончание должно быть позже начала")
         data["community_id"] = data.get("community_id") or None
+        data["capacity"] = data.get("capacity") or 500
         return data
 
 
@@ -67,6 +69,20 @@ class ProfileInput(forms.Form):
     city = forms.CharField(min_length=2, max_length=80)
     about = forms.CharField(required=False, max_length=1000)
     interests = forms.CharField(required=False, max_length=300)
+
+
+class MoveEventInput(forms.Form):
+    starts_at = MillisecondsField()
+    ends_at = MillisecondsField()
+    city = forms.CharField(min_length=2, max_length=80)
+    venue = forms.CharField(min_length=2, max_length=160)
+    address = forms.CharField(required=False, max_length=240)
+
+    def clean(self):
+        data = super().clean()
+        if data.get("starts_at") and data.get("ends_at") and data["starts_at"] >= data["ends_at"]:
+            self.add_error("ends_at", "Окончание должно быть позже начала")
+        return data
 
 
 def validate(form_type, body):

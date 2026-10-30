@@ -22,6 +22,7 @@ class UserManager(BaseUserManager):
         return user
 
     def create_superuser(self, email, password=None, **extra):
+        extra.setdefault("role", "organizer")
         extra.setdefault("is_staff", True)
         extra.setdefault("is_superuser", True)
         if not extra["is_staff"] or not extra["is_superuser"]:
@@ -37,6 +38,8 @@ class User(AbstractUser):
     city = models.CharField(max_length=80, default="Москва")
     about = models.TextField(blank=True, max_length=1000)
     interests = models.CharField(blank=True, max_length=300)
+    role = models.CharField(max_length=16, choices=[("participant", "Участник"), ("organizer", "Организатор")], default="participant")
+    pass_token = models.UUIDField(default=uuid.uuid4, unique=True, editable=False)
     USERNAME_FIELD = "email"
     REQUIRED_FIELDS = ["name"]
     objects = UserManager()
@@ -75,10 +78,12 @@ class Event(models.Model):
     status = models.CharField(max_length=10, choices=[("draft", "Черновик"), ("published", "Опубликовано")], default="draft")
     community = models.ForeignKey(Community, on_delete=models.SET_NULL, null=True, blank=True)
     updated_at = models.DateTimeField(default=timezone.now)
+    capacity = models.PositiveIntegerField(default=500)
 
     class Meta:
         ordering = ["starts_at", "id"]
-        constraints = [models.CheckConstraint(condition=Q(ends_at__gt=F("starts_at")), name="event_positive_duration")]
+        constraints = [models.CheckConstraint(condition=Q(ends_at__gt=F("starts_at")), name="event_positive_duration"),
+                       models.CheckConstraint(condition=Q(capacity__gte=1, capacity__lte=100000), name="event_valid_capacity")]
 
 
 class Room(models.Model):
@@ -120,6 +125,25 @@ class Registration(models.Model):
 
     class Meta:
         constraints = [models.UniqueConstraint(fields=["user", "activity"], name="unique_registration")]
+
+
+class EventRegistration(models.Model):
+    user = models.ForeignKey(User, on_delete=models.CASCADE, related_name="event_registrations")
+    event = models.ForeignKey(Event, on_delete=models.CASCADE, related_name="enrollments")
+    created_at = models.DateTimeField(default=timezone.now)
+
+    class Meta:
+        constraints = [models.UniqueConstraint(fields=["user", "event"], name="unique_event_registration")]
+
+
+class CheckIn(models.Model):
+    user = models.ForeignKey(User, on_delete=models.CASCADE, related_name="check_ins")
+    event = models.ForeignKey(Event, on_delete=models.CASCADE, related_name="check_ins")
+    checked_by = models.ForeignKey(User, on_delete=models.PROTECT, related_name="performed_check_ins")
+    created_at = models.DateTimeField(default=timezone.now)
+
+    class Meta:
+        constraints = [models.UniqueConstraint(fields=["user", "event"], name="unique_event_check_in")]
 
 
 class Bookmark(models.Model):

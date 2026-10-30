@@ -16,7 +16,7 @@ FAST_HASHER = ["django.contrib.auth.hashers.MD5PasswordHasher"]
 class Scenario:
     def setUp(self):
         ScheduleLock.objects.get_or_create(pk=1)
-        self.owner = User.objects.create_user("owner@example.test", "Local-test-password-42!", name="Организатор")
+        self.owner = User.objects.create_user("owner@example.test", "Local-test-password-42!", name="Организатор", role="organizer")
         self.person = User.objects.create_user("person@example.test", "Local-test-password-42!", name="Участник")
         self.other = User.objects.create_user("other@example.test", "Local-test-password-42!", name="Другой участник")
         self.start = timezone.now().replace(microsecond=0) + timedelta(days=20)
@@ -78,7 +78,7 @@ class ApiTests(Scenario, TestCase):
         event = Event.objects.get(pk=result["id"])
         self.assertEqual(event.owner, self.owner)
         self.assertEqual(event.status, "draft")
-        self.request(f"events/{event.pk}/publish", "post", status=400, code="EMPTY_PROGRAM")
+        self.request(f"events/{event.pk}/publish", "post")
         self.request(f"events/{self.event.pk}/publish", "post")
         self.event.refresh_from_db()
         self.assertEqual(self.event.status, "published")

@@ -3,10 +3,11 @@ from datetime import timedelta
 from pathlib import Path
 from django.utils import timezone
 from .models import Activity, Community, Event, Room
-from .services import schedule_write
+from .services import require_organizer, schedule_write
 
 
 def initialize_demo(user):
+    require_organizer(user)
     source = json.loads(Path(__file__).with_name("demo_data.json").read_text())
     base = (timezone.now() + timedelta(days=7)).replace(hour=6, minute=0, second=0, microsecond=0)
     with schedule_write():

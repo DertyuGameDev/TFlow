@@ -12,9 +12,9 @@ from django.utils.http import url_has_allowed_host_and_scheme
 from django.views.decorators.cache import never_cache
 from django.views.decorators.csrf import ensure_csrf_cookie
 from .auth_forms import LoginForm, RegisterForm
-from .contracts import ActivityInput, EventInput, FlowError, ProfileInput, RoomInput, validate
+from .contracts import ActivityInput, EventInput, FlowError, MoveEventInput, ProfileInput, RoomInput, validate
 from .demo import initialize_demo
-from .models import Activity, Bookmark, Community, Membership, Registration, User
+from .models import Activity, Bookmark, Community, EventRegistration, Membership, Registration, User
 from .serializers import activities_for, activity_json, bootstrap, event_json, identity, milliseconds, visible_events
 from . import services
 
@@ -46,7 +46,8 @@ def login_view(request):
 
 @never_cache
 def register_view(request):
-    form = RegisterForm(request.POST or None)
+    initial_role = "organizer" if request.GET.get("role") == "organizer" else "participant"
+    form = RegisterForm(request.POST or None, initial={"role": initial_role})
     if request.method == "POST" and form.is_valid():
         try:
             user = form.save()
@@ -63,14 +64,19 @@ def demo_login_view(request):
         return HttpResponseNotAllowed(["POST"])
     if not local_demo_available(request):
         return HttpResponse(status=404)
-    user, created = User.objects.get_or_create(pk="local_seedy", defaults={"email": "seedy@sites.test", "name": "Демо-организатор"})
+    participant = request.POST.get("demo_role") == "participant"
+    user_id = "local_participant" if participant else "local_seedy"
+    user, created = User.objects.get_or_create(pk=user_id, defaults={"email": "participant@tflow.test" if participant else "seedy@sites.test",
+                                                                   "name": "Демо-участник" if participant else "Демо-организатор",
+                                                                   "role": "participant" if participant else "organizer"})
     if created:
         user.set_unusable_password()
         user.save(update_fields=["password"])
     if user.has_usable_password():
         return HttpResponse("Для этого аккаунта используйте обычный вход", status=403)
     login(request, user, backend="django.contrib.auth.backends.ModelBackend")
-    initialize_demo(user)
+    if not participant:
+        initialize_demo(user)
     return redirect(safe_next(request))
 
 
@@ -131,10 +137,27 @@ def dispatch_api(request, path):
         from .models import ScheduleLock
         ScheduleLock.objects.get(pk=1)
         return JsonResponse({"ok": True, "backend": "django"})
+    if path == "profile/qr" and method == "GET":
+        from io import BytesIO
+        import qrcode
+        user = require_user(request)
+        output = BytesIO()
+        qrcode.make(request.build_absolute_uri(f"/#pass/{user.pass_token}"), box_size=9, border=4).save(output, format="PNG")
+        return HttpResponse(output.getvalue(), content_type="image/png", headers={"Cache-Control": "private, no-store"})
     if method == "GET":
         if path == "bootstrap":
             return JsonResponse(bootstrap(user))
         if resource == "events" and item_id:
+            if action == "attendance":
+                event = services.owned_event(item_id, require_user(request))
+                rows = event.enrollments.select_related("user").order_by("-created_at")
+                check_ins = {entry.user_id: entry for entry in event.check_ins.all()}
+                return JsonResponse([{"id": row.user_id, "name": row.user.name, "email": row.user.email,
+                                      "city": row.user.city, "created_at": milliseconds(row.created_at),
+                                      "checked_in_at": milliseconds(check_ins[row.user_id].created_at) if row.user_id in check_ins else None} for row in rows], safe=False)
+            if action == "attendee":
+                _, person = services.attendee_by_qr(require_user(request), item_id, request.GET.get("qr", ""))
+                return JsonResponse(attendee_json(person, item_id))
             if action == "participants":
                 services.owned_event(item_id, require_user(request))
                 rows = Registration.objects.filter(activity__event_id=item_id).select_related("user", "activity").order_by("activity__starts_at", "user__name")
@@ -192,6 +215,16 @@ def dispatch_api(request, path):
             services.update_event(user, item_id, validate(EventInput, body))
         elif item_id and action == "publish" and method == "POST":
             services.publish_event(user, item_id)
+        elif item_id and action == "move" and method == "PATCH":
+            services.move_event(user, item_id, validate(MoveEventInput, body))
+        elif item_id and action == "registration" and method == "POST":
+            services.enroll_event(user, item_id)
+        elif item_id and action == "registration" and method == "DELETE":
+            services.cancel_event(user, item_id)
+        elif item_id and action == "check-in" and method == "POST":
+            person, entry, repeated = services.check_in(user, item_id, body.get("qr", ""))
+            return JsonResponse({"admitted": True, "already_checked_in": repeated,
+                                 "checked_in_at": milliseconds(entry.created_at), "attendee": attendee_json(person, item_id)})
         elif item_id and action == "rooms" and method == "POST":
             room = services.save_room(user, validate(RoomInput, body), event_id=item_id)
             return JsonResponse({"id": room.pk}, status=201)
@@ -214,3 +247,9 @@ def dispatch_api(request, path):
     else:
         raise FlowError("NOT_FOUND", "Действие не найдено", 404)
     return JsonResponse({"ok": True})
+
+
+def attendee_json(person, event_id):
+    return {"id": person.pk, "name": person.name, "email": person.email, "city": person.city,
+            "about": person.about, "interests": person.interests,
+            "activities": list(person.registrations.filter(activity__event_id=event_id).values_list("activity__title", flat=True))}

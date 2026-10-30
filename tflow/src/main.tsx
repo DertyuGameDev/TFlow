@@ -4,6 +4,7 @@ import { TFlow } from "../app/tflow";
 import type { UserIdentity } from "../lib/types";
 import "../app/globals.css";
 import "../app/responsive.css";
+import "../app/flow.css";
 
 function App() {
   const [session, setSession] = useState<{user: UserIdentity | null} | null>(null);

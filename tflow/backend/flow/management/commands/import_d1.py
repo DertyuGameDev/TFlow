@@ -3,7 +3,7 @@ from datetime import datetime, timezone
 from pathlib import Path
 from django.conf import settings
 from django.core.management.base import BaseCommand, CommandError
-from flow.models import Activity, Bookmark, Community, Event, Membership, Notification, Registration, Room, User
+from flow.models import Activity, Bookmark, Community, Event, EventRegistration, Membership, Notification, Registration, Room, User
 from flow.services import schedule_write, validate_activity
 
 
@@ -60,6 +60,9 @@ class Command(BaseCommand):
                     Activity.objects.get_or_create(pk=row["id"], defaults=values)
                 for row in data["registrations"]:
                     Registration.objects.get_or_create(user_id=row["user_id"], activity_id=row["activity_id"], defaults={"created_at": timestamp(row["created_at"])})
+                    EventRegistration.objects.get_or_create(user_id=row["user_id"], event_id=Activity.objects.get(pk=row["activity_id"]).event_id,
+                                                            defaults={"created_at": timestamp(row["created_at"])})
+                User.objects.filter(pk__in=Event.objects.values("owner_id")).update(role="organizer")
                 for row in data["bookmarks"]:
                     Bookmark.objects.get_or_create(user_id=row["user_id"], event_id=row["event_id"])
                 for row in data["memberships"]:

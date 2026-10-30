@@ -12,6 +12,7 @@ class LoginForm(AuthenticationForm):
 
 
 class RegisterForm(UserCreationForm):
+    role = forms.ChoiceField(label="Я хочу", required=False, choices=[("participant", "Участвовать"), ("organizer", "Организовывать события")], initial="participant", widget=forms.RadioSelect)
     email = forms.EmailField(label="Электронная почта", widget=forms.EmailInput(attrs={"autocomplete": "email"}))
     name = forms.CharField(label="Имя и фамилия", min_length=2, max_length=80, widget=forms.TextInput(attrs={"autocomplete": "name", "autofocus": True}))
     password1 = forms.CharField(label="Пароль", strip=False, widget=forms.PasswordInput(attrs={"autocomplete": "new-password"}))
@@ -19,7 +20,10 @@ class RegisterForm(UserCreationForm):
 
     class Meta:
         model = User
-        fields = ["name", "email", "password1", "password2"]
+        fields = ["role", "name", "email", "password1", "password2"]
+
+    def clean_role(self):
+        return self.cleaned_data.get("role") or "participant"
 
     def clean_email(self):
         email = self.cleaned_data["email"].strip().lower()
