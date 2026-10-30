@@ -1,4 +1,4 @@
-import interestCategories from "../public/interest-categories.json";
+import interestCategories from "../backend/flow/interest_categories.json";
 import { CITY_SUGGESTIONS } from "./cities";
 
 export type UserIdentity = { userId: string; displayName: string; email: string; fullName: string | null; role: "participant" | "organizer" };

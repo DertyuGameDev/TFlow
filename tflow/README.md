@@ -56,7 +56,7 @@ docker run --env-file /path/to/runtime.env -p 8000:8000 -v tflow-data:/app/backe
 
 Контейнер не содержит локальную базу, учётные записи, `.env` и секреты. Он работает без root. Dockerfile подготовлен; фактическая сборка Docker не запускалась в текущей среде.
 
-ChatGPT Sites/Cloudflare Worker больше не является runtime этого приложения. Его несекретный манифест сохранён только как `docs/legacy-sites-hosting.json` для исторической публикации. Для развёртывания Django нужен Python/Docker-хостинг.
+ChatGPT Sites/Cloudflare Worker больше не является runtime этого приложения. Его несекретный манифест сохранён только как `docs/legacy-sites-hosting.json` для исторической публикации. Django опубликован на Vercel: https://tflow-one.vercel.app/. Также поддерживается обычный Python/Docker-хостинг.
 
 ### Vercel
 

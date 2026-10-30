@@ -5,7 +5,7 @@
   "functions": {
     "backend/config/wsgi.py": {
       "maxDuration": 60,
-      "includeFiles": "dist/**"
+      "includeFiles": "{backend/**,dist/**}"
     }
   }
 }

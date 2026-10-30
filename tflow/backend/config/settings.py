@@ -26,8 +26,12 @@ if not SECRET_KEY:
             pass
     SECRET_KEY = secret_path.read_text().strip()
 
-ALLOWED_HOSTS = os.environ.get("DJANGO_ALLOWED_HOSTS", "127.0.0.1,localhost,[::1]").split(",")
-CSRF_TRUSTED_ORIGINS = [v for v in os.environ.get("DJANGO_CSRF_TRUSTED_ORIGINS", "").split(",") if v]
+ALLOWED_HOSTS = os.environ.get(
+    "DJANGO_ALLOWED_HOSTS", "127.0.0.1,localhost,[::1]"
+).split(",")
+CSRF_TRUSTED_ORIGINS = [
+    v for v in os.environ.get("DJANGO_CSRF_TRUSTED_ORIGINS", "").split(",") if v
+]
 if IS_VERCEL:
     for key in ("VERCEL_URL", "VERCEL_PROJECT_PRODUCTION_URL", "VERCEL_BRANCH_URL"):
         host = os.environ.get(key, "")
@@ -35,8 +39,12 @@ if IS_VERCEL:
             ALLOWED_HOSTS.append(host)
             CSRF_TRUSTED_ORIGINS.append(f"https://{host}")
 INSTALLED_APPS = [
-    "django.contrib.auth", "django.contrib.contenttypes", "django.contrib.sessions",
-    "django.contrib.messages", "django.contrib.staticfiles", "flow",
+    "django.contrib.auth",
+    "django.contrib.contenttypes",
+    "django.contrib.sessions",
+    "django.contrib.messages",
+    "django.contrib.staticfiles",
+    "flow",
 ]
 MIDDLEWARE = [
     "django.middleware.security.SecurityMiddleware",
@@ -49,43 +57,63 @@ MIDDLEWARE = [
     "django.middleware.clickjacking.XFrameOptionsMiddleware",
 ]
 ROOT_URLCONF = "config.urls"
-TEMPLATES = [{
-    "BACKEND": "django.template.backends.django.DjangoTemplates",
-    "DIRS": [BASE_DIR / "templates"], "APP_DIRS": True,
-    "OPTIONS": {"context_processors": [
-        "django.template.context_processors.request", "django.contrib.auth.context_processors.auth",
-        "django.contrib.messages.context_processors.messages",
-    ]},
-}]
-WSGI_APPLICATION = "config.wsgi.application"
-ASGI_APPLICATION = "config.asgi.application"
+TEMPLATES = [
+    {
+        "BACKEND": "django.template.backends.django.DjangoTemplates",
+        "DIRS": [BASE_DIR / "templates"],
+        "APP_DIRS": True,
+        "OPTIONS": {
+            "context_processors": [
+                "django.template.context_processors.request",
+                "django.contrib.auth.context_processors.auth",
+                "django.contrib.messages.context_processors.messages",
+            ]
+        },
+    }
+]
+WSGI_APPLICATION = "backend.config.wsgi.application" if IS_VERCEL else "config.wsgi.application"
+if not IS_VERCEL:
+    ASGI_APPLICATION = "config.asgi.application"
 AUTH_USER_MODEL = "flow.User"
 AUTH_PASSWORD_VALIDATORS = [
-    {"NAME": "django.contrib.auth.password_validation.UserAttributeSimilarityValidator"},
+    {
+        "NAME": "django.contrib.auth.password_validation.UserAttributeSimilarityValidator"
+    },
     {"NAME": "django.contrib.auth.password_validation.MinimumLengthValidator"},
     {"NAME": "django.contrib.auth.password_validation.CommonPasswordValidator"},
     {"NAME": "django.contrib.auth.password_validation.NumericPasswordValidator"},
 ]
-DATABASES = {"default": {
-    "ENGINE": "django.db.backends.sqlite3",
-    "NAME": os.environ.get("TFLOW_DATABASE_PATH", str(DATA_DIR / "tflow.sqlite3")),
-    "OPTIONS": {"timeout": 30, "transaction_mode": "IMMEDIATE"},
-    "TEST": {"NAME": str(DATA_DIR / "test.sqlite3")},
-}}
+DATABASES = {
+    "default": {
+        "ENGINE": "django.db.backends.sqlite3",
+        "NAME": os.environ.get("TFLOW_DATABASE_PATH", str(DATA_DIR / "tflow.sqlite3")),
+        "OPTIONS": {"timeout": 30, "transaction_mode": "IMMEDIATE"},
+        "TEST": {"NAME": str(DATA_DIR / "test.sqlite3")},
+    }
+}
 if IS_VERCEL and not os.environ.get("DATABASE_URL"):
     raise RuntimeError("Vercel requires a persistent PostgreSQL DATABASE_URL")
 if os.environ.get("DATABASE_URL"):
     url = urlparse(os.environ["DATABASE_URL"])
     if url.scheme not in {"postgres", "postgresql"}:
         raise RuntimeError("DATABASE_URL must use PostgreSQL")
-    DATABASES = {"default": {
-        "ENGINE": "django.db.backends.postgresql", "NAME": unquote(url.path.lstrip("/")),
-        "USER": unquote(url.username or ""), "PASSWORD": unquote(url.password or ""),
-        "HOST": url.hostname, "PORT": url.port or 5432, "CONN_MAX_AGE": 0 if IS_VERCEL else 60,
-        "OPTIONS": {key: values[-1] for key, values in parse_qs(url.query).items()
-                    if key in {"sslmode", "channel_binding", "connect_timeout"}},
-        "DISABLE_SERVER_SIDE_CURSORS": IS_VERCEL,
-    }}
+    DATABASES = {
+        "default": {
+            "ENGINE": "django.db.backends.postgresql",
+            "NAME": unquote(url.path.lstrip("/")),
+            "USER": unquote(url.username or ""),
+            "PASSWORD": unquote(url.password or ""),
+            "HOST": url.hostname,
+            "PORT": url.port or 5432,
+            "CONN_MAX_AGE": 0 if IS_VERCEL else 60,
+            "OPTIONS": {
+                key: values[-1]
+                for key, values in parse_qs(url.query).items()
+                if key in {"sslmode", "channel_binding", "connect_timeout"}
+            },
+            "DISABLE_SERVER_SIDE_CURSORS": IS_VERCEL,
+        }
+    }
 
 LANGUAGE_CODE = "ru-ru"
 TIME_ZONE = "Europe/Moscow"
@@ -118,8 +146,13 @@ if (PROJECT_DIR / "dist").is_dir():
     STATICFILES_DIRS.append(("app", PROJECT_DIR / "dist"))
 WHITENOISE_ROOT = PROJECT_DIR / "dist"
 WHITENOISE_USE_FINDERS = DEBUG
-STORAGES = {"default": {"BACKEND": "django.core.files.storage.FileSystemStorage"},
-            "staticfiles": {"BACKEND": "whitenoise.storage.CompressedStaticFilesStorage"}}
-LOGGING = {"version": 1, "disable_existing_loggers": False,
-           "handlers": {"console": {"class": "logging.StreamHandler"}},
-           "loggers": {"flow": {"handlers": ["console"], "level": "INFO"}}}
+STORAGES = {
+    "default": {"BACKEND": "django.core.files.storage.FileSystemStorage"},
+    "staticfiles": {"BACKEND": "whitenoise.storage.CompressedStaticFilesStorage"},
+}
+LOGGING = {
+    "version": 1,
+    "disable_existing_loggers": False,
+    "handlers": {"console": {"class": "logging.StreamHandler"}},
+    "loggers": {"flow": {"handlers": ["console"], "level": "INFO"}},
+}

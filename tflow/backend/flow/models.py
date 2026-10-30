@@ -31,14 +31,20 @@ class UserManager(BaseUserManager):
 
 
 class User(AbstractUser):
-    id = models.CharField(primary_key=True, max_length=100, default=new_id, editable=False)
+    id = models.CharField(
+        primary_key=True, max_length=100, default=new_id, editable=False
+    )
     username = None
     email = models.EmailField(unique=True)
     name = models.CharField(max_length=80)
     city = models.CharField(max_length=80, default="Москва")
     about = models.TextField(blank=True, max_length=1000)
     interests = models.CharField(blank=True, max_length=300)
-    role = models.CharField(max_length=16, choices=[("participant", "Участник"), ("organizer", "Организатор")], default="participant")
+    role = models.CharField(
+        max_length=16,
+        choices=[("participant", "Участник"), ("organizer", "Организатор")],
+        default="participant",
+    )
     pass_token = models.UUIDField(default=uuid.uuid4, unique=True, editable=False)
     USERNAME_FIELD = "email"
     REQUIRED_FIELDS = ["name"]
@@ -50,6 +56,7 @@ class User(AbstractUser):
 
 class ScheduleLock(models.Model):
     """A shared write lock: SQLite IMMEDIATE; row lock on PostgreSQL."""
+
     id = models.PositiveSmallIntegerField(primary_key=True, default=1)
 
 
@@ -77,19 +84,34 @@ class Event(models.Model):
     city = models.CharField(max_length=80)
     venue = models.CharField(max_length=160)
     address = models.CharField(max_length=240, blank=True)
-    format = models.CharField(max_length=10, choices=[(v, v) for v in ["Очно", "Онлайн", "Гибрид"]])
+    format = models.CharField(
+        max_length=10, choices=[(v, v) for v in ["Очно", "Онлайн", "Гибрид"]]
+    )
     topic = models.CharField(max_length=80)
     kind = models.CharField(max_length=60)
     cover = models.CharField(max_length=20, default="yellow")
-    status = models.CharField(max_length=10, choices=[("draft", "Черновик"), ("published", "Опубликовано")], default="draft")
-    community = models.ForeignKey(Community, on_delete=models.SET_NULL, null=True, blank=True)
+    status = models.CharField(
+        max_length=10,
+        choices=[("draft", "Черновик"), ("published", "Опубликовано")],
+        default="draft",
+    )
+    community = models.ForeignKey(
+        Community, on_delete=models.SET_NULL, null=True, blank=True
+    )
     updated_at = models.DateTimeField(default=timezone.now)
     capacity = models.PositiveIntegerField(default=500)
 
     class Meta:
         ordering = ["starts_at", "id"]
-        constraints = [models.CheckConstraint(condition=Q(ends_at__gt=F("starts_at")), name="event_positive_duration"),
-                       models.CheckConstraint(condition=Q(capacity__gte=1, capacity__lte=100000), name="event_valid_capacity")]
+        constraints = [
+            models.CheckConstraint(
+                condition=Q(ends_at__gt=F("starts_at")), name="event_positive_duration"
+            ),
+            models.CheckConstraint(
+                condition=Q(capacity__gte=1, capacity__lte=100000),
+                name="event_valid_capacity",
+            ),
+        ]
 
 
 class Room(models.Model):
@@ -100,12 +122,19 @@ class Room(models.Model):
 
     class Meta:
         ordering = ["name", "id"]
-        constraints = [models.CheckConstraint(condition=Q(capacity__gte=1, capacity__lte=10000), name="room_valid_capacity")]
+        constraints = [
+            models.CheckConstraint(
+                condition=Q(capacity__gte=1, capacity__lte=10000),
+                name="room_valid_capacity",
+            )
+        ]
 
 
 class Activity(models.Model):
     id = models.CharField(primary_key=True, max_length=100, default=new_id)
-    event = models.ForeignKey(Event, on_delete=models.CASCADE, related_name="activities")
+    event = models.ForeignKey(
+        Event, on_delete=models.CASCADE, related_name="activities"
+    )
     room = models.ForeignKey(Room, on_delete=models.PROTECT, related_name="activities")
     title = models.CharField(max_length=160)
     description = models.TextField(blank=True, max_length=5000)
@@ -119,49 +148,87 @@ class Activity(models.Model):
         ordering = ["starts_at", "title"]
         indexes = [models.Index(fields=["room", "starts_at", "ends_at"])]
         constraints = [
-            models.CheckConstraint(condition=Q(ends_at__gt=F("starts_at")), name="activity_positive_duration"),
-            models.CheckConstraint(condition=Q(capacity__gte=1, capacity__lte=10000), name="activity_valid_capacity"),
+            models.CheckConstraint(
+                condition=Q(ends_at__gt=F("starts_at")),
+                name="activity_positive_duration",
+            ),
+            models.CheckConstraint(
+                condition=Q(capacity__gte=1, capacity__lte=10000),
+                name="activity_valid_capacity",
+            ),
         ]
 
 
 class Registration(models.Model):
-    user = models.ForeignKey(User, on_delete=models.CASCADE, related_name="registrations")
-    activity = models.ForeignKey(Activity, on_delete=models.CASCADE, related_name="registrations")
+    user = models.ForeignKey(
+        User, on_delete=models.CASCADE, related_name="registrations"
+    )
+    activity = models.ForeignKey(
+        Activity, on_delete=models.CASCADE, related_name="registrations"
+    )
     created_at = models.DateTimeField(default=timezone.now)
 
     class Meta:
-        constraints = [models.UniqueConstraint(fields=["user", "activity"], name="unique_registration")]
+        constraints = [
+            models.UniqueConstraint(
+                fields=["user", "activity"], name="unique_registration"
+            )
+        ]
 
 
 class WaitlistEntry(models.Model):
-    user = models.ForeignKey(User, on_delete=models.CASCADE, related_name="waitlist_entries")
-    activity = models.ForeignKey(Activity, on_delete=models.CASCADE, related_name="waitlist")
+    user = models.ForeignKey(
+        User, on_delete=models.CASCADE, related_name="waitlist_entries"
+    )
+    activity = models.ForeignKey(
+        Activity, on_delete=models.CASCADE, related_name="waitlist"
+    )
     created_at = models.DateTimeField(default=timezone.now)
 
     class Meta:
         # IDs give an unambiguous FIFO order even when timestamps are equal.
         ordering = ["id"]
-        constraints = [models.UniqueConstraint(fields=["user", "activity"], name="unique_waitlist_entry")]
-        indexes = [models.Index(fields=["activity", "id"], name="waitlist_activity_order")]
+        constraints = [
+            models.UniqueConstraint(
+                fields=["user", "activity"], name="unique_waitlist_entry"
+            )
+        ]
+        indexes = [
+            models.Index(fields=["activity", "id"], name="waitlist_activity_order")
+        ]
 
 
 class EventRegistration(models.Model):
-    user = models.ForeignKey(User, on_delete=models.CASCADE, related_name="event_registrations")
-    event = models.ForeignKey(Event, on_delete=models.CASCADE, related_name="enrollments")
+    user = models.ForeignKey(
+        User, on_delete=models.CASCADE, related_name="event_registrations"
+    )
+    event = models.ForeignKey(
+        Event, on_delete=models.CASCADE, related_name="enrollments"
+    )
     created_at = models.DateTimeField(default=timezone.now)
 
     class Meta:
-        constraints = [models.UniqueConstraint(fields=["user", "event"], name="unique_event_registration")]
+        constraints = [
+            models.UniqueConstraint(
+                fields=["user", "event"], name="unique_event_registration"
+            )
+        ]
 
 
 class CheckIn(models.Model):
     user = models.ForeignKey(User, on_delete=models.CASCADE, related_name="check_ins")
     event = models.ForeignKey(Event, on_delete=models.CASCADE, related_name="check_ins")
-    checked_by = models.ForeignKey(User, on_delete=models.PROTECT, related_name="performed_check_ins")
+    checked_by = models.ForeignKey(
+        User, on_delete=models.PROTECT, related_name="performed_check_ins"
+    )
     created_at = models.DateTimeField(default=timezone.now)
 
     class Meta:
-        constraints = [models.UniqueConstraint(fields=["user", "event"], name="unique_event_check_in")]
+        constraints = [
+            models.UniqueConstraint(
+                fields=["user", "event"], name="unique_event_check_in"
+            )
+        ]
 
 
 class Bookmark(models.Model):
@@ -169,20 +236,30 @@ class Bookmark(models.Model):
     event = models.ForeignKey(Event, on_delete=models.CASCADE, related_name="bookmarks")
 
     class Meta:
-        constraints = [models.UniqueConstraint(fields=["user", "event"], name="unique_bookmark")]
+        constraints = [
+            models.UniqueConstraint(fields=["user", "event"], name="unique_bookmark")
+        ]
 
 
 class Membership(models.Model):
     user = models.ForeignKey(User, on_delete=models.CASCADE, related_name="memberships")
-    community = models.ForeignKey(Community, on_delete=models.CASCADE, related_name="memberships")
+    community = models.ForeignKey(
+        Community, on_delete=models.CASCADE, related_name="memberships"
+    )
 
     class Meta:
-        constraints = [models.UniqueConstraint(fields=["user", "community"], name="unique_membership")]
+        constraints = [
+            models.UniqueConstraint(
+                fields=["user", "community"], name="unique_membership"
+            )
+        ]
 
 
 class Notification(models.Model):
     id = models.CharField(primary_key=True, max_length=100, default=new_id)
-    user = models.ForeignKey(User, on_delete=models.CASCADE, related_name="notifications")
+    user = models.ForeignKey(
+        User, on_delete=models.CASCADE, related_name="notifications"
+    )
     event = models.ForeignKey(Event, on_delete=models.CASCADE)
     message = models.TextField(max_length=1000)
     created_at = models.DateTimeField(default=timezone.now)
