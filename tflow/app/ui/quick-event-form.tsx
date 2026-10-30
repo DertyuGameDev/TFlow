@@ -25,13 +25,14 @@ export function QuickEventForm({event,move=false,city="Москва",send,done}:
     }) as {id?:string};
     done(result.id??event?.id);
   });
-  return <form className="flow-form quick-event-form" onSubmit={submit}>
+  return <form className="flow-form quick-event-form" onSubmit={submit} onInvalidCapture={e=>{const details=(e.target as HTMLElement).closest("details");if(details)details.open=true;}}>
     {!move&&<label>Название события<input name="title" required minLength={3} maxLength={160} placeholder="О чём ваша встреча?" defaultValue={event?.title}/></label>}
-    <div className="form-row"><label>Начало · МСК<input name="starts_at" type="datetime-local" required value={startValue} onChange={e=>changeStart(e.target.value)}/></label><label>Окончание · МСК<input name="ends_at" type="datetime-local" required value={endValue} onChange={e=>setEndValue(e.target.value)}/></label></div>
+    <div className="form-row"><label>Начало · МСК<input name="starts_at" type="datetime-local" required value={startValue} onChange={e=>changeStart(e.target.value)}/></label><label>Окончание · МСК<input name="ends_at" type="datetime-local" required min={startValue} value={endValue} onChange={e=>setEndValue(e.target.value)}/></label></div>
     <label>Где встречаемся<input name="venue" required minLength={2} maxLength={160} placeholder="Название площадки или адрес" defaultValue={event?.venue}/></label>
-    {!move&&<label>Количество мест<input name="capacity" type="number" required min={1} max={100000} defaultValue={event?.capacity??100}/></label>}
+    {!move&&<label>Количество мест<input name="capacity" type="number" inputMode="numeric" required min={1} max={100000} defaultValue={event?.capacity??100}/></label>}
     <details className="optional-fields"><summary>Ещё немного информации</summary><label>Город<input name="city" required minLength={2} maxLength={80} defaultValue={event?.city??city}/></label><label>Адрес<input name="address" maxLength={240} defaultValue={event?.address}/></label>{!move&&<label>Описание<textarea name="description" maxLength={5000} rows={3} defaultValue={event?.description} placeholder="Что ждёт участников"/></label>}</details>
     {move&&<p className="muted small">Программа сдвинется вместе с событием. Участники получат уведомление. Пересечения проверим перед сохранением.</p>}
+    {!move&&!event&&<p className="muted small">Сохраним как черновик. Вы сможете всё проверить перед публикацией.</p>}
     <FormError error={error}/><div className="form-footer"><Submit busy={busy} label={move?"Перенести событие":event?"Сохранить изменения":"Создать событие"}/></div>
   </form>;
 }
