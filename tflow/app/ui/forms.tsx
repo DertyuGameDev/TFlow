@@ -1,8 +1,10 @@
 "use client";
 import { useState, type FormEvent } from "react";
 import { AlertCircle, ArrowRight, LoaderCircle } from "lucide-react";
-import { CITIES, TOPICS, type Activity, type Community, type FlowEvent, type Room } from "../../lib/types";
+import { CITIES, TOPICS, type Activity, type Community, type FlowEvent, type Profile, type Room } from "../../lib/types";
 import { fromLocalInput, localInput } from "../../lib/time";
+import { InterestPicker } from "./interest-picker";
+import { CityPicker } from "./city-picker";
 export type Send = (path:string,method:string,body?:unknown)=>Promise<unknown>;
 type Props={ send:Send;done:()=>void };
 export function useSubmit(action:(data:FormData)=>Promise<void>) {
@@ -24,7 +26,7 @@ export function EventForm({event,communities,send,done}:{event?:FlowEvent;commun
     <label>Название мероприятия<input name="title" required minLength={3} maxLength={160} placeholder="Например, Продуктовый день" defaultValue={event?.title}/></label>
     <label>Описание<textarea name="description" required minLength={10} maxLength={5000} rows={3} placeholder="О чём событие и кому будет интересно" defaultValue={event?.description}/></label>
     <div className="form-row"><label>Начало · МСК<input type="datetime-local" name="starts_at" required defaultValue={localInput(start)}/></label><label>Окончание · МСК<input type="datetime-local" name="ends_at" required defaultValue={localInput(event?.ends_at??start+8*3600000)}/></label></div>
-    <div className="form-row"><label>Город<input name="city" list="event-cities" required maxLength={80} defaultValue={event?.city??"Москва"}/><datalist id="event-cities">{CITIES.map(c=><option key={c}>{c}</option>)}</datalist></label><label>Формат<select name="format" defaultValue={event?.format??"Очно"}><option>Очно</option><option>Онлайн</option><option>Гибрид</option></select></label></div>
+    <div className="form-row"><CityPicker defaultValue={event?.city??"Москва"} cities={CITIES}/><label>Формат<select name="format" defaultValue={event?.format??"Очно"}><option>Очно</option><option>Онлайн</option><option>Гибрид</option></select></label></div>
     <label>Площадка<input name="venue" required minLength={2} maxLength={160} defaultValue={event?.venue} placeholder="Название пространства или онлайн-площадки"/></label>
     <label>Адрес<input name="address" maxLength={240} defaultValue={event?.address} placeholder="Улица, дом или информация о подключении"/></label>
     <div className="form-row"><label>Тема<select name="topic" defaultValue={event?.topic??TOPICS[0]}>{TOPICS.map(t=><option key={t}>{t}</option>)}</select></label><label>Тип события<select name="kind" defaultValue={event?.kind??"Конференция"}>{["Конференция","Митап","Хакатон","Практикум","Встреча","Мастер-класс","Лекция"].map(t=><option key={t}>{t}</option>)}</select></label></div>

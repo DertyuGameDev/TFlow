@@ -4,6 +4,8 @@ import type { FlowEvent, ParticipantData, Profile, RequiredProfileField } from "
 import { ApiError } from "../../lib/api-error";
 import { PROFILE_FIELDS, REQUIREMENT_FIELDS, profileValue, type ProfileFieldDefinition } from "../../lib/profile-fields";
 import { FormError, Submit, type Send } from "./forms";
+import { CityPicker } from "./city-picker";
+import { InterestPicker } from "./interest-picker";
 
 function DataField({field,value,onChange,errors=[],required=false,prefix}:{field:ProfileFieldDefinition;value:string;onChange:(value:string)=>void;errors?:string[];required?:boolean;prefix:string}){
   const id=`${prefix}-${field.key}`,errorId=`${id}-error`;
@@ -16,9 +18,26 @@ export function ParticipantDetails({data,showEmpty=false}:{data:Partial<Particip
 }
 
 export function ExpandedProfileForm({profile,send,done}:{profile:Profile;send:Send;done:()=>void}){
-  const [values,setValues]=useState<ParticipantData>(profile),[error,setError]=useState(""),[fields,setFields]=useState<Record<string,string[]>>({}),[busy,setBusy]=useState(false);
-  async function submit(e:FormEvent){e.preventDefault();setBusy(true);setError("");setFields({});try{const {email:_,...data}=Object.fromEntries(PROFILE_FIELDS.map(f=>[f.key,values[f.key]??""]));await send("profile","PATCH",data);done();}catch(e){setError((e as Error).message);if(e instanceof ApiError)setFields(e.fields);}finally{setBusy(false);}}
-  return <form className="flow-form expanded-profile-form" onSubmit={submit}><p className="muted small">Заполняйте в удобном темпе. При записи данные получит организатор, а повторно вводить их не придётся.</p>{["Контакты","Работа и учёба","О себе"].map(group=><fieldset className="profile-field-group" key={group}><legend>{group}</legend><div className="profile-form-grid">{PROFILE_FIELDS.filter(field=>field.group===group&&field.key!=="email").map(field=><DataField key={field.key} field={field} value={values[field.key]??""} onChange={value=>setValues({...values,[field.key]:value})} errors={fields[field.key]} required={field.key==="name"} prefix="profile"/>)}</div></fieldset>)}<p className="profile-email-note">Почта аккаунта: {profile.email}</p><FormError error={error}/><div className="form-footer"><Submit busy={busy} label="Сохранить профиль"/></div></form>;
+  const [values,setValues]=useState<Profile>(profile),[error,setError]=useState(""),[fields,setFields]=useState<Record<string,string[]>>({}),[busy,setBusy]=useState(false);
+  async function submit(e:FormEvent<HTMLFormElement>){
+    e.preventDefault();const formData=new FormData(e.currentTarget);setBusy(true);setError("");setFields({});
+    try{
+      const data=Object.fromEntries(PROFILE_FIELDS.filter(f=>f.key!=="name"&&f.key!=="email").map(f=>[f.key,values[f.key]??""]));
+      await send("profile","PATCH",{...data,first_name:values.first_name,last_name:values.last_name,interests:formData.getAll("interests").join(", ")});done();
+    }catch(e){setError((e as Error).message);if(e instanceof ApiError)setFields(e.fields);}finally{setBusy(false);}
+  }
+  return <form className="flow-form expanded-profile-form" onSubmit={submit} aria-busy={busy}>
+    <p className="muted small">Заполняйте в удобном темпе. При записи данные получит организатор, а повторно вводить их не придётся.</p>
+    <fieldset className="profile-field-group"><legend>Контакты</legend><div className="profile-form-grid">
+      {([['first_name','Имя','given-name'],['last_name','Фамилия','family-name']] as const).map(([key,label,autocomplete])=><div className="form-field" key={key}><label htmlFor={`profile-${key}`}>{label}</label><input id={`profile-${key}`} name={key} required autoComplete={autocomplete} maxLength={80} value={values[key]} onChange={e=>setValues({...values,[key]:e.target.value})} aria-invalid={fields[key]?.length?true:undefined} aria-describedby={fields[key]?.length?`profile-${key}-error`:undefined}/>{fields[key]?.length>0&&<span className="profile-field-error" id={`profile-${key}-error`}>{fields[key].join(" ")}</span>}</div>)}
+      {PROFILE_FIELDS.filter(f=>f.group==="Контакты"&&!["name","email","city"].includes(f.key)).map(field=><DataField key={field.key} field={field} value={values[field.key]??""} onChange={value=>setValues({...values,[field.key]:value})} errors={fields[field.key]} prefix="profile"/>)}
+      <CityPicker value={values.city} onChange={city=>setValues({...values,city})} required={false} disabled={busy} error={fields.city?.join(" ")}/>
+    </div></fieldset>
+    <fieldset className="profile-field-group"><legend>Работа и учёба</legend><div className="profile-form-grid">{PROFILE_FIELDS.filter(f=>f.group==="Работа и учёба").map(field=><DataField key={field.key} field={field} value={values[field.key]??""} onChange={value=>setValues({...values,[field.key]:value})} errors={fields[field.key]} prefix="profile"/>)}</div></fieldset>
+    <DataField field={PROFILE_FIELDS.find(f=>f.key==="about")!} value={values.about} onChange={about=>setValues({...values,about})} errors={fields.about} prefix="profile"/>
+    <InterestPicker value={profile.interests} disabled={busy}/>
+    <p className="profile-email-note">Почта аккаунта: {profile.email}</p><FormError error={error}/><div className="form-footer"><Submit busy={busy} label="Сохранить профиль"/></div>
+  </form>;
 }
 
 export function CompleteRegistrationForm({profile,event,path,missing,send,done}:{profile:Profile;event:FlowEvent;path:string;missing:RequiredProfileField[];send:Send;done:()=>void}){

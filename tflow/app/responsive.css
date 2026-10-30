@@ -90,7 +90,7 @@ img,video,canvas{max-inline-size:100%}
   .search-city>select{max-width:100%}
   .search-bar>.button{grid-column:3;grid-row:2;margin:0;min-height:38px}
   .page-heading>div{flex-basis:100%}
-  .create-button{font-size:11px;min-height:40px;padding:10px 13px}
+  .create-button{font-size:var(--font-size-min);min-height:40px;padding:10px 13px}
   .event-card-list{flex-direction:column}
   .event-card-list .card-cover{width:100%;height:160px}
   .event-card-list .card-meta{display:grid}
@@ -114,7 +114,7 @@ img,video,canvas{max-inline-size:100%}
   .sidebar.sidebar-open{display:flex;position:fixed;inset:0 auto 0 0;inline-size:min(320px,calc(100% - 24px));max-inline-size:calc(100% - 24px);height:100dvh;z-index:51;background:#fff;padding:20px;box-shadow:10px 0 50px #0002}
   .sidebar-mobile-heading{display:flex;align-items:center;justify-content:space-between;margin-bottom:20px}
   .sidebar-scrim{position:fixed;inset:0;display:block;background:#222b3b50;z-index:50;border:0;backdrop-filter:blur(2px)}
-  .mobile-filter-button{display:flex;font-size:11px;min-height:35px;padding:8px 10px}
+  .mobile-filter-button{display:flex;font-size:var(--font-size-min);min-height:35px;padding:8px 10px}
   .organizer-shortcut{margin-top:24px}
   .sidebar .side-nav a{min-height:44px;font-size:13px}
   .sidebar .small-label input{font-size:13px}
@@ -138,12 +138,12 @@ img,video,canvas{max-inline-size:100%}
   .organizer-events .button{margin-left:0}
   .app-footer{gap:12px;justify-content:space-between}
   .app-footer>a>span{display:none}
-  .topic-chips>button{font-size:10px;padding:9px 11px}
+  .topic-chips>button{font-size:var(--font-size-min);padding:9px 11px}
 }
 @media(max-width:350px){
   .brand{font-size:21px}
   .header-actions>.notification-button{min-width:30px}
-  .header-actions .sign-in{font-size:10px;padding:7px 9px}
+  .header-actions .sign-in{font-size:var(--font-size-min);padding:7px 9px}
   .header-actions .sign-in svg{display:none}
   .search-bar .button{padding:9px 11px}
   .activity-action{padding-left:0}

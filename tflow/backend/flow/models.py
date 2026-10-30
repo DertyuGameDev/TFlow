@@ -67,6 +67,12 @@ class ScheduleLock(models.Model):
     id = models.PositiveSmallIntegerField(primary_key=True, default=1)
 
 
+class UserAvatar(models.Model):
+    user = models.OneToOneField(User, on_delete=models.CASCADE, related_name="avatar")
+    image = models.BinaryField()
+    updated_at = models.DateTimeField(default=timezone.now)
+
+
 class Community(models.Model):
     id = models.CharField(primary_key=True, max_length=100, default=new_id)
     name = models.CharField(max_length=160)
@@ -175,6 +181,28 @@ class Registration(models.Model):
             models.UniqueConstraint(
                 fields=["user", "activity"], name="unique_registration"
             )
+        ]
+
+
+class WaitlistEntry(models.Model):
+    user = models.ForeignKey(
+        User, on_delete=models.CASCADE, related_name="waitlist_entries"
+    )
+    activity = models.ForeignKey(
+        Activity, on_delete=models.CASCADE, related_name="waitlist"
+    )
+    created_at = models.DateTimeField(default=timezone.now)
+
+    class Meta:
+        # IDs give an unambiguous FIFO order even when timestamps are equal.
+        ordering = ["id"]
+        constraints = [
+            models.UniqueConstraint(
+                fields=["user", "activity"], name="unique_waitlist_entry"
+            )
+        ]
+        indexes = [
+            models.Index(fields=["activity", "id"], name="waitlist_activity_order")
         ]
 
 

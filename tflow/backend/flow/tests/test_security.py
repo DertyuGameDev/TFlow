@@ -139,8 +139,13 @@ class SecurityTests(Scenario, TestCase):
 
     def test_deeply_nested_json_returns_validation_error(self):
         depth = sys.getrecursionlimit() + 100
-        raw = ('{"name":"Updated","city":"Moscow","ignored":'
-               + "[" * depth + "0" + "]" * depth + "}")
+        raw = (
+            '{"name":"Updated","city":"Moscow","ignored":'
+            + "[" * depth
+            + "0"
+            + "]" * depth
+            + "}"
+        )
         response = self.participant.patch(
             "/api/profile", data=raw, content_type="application/json"
         )
@@ -469,7 +474,8 @@ class AuthenticationRegressionTests(TestCase):
 
     def signup(self, **changes):
         return {
-            "name": "Новый участник",
+            "first_name": "Новый",
+            "last_name": "Участник",
             "email": "new@example.test",
             "password1": self.password,
             "password2": self.password,
@@ -508,7 +514,8 @@ class AuthenticationRegressionTests(TestCase):
             {"password2": "mismatch"},
             {"role": "admin"},
             {"email": "invalid"},
-            {"name": "x"},
+            {"first_name": ""},
+            {"last_name": ""},
         ]:
             with self.subTest(changes=changes):
                 response = self.client.post("/register/", self.signup(**changes))
@@ -565,7 +572,7 @@ class AuthenticationRegressionTests(TestCase):
     def test_template_escapes_submitted_html(self):
         response = self.client.post(
             "/register/",
-            self.signup(name='<script>alert("x")</script>', password2="wrong"),
+            self.signup(first_name='<script>alert("x")</script>', password2="wrong"),
         )
         self.assertNotContains(response, '<script>alert("x")</script>')
         self.assertContains(response, "&lt;script&gt;")

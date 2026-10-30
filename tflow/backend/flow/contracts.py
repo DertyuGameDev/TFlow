@@ -1,6 +1,7 @@
 from datetime import datetime, timezone as dt_timezone
 from django import forms
 from django.core.exceptions import ValidationError
+from .names import full_name, split_name
 from django.utils import timezone
 import re
 from .profile_data import REQUIREMENT_KEYS
@@ -94,7 +95,10 @@ class ProfileDateField(forms.DateField):
 
 
 class ProfileInput(forms.Form):
-    name = forms.CharField(min_length=2, max_length=80)
+    # The legacy name payload stays supported for existing API clients.
+    name = forms.CharField(required=False, min_length=2, max_length=80)
+    first_name = forms.CharField(required=False, max_length=80)
+    last_name = forms.CharField(required=False, max_length=80)
     city = forms.CharField(required=False, min_length=2, max_length=80)
     phone = forms.CharField(required=False, max_length=32)
     birth_date = ProfileDateField(required=False, input_formats=["%Y-%m-%d"])
@@ -124,6 +128,27 @@ class ProfileInput(forms.Form):
         if value and not value.startswith(("https://", "http://")):
             raise forms.ValidationError("Укажите ссылку с http:// или https://")
         return value
+
+    def clean(self):
+        data = super().clean()
+        if "first_name" in self.data or "last_name" in self.data:
+            for field, label in [("first_name", "имя"), ("last_name", "фамилию")]:
+                if not data.get(field):
+                    self.add_error(field, f"Укажите {label}")
+            data["name"] = full_name(
+                data.get("first_name", ""), data.get("last_name", "")
+            )
+            if len(data["name"]) > 80:
+                self.add_error(
+                    "last_name",
+                    "Имя и фамилия вместе должны быть не длиннее 80 символов",
+                )
+        elif data.get("name"):
+            data["first_name"], data["last_name"] = split_name(data["name"])
+        else:
+            self.add_error("first_name", "Укажите имя")
+            self.add_error("last_name", "Укажите фамилию")
+        return data
 
 
 class ProfileRequirementsField(forms.Field):

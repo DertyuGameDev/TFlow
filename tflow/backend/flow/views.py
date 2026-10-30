@@ -12,6 +12,8 @@ from django.utils.http import url_has_allowed_host_and_scheme
 from django.views.decorators.cache import never_cache
 from django.views.decorators.csrf import ensure_csrf_cookie
 from .auth_forms import LoginForm, RegisterForm
+from .avatars import save_avatar
+from .calendar import activity_item, calendar_response, event_item
 from .contracts import (
     ActivityInput,
     EventInput,
@@ -29,6 +31,7 @@ from .models import (
     Membership,
     Registration,
     User,
+    UserAvatar,
 )
 from .serializers import (
     activities_for,
@@ -192,10 +195,51 @@ def dispatch_api(request, path):
             content_type="image/png",
             headers={"Cache-Control": "private, no-store"},
         )
+    if path == "profile/avatar":
+        user = require_user(request)
+        if method == "GET":
+            avatar = UserAvatar.objects.filter(user=user).first()
+            if not avatar:
+                raise FlowError("NOT_FOUND", "Фото профиля ещё не загружено", 404)
+            return HttpResponse(
+                bytes(avatar.image),
+                content_type="image/webp",
+                headers={
+                    "Cache-Control": "private, no-store",
+                    "X-Content-Type-Options": "nosniff",
+                },
+            )
+        if method == "POST":
+            save_avatar(user, request.FILES.get("avatar"))
+            return JsonResponse({"ok": True})
+        if method == "DELETE":
+            UserAvatar.objects.filter(user=user).delete()
+            return JsonResponse({"ok": True})
+        return JsonResponse(
+            {"error": "Метод не поддерживается", "code": "METHOD_NOT_ALLOWED"},
+            status=405,
+        )
     if method == "GET":
+        if path == "schedule/calendar":
+            user = require_user(request)
+            activities = Activity.objects.filter(
+                registrations__user=user
+            ).select_related("event", "room")
+            return calendar_response(
+                (activity_item(a) for a in activities),
+                filename="tflow-schedule.ics",
+                name="Моя программа · ТФлоу",
+            )
         if path == "bootstrap":
             return JsonResponse(bootstrap(user))
         if resource == "events" and item_id:
+            if action == "calendar":
+                event = visible_events(user).filter(pk=item_id).first()
+                if not event:
+                    raise FlowError("NOT_FOUND", "Мероприятие не найдено", 404)
+                return calendar_response(
+                    [event_item(event)], filename="tflow-event.ics", name=event.title
+                )
             if action == "attendance":
                 event = services.owned_event(item_id, require_user(request))
                 rows = event.enrollments.select_related("user").order_by("-created_at")
@@ -289,7 +333,10 @@ def dispatch_api(request, path):
             resource == "events" and action == "requirements" and method == "PATCH"
             and key == "required_profile_fields" and isinstance(value, list)
         ) for key, value in body.items()):
-            raise FlowError("VALIDATION", "Поля формы должны содержать простые значения", 400)
+
+            raise FlowError(
+                "VALIDATION", "Поля формы должны содержать простые значения", 400
+            )
     if path == "profile/become-organizer" and method == "POST":
         services.become_organizer(user)
         return JsonResponse({"user": identity(user)})
@@ -321,7 +368,12 @@ def dispatch_api(request, path):
             else:
                 Bookmark.objects.filter(user=user, event_id=item_id).delete()
         elif item_id and not action and method == "PATCH":
-            services.update_event(user, item_id, validate(EventInput, body))
+            values = validate(EventInput, body)
+            # Omitted optional fields must not erase existing event data.
+            for field in ("capacity", "address", "community_id"):
+                if field not in body or (field == "capacity" and body[field] is None):
+                    values.pop(field, None)
+            services.update_event(user, item_id, values)
         elif item_id and action == "publish" and method == "POST":
             services.publish_event(user, item_id)
         elif item_id and action == "move" and method == "PATCH":
@@ -358,9 +410,16 @@ def dispatch_api(request, path):
         services.save_room(user, validate(RoomInput, body), room_id=item_id)
     elif resource == "activities" and item_id:
         if action == "registration" and method == "POST":
-            services.register(user, item_id, body)
+            if services.register(user, item_id, body) is False:
+                raise FlowError(
+                    "NO_SEATS", "Свободное место получил участник из листа ожидания"
+                )
         elif action == "registration" and method == "DELETE":
             services.cancel(user, item_id)
+        elif action == "waitlist" and method == "POST":
+            services.join_waitlist(user, item_id, body)
+        elif action == "waitlist" and method == "DELETE":
+            services.leave_waitlist(user, item_id)
         elif not action and method == "PATCH":
             services.save_activity(
                 user, validate(ActivityInput, body), activity_id=item_id

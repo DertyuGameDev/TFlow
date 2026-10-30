@@ -1,6 +1,6 @@
 from datetime import date
 from django.test import Client, TestCase, override_settings
-from flow.models import EventRegistration, Registration
+from flow.models import EventRegistration, Registration, WaitlistEntry
 from flow.profile_data import PROFILE_LABELS
 from .test_api import FAST_HASHER, Scenario
 
@@ -121,6 +121,17 @@ class ProfileRequirementsTests(Scenario, TestCase):
         self.assertFalse(Registration.objects.filter(user=self.person).exists())
         self.request(path, "post", {"phone":"+7 999 111-22-33"}, client=self.participant)
         self.assertTrue(Registration.objects.filter(user=self.person, activity=self.a).exists())
+        self.assertEqual(EventRegistration.objects.get(user=self.person).profile_data["phone"], "+7 999 111-22-33")
+
+    def test_waitlist_cannot_bypass_required_profile_fields(self):
+        self.request(f"activities/{self.a.pk}/registration", "post", {}, client=self.stranger)
+        self.require(["phone"])
+        path = f"activities/{self.a.pk}/waitlist"
+        self.request(path, "post", {}, client=self.participant, status=409, code="PROFILE_INCOMPLETE")
+        self.assertFalse(WaitlistEntry.objects.filter(user=self.person).exists())
+        self.assertFalse(EventRegistration.objects.filter(user=self.person).exists())
+        self.request(path, "post", {"phone":"+7 999 111-22-33"}, client=self.participant)
+        self.assertTrue(WaitlistEntry.objects.filter(user=self.person).exists())
         self.assertEqual(EventRegistration.objects.get(user=self.person).profile_data["phone"], "+7 999 111-22-33")
 
     def test_profile_patch_preserves_unspecified_fields_and_protected_identity(self):
