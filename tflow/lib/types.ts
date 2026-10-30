@@ -1,5 +1,8 @@
+import interestCategories from "../public/interest-categories.json";
+import { CITY_SUGGESTIONS } from "./cities";
+
 export type UserIdentity = { userId: string; displayName: string; email: string; fullName: string | null; role: "participant" | "organizer" };
-export type Profile = { id: string; name: string; email?: string; city: string; about: string; interests: string; role: "participant" | "organizer"; pass_token: string };
+export type Profile = { id: string; name: string; first_name: string; last_name: string; email?: string; city: string; about: string; interests: string; role: "participant" | "organizer"; pass_token: string; avatar_url: string | null };
 export type FlowEvent = {
   id: string; owner_id: string; title: string; description: string; starts_at: number; ends_at: number;
   city: string; venue: string; address: string; format: string; topic: string; kind: string; cover: string;
@@ -11,14 +14,15 @@ export type Room = { id: string; event_id: string; name: string; capacity: numbe
 export type Activity = {
   id: string; event_id: string; room_id: string; title: string; description: string; speaker: string;
   starts_at: number; ends_at: number; capacity: number; updated_at: number; room_name: string;
-  taken: number; registered: number; event_title?: string; city?: string; venue?: string; event_cover?: string;
+  taken: number; registered: number; waiting_count: number; waitlisted: number; waitlist_position: number;
+  event_title?: string; city?: string; venue?: string; event_cover?: string;
 };
 export type Community = { id: string; name: string; description: string; topic: string; color: string; member_count: number; joined: number };
 export type Notice = { id: string; event_id: string; message: string; created_at: number; read: number };
-export type Bootstrap = { events: FlowEvent[]; tickets: FlowEvent[]; schedule: Activity[]; communities: Community[]; notifications: Notice[]; profile: Profile | null };
+export type Bootstrap = { events: FlowEvent[]; tickets: FlowEvent[]; schedule: Activity[]; waitlist: Activity[]; communities: Community[]; notifications: Notice[]; profile: Profile | null };
 export type EventDetail = { event: FlowEvent; rooms: Room[]; activities: Activity[] };
 export type Attendee = { id: string; name: string; email: string; city: string; about: string; interests: string; activities: string[] };
 export type AttendanceRow = { id: string; name: string; email: string; city: string; created_at: number; checked_in_at: number | null };
 export type ScanResult = { admitted: boolean; already_checked_in: boolean; checked_in_at: number; attendee: Attendee };
-export const TOPICS = ["Искусственный интеллект", "Предпринимательство", "Дизайн", "Разработка", "Карьера", "Наука и образование"];
-export const CITIES = ["Москва", "Санкт-Петербург", "Мурманск", "Казань", "Онлайн"];
+export const TOPICS = interestCategories;
+export const CITIES = [...CITY_SUGGESTIONS, "Онлайн"];

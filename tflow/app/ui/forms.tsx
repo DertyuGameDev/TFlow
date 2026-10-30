@@ -3,6 +3,8 @@ import { useState, type FormEvent } from "react";
 import { AlertCircle, ArrowRight, LoaderCircle } from "lucide-react";
 import { CITIES, TOPICS, type Activity, type Community, type FlowEvent, type Profile, type Room } from "../../lib/types";
 import { fromLocalInput, localInput } from "../../lib/time";
+import { InterestPicker } from "./interest-picker";
+import { CityPicker } from "./city-picker";
 export type Send = (path:string,method:string,body?:unknown)=>Promise<unknown>;
 type Props={ send:Send;done:()=>void };
 export function useSubmit(action:(data:FormData)=>Promise<void>) {
@@ -24,7 +26,7 @@ export function EventForm({event,communities,send,done}:{event?:FlowEvent;commun
     <label>Название мероприятия<input name="title" required minLength={3} maxLength={160} placeholder="Например, Продуктовый день" defaultValue={event?.title}/></label>
     <label>Описание<textarea name="description" required minLength={10} maxLength={5000} rows={3} placeholder="О чём событие и кому будет интересно" defaultValue={event?.description}/></label>
     <div className="form-row"><label>Начало · МСК<input type="datetime-local" name="starts_at" required defaultValue={localInput(start)}/></label><label>Окончание · МСК<input type="datetime-local" name="ends_at" required defaultValue={localInput(event?.ends_at??start+8*3600000)}/></label></div>
-    <div className="form-row"><label>Город<input name="city" list="event-cities" required maxLength={80} defaultValue={event?.city??"Москва"}/><datalist id="event-cities">{CITIES.map(c=><option key={c}>{c}</option>)}</datalist></label><label>Формат<select name="format" defaultValue={event?.format??"Очно"}><option>Очно</option><option>Онлайн</option><option>Гибрид</option></select></label></div>
+    <div className="form-row"><CityPicker defaultValue={event?.city??"Москва"} cities={CITIES}/><label>Формат<select name="format" defaultValue={event?.format??"Очно"}><option>Очно</option><option>Онлайн</option><option>Гибрид</option></select></label></div>
     <label>Площадка<input name="venue" required minLength={2} maxLength={160} defaultValue={event?.venue} placeholder="Название пространства или онлайн-площадки"/></label>
     <label>Адрес<input name="address" maxLength={240} defaultValue={event?.address} placeholder="Улица, дом или информация о подключении"/></label>
     <div className="form-row"><label>Тема<select name="topic" defaultValue={event?.topic??TOPICS[0]}>{TOPICS.map(t=><option key={t}>{t}</option>)}</select></label><label>Тип события<select name="kind" defaultValue={event?.kind??"Конференция"}>{["Конференция","Митап","Хакатон","Практикум","Встреча","Мастер-класс","Лекция"].map(t=><option key={t}>{t}</option>)}</select></label></div>
@@ -49,6 +51,6 @@ export function ActivityForm({event,rooms,activity,send,done}:{event:FlowEvent;r
   </form>;
 }
 export function ProfileForm({profile,send,done}:{profile:Profile}&Props){
-  const {submit,error,busy}=useSubmit(async d=>{await send("profile","PATCH",Object.fromEntries(d));done();});
-  return <form className="flow-form" onSubmit={submit}><label>Имя и фамилия<input name="name" required minLength={2} maxLength={80} defaultValue={profile.name}/></label><label>Город<input name="city" required minLength={2} maxLength={80} defaultValue={profile.city}/></label><label>О себе<textarea name="about" maxLength={1000} rows={4} defaultValue={profile.about} placeholder="Чем занимаетесь и какие задачи вам интересны"/></label><label>Интересы<input name="interests" maxLength={300} defaultValue={profile.interests} placeholder="Дизайн, AI, предпринимательство"/></label><FormError error={error}/><div className="form-footer"><Submit busy={busy} label="Сохранить профиль"/></div></form>;
+  const {submit,error,busy}=useSubmit(async d=>{await send("profile","PATCH",{...Object.fromEntries(d),interests:d.getAll("interests").join(", ")});done();});
+  return <form className="flow-form" onSubmit={submit}><div className="form-row"><label>Имя<input name="first_name" autoComplete="given-name" required maxLength={80} defaultValue={profile.first_name}/></label><label>Фамилия<input name="last_name" autoComplete="family-name" required maxLength={80} defaultValue={profile.last_name}/></label></div><CityPicker defaultValue={profile.city}/><label>О себе<textarea name="about" maxLength={1000} rows={4} defaultValue={profile.about} placeholder="Чем занимаетесь и какие задачи вам интересны"/></label><InterestPicker value={profile.interests} disabled={busy}/><FormError error={error}/><div className="form-footer"><Submit busy={busy} label="Сохранить профиль"/></div></form>;
 }

@@ -32,7 +32,7 @@ class RoleAndPassTests(Scenario, TestCase):
     def test_role_selected_at_signup(self):
         client = Client()
         password = "Unrelated-new-strong-44!"
-        response = client.post("/register/", {"role": "organizer", "email": "host@example.test", "name": "Новый организатор", "password1": password, "password2": password})
+        response = client.post("/register/", {"role": "organizer", "email": "host@example.test", "first_name": "Новый", "last_name": "Организатор", "password1": password, "password2": password})
         self.assertEqual(response.status_code, 302)
         self.assertEqual(client.get("/api/auth/me").json()["user"]["role"], "organizer")
 

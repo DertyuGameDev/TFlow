@@ -252,7 +252,7 @@ class SessionTests(TestCase):
     def test_registration_validates_and_authenticates(self):
         client = Client()
         password = "New-account-unique-2026!"
-        response = client.post("/register/", {"email": "new@example.test", "name": "Новый участник", "password1": password, "password2": password, "next": "https://attacker.example"})
+        response = client.post("/register/", {"email": "new@example.test", "first_name": "Новый", "last_name": "Участник", "password1": password, "password2": password, "next": "https://attacker.example"})
         self.assertRedirects(response, "/", fetch_redirect_response=False)
         self.assertEqual(client.get("/api/auth/me").json()["user"]["email"], "new@example.test")
         user = User.objects.get(email="new@example.test")

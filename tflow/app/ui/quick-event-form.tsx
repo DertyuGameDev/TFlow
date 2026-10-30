@@ -1,7 +1,8 @@
 import { useRef, useState } from "react";
-import type { FlowEvent } from "../../lib/types";
+import { CITIES, type FlowEvent } from "../../lib/types";
 import { fromLocalInput, localInput } from "../../lib/time";
 import { FormError, Submit, useSubmit, type Send } from "./forms";
+import { CityPicker } from "./city-picker";
 
 export function QuickEventForm({event,move=false,city="Москва",send,done}:{event?:FlowEvent;move?:boolean;city?:string;send:Send;done:(id?:string)=>void}) {
   const start=event?.starts_at??Date.now()+86400000;
@@ -30,7 +31,7 @@ export function QuickEventForm({event,move=false,city="Москва",send,done}:
     <div className="form-row"><label>Начало · МСК<input name="starts_at" type="datetime-local" required value={startValue} onChange={e=>changeStart(e.target.value)}/></label><label>Окончание · МСК<input name="ends_at" type="datetime-local" required value={endValue} onChange={e=>setEndValue(e.target.value)}/></label></div>
     <label>Где встречаемся<input name="venue" required minLength={2} maxLength={160} placeholder="Название площадки или адрес" defaultValue={event?.venue}/></label>
     {!move&&<label>Количество мест<input name="capacity" type="number" required min={1} max={100000} defaultValue={event?.capacity??100}/></label>}
-    <details className="optional-fields"><summary>Ещё немного информации</summary><label>Город<input name="city" required minLength={2} maxLength={80} defaultValue={event?.city??city}/></label><label>Адрес<input name="address" maxLength={240} defaultValue={event?.address}/></label>{!move&&<label>Описание<textarea name="description" maxLength={5000} rows={3} defaultValue={event?.description} placeholder="Что ждёт участников"/></label>}</details>
+    <details className="optional-fields"><summary>Ещё немного информации</summary><CityPicker defaultValue={event?.city??city} cities={CITIES}/><label>Адрес<input name="address" maxLength={240} defaultValue={event?.address}/></label>{!move&&<label>Описание<textarea name="description" maxLength={5000} rows={3} defaultValue={event?.description} placeholder="Что ждёт участников"/></label>}</details>
     {move&&<p className="muted small">Программа сдвинется вместе с событием. Участники получат уведомление. Пересечения проверим перед сохранением.</p>}
     <FormError error={error}/><div className="form-footer"><Submit busy={busy} label={move?"Перенести событие":event?"Сохранить изменения":"Создать событие"}/></div>
   </form>;
