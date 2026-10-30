@@ -281,6 +281,8 @@ def dispatch_api(request, path):
             ) from error
         if not isinstance(body, dict):
             raise FlowError("VALIDATION", "Ожидается объект с полями формы", 400)
+        if any(isinstance(value, (dict, list)) for value in body.values()):
+            raise FlowError("VALIDATION", "Поля формы должны содержать простые значения", 400)
     if path == "profile" and method == "PATCH":
         values = validate(ProfileInput, body)
         for key, value in values.items():

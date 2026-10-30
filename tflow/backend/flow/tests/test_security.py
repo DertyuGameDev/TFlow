@@ -1,6 +1,7 @@
 """API regression tests: authorization, hostile input and transaction boundaries."""
 
 import json
+import sys
 from datetime import datetime, timedelta, timezone as dt_timezone
 from unittest.mock import patch
 
@@ -137,12 +138,16 @@ class SecurityTests(Scenario, TestCase):
                 self.assertEqual(response.json()["code"], "VALIDATION")
 
     def test_deeply_nested_json_returns_validation_error(self):
-        raw = '{"ignored":' + "[" * 1500 + "0" + "]" * 1500 + "}"
+        depth = sys.getrecursionlimit() + 100
+        raw = ('{"name":"Updated","city":"Moscow","ignored":'
+               + "[" * depth + "0" + "]" * depth + "}")
         response = self.participant.patch(
             "/api/profile", data=raw, content_type="application/json"
         )
         self.assertEqual(response.status_code, 400)
         self.assertEqual(response.json()["code"], "VALIDATION")
+        self.person.refresh_from_db()
+        self.assertNotEqual(self.person.name, "Updated")
 
     @override_settings(DATA_UPLOAD_MAX_MEMORY_SIZE=128)
     def test_oversized_json_returns_structured_error(self):
