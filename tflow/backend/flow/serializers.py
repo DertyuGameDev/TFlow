@@ -135,7 +135,7 @@ def activities_for(user):
                 user_id=user.pk if user.is_authenticated else "",
             )
         ),
-    )
+    ).order_by("starts_at", "id")
 
 
 def activity_json(activity, schedule=False):

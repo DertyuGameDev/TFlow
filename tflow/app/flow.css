@@ -511,3 +511,10 @@ body{font-size:16px;color:#222329;background:#fff}
 @media(max-width:760px){.flow-topbar .brand-logo{width:150px;height:42px}}
 @media(max-width:350px){.flow-topbar .brand-logo{width:128px;height:36px}}
 @media(max-width:310px){.flow-topbar .brand-logo{width:44px;height:44px}}
+.activity-availability{display:flex;align-items:center;gap:12px;flex-wrap:wrap;margin-top:12px;font-size:12px;color:#717b88}
+.activity-availability>span{display:inline-flex;align-items:center;gap:6px}
+.activity-availability .activity-registered{color:#337653}
+.simple-activity .activity-conflict{display:flex;align-items:flex-start;gap:7px;padding:9px 11px;background:#fff8e8;border:1px solid #f0dfb3;border-radius:9px;color:#87692f;font-size:12px;line-height:1.65}
+.activity-conflict>svg{margin-top:3px}
+.activity-time-column>small:last-child{font-size:11px}
+@media(max-width:760px){.activity-program-row>.button{max-width:100%;white-space:normal}.activity-availability{gap:8px;font-size:11px}.simple-activity .activity-conflict{font-size:11px;padding:9px}}

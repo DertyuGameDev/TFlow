@@ -73,7 +73,7 @@ def update_event(user, event_id, data):
     with schedule_write():
         event = owned_event(event_id, user)
         check_community(data)
-        if event.enrollments.count() > data["capacity"]:
+        if event.enrollments.count() > data.get("capacity", event.capacity):
             raise FlowError(
                 "BELOW_REGISTERED",
                 "Нельзя уменьшить число мест ниже количества регистраций",

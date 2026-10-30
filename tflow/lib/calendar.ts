@@ -15,6 +15,9 @@ export type CalendarEntry = {
   location: string;
   description: string;
   eventTitle?: string;
+  activityId?: string;
+  capacity: number;
+  taken: number;
   draft: boolean;
 };
 export type DaySegment = {
@@ -75,12 +78,14 @@ export function calendarEntries(data: Bootstrap, userId: string): CalendarEntry[
     starts_at: event.starts_at, ends_at: event.ends_at, source,
     location: [event.city, event.venue].filter(Boolean).join(" · "),
     description: event.description, draft: event.status === "draft",
+    capacity: event.capacity, taken: event.participant_count,
   }));
   entries.push(...data.schedule.map(activity => ({
     id: `activity:${activity.id}`, eventId: activity.event_id, title: activity.title,
     starts_at: activity.starts_at, ends_at: activity.ends_at, source: "activity" as const,
     location: activity.room_name, description: activity.description,
-    eventTitle: activity.event_title, draft: false,
+    eventTitle: activity.event_title, activityId: activity.id, draft: false,
+    capacity: activity.capacity, taken: activity.taken,
   })));
   return entries.filter(entry => Number.isFinite(entry.starts_at) && Number.isFinite(entry.ends_at) && entry.ends_at > entry.starts_at)
     .sort((a, b) => a.starts_at - b.starts_at || a.title.localeCompare(b.title, "ru") || a.id.localeCompare(b.id));

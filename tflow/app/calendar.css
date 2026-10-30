@@ -144,3 +144,9 @@
 .cal-date-picker{width:25px}
 .cal-view-switch button{padding-inline:6px;font-size:10px}
 }
+.cal-cancel-activity{display:grid;gap:12px}
+.cal-cancel-activity>p{font-size:13px;line-height:1.7;color:#6f7987}
+.cal-cancel-activity>div:not(.form-error){display:flex;gap:10px;flex-wrap:wrap}
+.cal-cancel-activity .button{flex:1;min-width:0;font-size:12px}
+.cal-cancel-activity>.text-button{justify-self:start;font-size:13px;color:#a34d3e;min-height:40px}
+@media(max-width:600px){.cal-cancel-activity>div:not(.form-error){flex-direction:column}.cal-cancel-activity .button{width:100%}}

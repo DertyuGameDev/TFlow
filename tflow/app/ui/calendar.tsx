@@ -1,9 +1,10 @@
 import { useEffect, useMemo, useRef, useState, type KeyboardEvent } from "react";
-import { ArrowRight, CalendarDays, CalendarRange, ChevronLeft, ChevronRight, Clock3, MapPin, Plus, SlidersHorizontal } from "lucide-react";
+import { ArrowRight, CalendarDays, CalendarRange, ChevronLeft, ChevronRight, Clock3, MapPin, Plus, SlidersHorizontal, Users } from "lucide-react";
 import type { Bootstrap } from "../../lib/types";
 import { dateLabel, timeLabel } from "../../lib/time";
 import { calendarDate, calendarEntries, dayStart, entriesForDay, isCalendarDate, MINUTE_MS, monthDays, positionDayEntries, shiftDays, shiftMonths, type CalendarEntry, type CalendarSource } from "../../lib/calendar";
 import { Modal } from "./dialog";
+import { FormError } from "./forms";
 import "../calendar.css";
 
 type View = "month" | "day";
@@ -16,6 +17,7 @@ type Props = {
   onOpenEvent: (entry: CalendarEntry) => void;
   onCreate: (start: number) => void;
   onBrowse: () => void;
+  onCancelActivity: (activityId: string) => Promise<void>;
 };
 const weekdays = ["Пн", "Вт", "Ср", "Чт", "Пт", "Сб", "Вс"];
 const fullWeekdays = ["Понедельник", "Вторник", "Среда", "Четверг", "Пятница", "Суббота", "Воскресенье"];
@@ -46,11 +48,15 @@ function CalendarItem({ entry, onClick, date }: { entry: CalendarEntry; onClick:
   </button>;
 }
 
-export function Calendar({ data, userId, initialDate, initialView, canCreate, onOpenEvent, onCreate, onBrowse }: Props) {
+export function Calendar({ data, userId, initialDate, initialView, canCreate, onOpenEvent, onCreate, onBrowse, onCancelActivity }: Props) {
   const [date, setDate] = useState(() => isCalendarDate(initialDate) ? initialDate : calendarDate(Date.now()));
   const [view, setView] = useState<View>(() => initialView === "day" ? "day" : "month");
   const [enabled, setEnabled] = useState(() => new Set<CalendarSource>(canCreate ? ["ticket", "activity", "owned"] : ["ticket", "activity"]));
-  const [selected, setSelected] = useState<CalendarEntry | null>(null);
+  const [selectedId, setSelectedId] = useState<string | null>(null);
+  const [confirmCancel, setConfirmCancel] = useState(false);
+  const [cancelBusy, setCancelBusy] = useState(false);
+  const [cancelError, setCancelError] = useState("");
+  const cancelling = useRef(false);
   const [now, setNow] = useState(Date.now);
   const scroller = useRef<HTMLDivElement>(null);
   const monthTable = useRef<HTMLTableElement>(null);
@@ -58,6 +64,8 @@ export function Calendar({ data, userId, initialDate, initialView, canCreate, on
   const scrollKey = useRef("");
   const today = calendarDate(now);
   const entries = useMemo(() => calendarEntries(data, userId), [data, userId]);
+  // Keep the open card in sync with changes to time, room and registration.
+  const selected = entries.find(entry => entry.id === selectedId) ?? null;
   const visible = useMemo(() => entries.filter(entry => enabled.has(entry.source)), [entries, enabled]);
   const days = useMemo(() => monthDays(date), [date]);
   const daysWithEntries = useMemo(() => new Map(days.map(day => [day, entriesForDay(visible, day)])), [days, visible]);
@@ -71,6 +79,9 @@ export function Calendar({ data, userId, initialDate, initialView, canCreate, on
     const timer = window.setInterval(() => setNow(Date.now()), 60_000);
     return () => window.clearInterval(timer);
   }, []);
+  useEffect(() => {
+    if (selectedId && !selected) setSelectedId(null);
+  }, [selectedId, selected]);
   useEffect(() => {
     if (view !== "day") { scrollKey.current = ""; return; }
     if (scroller.current && scrollKey.current !== date) {
@@ -90,6 +101,27 @@ export function Calendar({ data, userId, initialDate, initialView, canCreate, on
     setDate(nextDate);
     setView(nextView);
     window.history.replaceState(null, "", `#calendar/${nextDate}/${nextView}`);
+  }
+  function openEntry(entry: CalendarEntry) {
+    setSelectedId(entry.id);
+    setConfirmCancel(false);
+    setCancelError("");
+  }
+  async function cancelActivity() {
+    if (!selected?.activityId || cancelling.current) return;
+    const entryId = selected.id;
+    cancelling.current = true;
+    setCancelBusy(true);
+    setCancelError("");
+    try {
+      await onCancelActivity(selected.activityId);
+      setSelectedId(current => current === entryId ? null : current);
+    } catch (reason) {
+      setCancelError(reason instanceof Error ? reason.message : "Не удалось отменить запись. Повторите попытку.");
+    } finally {
+      cancelling.current = false;
+      setCancelBusy(false);
+    }
   }
   function toggleSource(source: CalendarSource) {
     setEnabled(previous => {
@@ -160,7 +192,7 @@ export function Calendar({ data, userId, initialDate, initialView, canCreate, on
               <button className="cal-day-open" data-date={day} tabIndex={day === date ? 0 : -1} disabled={!isCalendarDate(day)}
                 aria-label={`Открыть ${longDate(day)}, ${dayCount(items.length)}`} aria-current={day === today ? "date" : undefined} onClick={() => navigate(day, "day")} />
               <span className={`cal-day-number ${day === today ? "is-today" : ""}`}>{Number(day.slice(-2))}{day.endsWith("-01") && <small>{dateLabel(dayStart(day), { day: undefined, month: "short" })}</small>}</span>
-              <div className="cal-month-events">{items.slice(0, 3).map(({ entry }) => <CalendarItem key={entry.id} entry={entry} date={day} onClick={() => setSelected(entry)} />)}
+              <div className="cal-month-events">{items.slice(0, 3).map(({ entry }) => <CalendarItem key={entry.id} entry={entry} date={day} onClick={() => openEntry(entry)} />)}
                 {items.length > 3 && <button className="cal-more" onClick={() => navigate(day, "day")}>Ещё {items.length - 3}</button>}
               </div>
               <div className="cal-month-dots" aria-hidden="true">{items.slice(0, 3).map(({ entry }) => <span className={`cal-dot-${entry.source}`} key={entry.id} />)}{items.length > 3 && <small>+{items.length - 3}</small>}</div>
@@ -168,7 +200,7 @@ export function Calendar({ data, userId, initialDate, initialView, canCreate, on
           })}</tr>)}</tbody>
         </table><p className="cal-month-hint">Нажмите на дату, чтобы увидеть день по часам</p></div> : <div className="cal-day-view">
           <div className="cal-day-heading"><span className="cal-zone-label">МСК</span><div><span>{dateLabel(dayStart(date), { weekday: "long", day: undefined, month: undefined })}</span><strong className={date === today ? "is-today" : ""}>{Number(date.slice(-2))}</strong></div><span className="cal-day-count" role="status">{dayCount(dayEntries.length)}</span></div>
-          {allDay.length > 0 && <div className="cal-all-day"><span>Весь день</span><div>{allDay.map(({ entry }) => <CalendarItem key={entry.id} entry={entry} date={date} onClick={() => setSelected(entry)} />)}</div></div>}
+          {allDay.length > 0 && <div className="cal-all-day"><span>Весь день</span><div>{allDay.map(({ entry }) => <CalendarItem key={entry.id} entry={entry} date={date} onClick={() => openEntry(entry)} />)}</div></div>}
           <div className="cal-day-scroll" ref={scroller} aria-label="Расписание дня по часам" tabIndex={0}>
             <div className="cal-day-body" style={{ height: 24 * hourHeight }}>
               <div className="cal-hour-labels" aria-hidden="true">{Array.from({ length: 24 }, (_, hour) => <span key={hour} style={{ top: hour * hourHeight }}>{String(hour).padStart(2, "0")}:00</span>)}</div>
@@ -177,7 +209,7 @@ export function Calendar({ data, userId, initialDate, initialView, canCreate, on
                   style={{ top: segment.startMinute / 60 * hourHeight, height: (segment.displayEnd - segment.startMinute) / 60 * hourHeight - 2,
                     left: `calc(${segment.column / segment.columns * 100}% + 5px)`, width: `calc(${100 / segment.columns}% - 10px)` }}
                   title={`${segment.entry.title} · ${timeLabel(segment.entry.starts_at)}–${timeLabel(segment.entry.ends_at)}`}
-                  aria-label={`${segment.entry.title}, ${timeLabel(segment.entry.starts_at)}–${timeLabel(segment.entry.ends_at)}${segment.entry.draft ? ", черновик" : ""}`} onClick={() => setSelected(segment.entry)}>
+                  aria-label={`${segment.entry.title}, ${timeLabel(segment.entry.starts_at)}–${timeLabel(segment.entry.ends_at)}${segment.entry.draft ? ", черновик" : ""}`} onClick={() => openEntry(segment.entry)}>
                   <strong>{segment.entry.title}</strong><span>{segment.continuesBefore ? "с предыдущего дня" : timeLabel(segment.entry.starts_at)} — {segment.continuesAfter ? "на следующий день" : timeLabel(segment.entry.ends_at)}</span>
                   <small>{segment.entry.location}</small>{segment.entry.draft && <em>Черновик</em>}
                 </button>)}
@@ -189,13 +221,20 @@ export function Calendar({ data, userId, initialDate, initialView, canCreate, on
         </div>}
       </div>
     </div>
-    {selected && <Modal title={selected.title} subtitle={sources.find(source => source.id === selected.source)?.title} onClose={() => setSelected(null)}>
+    {selected && <Modal title={selected.title} subtitle={sources.find(source => source.id === selected.source)?.title} onClose={() => setSelectedId(null)}>
       <div className="cal-entry-details"><p><Clock3 size={19} /><span>{dateLabel(selected.starts_at)} · {timeLabel(selected.starts_at)} — {calendarDate(selected.starts_at) !== calendarDate(selected.ends_at) ? `${dateLabel(selected.ends_at)} · ` : ""}{timeLabel(selected.ends_at)}<small>Московское время</small></span></p>
         {selected.location && <p><MapPin size={19} /><span>{selected.location}</span></p>}
         {selected.eventTitle && <p><CalendarDays size={19} /><span>{selected.eventTitle}</span></p>}
         {selected.draft && <span className="cal-detail-draft">Черновик · виден только вам</span>}
         {selected.description && <div className="cal-entry-description">{selected.description}</div>}
-        <button className="button primary" onClick={() => { setSelected(null); onOpenEvent(selected); }}>{selected.source === "owned" ? "Управлять событием" : "Открыть событие"}<ArrowRight size={18} /></button>
+        <p><Users size={19}/><span>Свободно {Math.max(0, selected.capacity-selected.taken)} из {selected.capacity} мест</span></p>
+        {selected.activityId && <div className="cal-cancel-activity">
+          {confirmCancel ? <><p>Отменить запись на эту активность? Место станет доступно другим участникам. Билет на мероприятие сохранится.</p><div><button className="button secondary" disabled={cancelBusy} onClick={()=>setConfirmCancel(false)}>Оставить запись</button><button className="button danger-button" disabled={cancelBusy} onClick={()=>void cancelActivity()}>{cancelBusy?"Отменяем…":"Подтвердить отмену"}</button></div></>
+            : <button className="text-button" disabled={cancelBusy} onClick={()=>setConfirmCancel(true)}>Отменить запись на активность</button>}
+          <FormError error={cancelError}/>
+        </div>}
+
+        <button className="button primary" onClick={() => { setSelectedId(null); onOpenEvent(selected); }}>{selected.source === "owned" ? "Управлять событием" : "Открыть событие"}<ArrowRight size={18} /></button>
       </div>
     </Modal>}
   </section>;

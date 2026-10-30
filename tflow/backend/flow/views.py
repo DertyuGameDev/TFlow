@@ -317,7 +317,12 @@ def dispatch_api(request, path):
             else:
                 Bookmark.objects.filter(user=user, event_id=item_id).delete()
         elif item_id and not action and method == "PATCH":
-            services.update_event(user, item_id, validate(EventInput, body))
+            values = validate(EventInput, body)
+            # Omitted optional fields must not erase existing event data.
+            for field in ("capacity", "address", "community_id"):
+                if field not in body or (field == "capacity" and body[field] is None):
+                    values.pop(field, None)
+            services.update_event(user, item_id, values)
         elif item_id and action == "publish" and method == "POST":
             services.publish_event(user, item_id)
         elif item_id and action == "move" and method == "PATCH":
