@@ -15,7 +15,8 @@
     "setup": "node scripts/setup.mjs",
     "start": "node scripts/python.mjs manage.py runserver 127.0.0.1:5173",
     "test:backend": "node scripts/python.mjs manage.py test flow.tests --noinput",
-    "db:migrate": "node scripts/python.mjs manage.py migrate --noinput"
+    "db:migrate": "node scripts/python.mjs manage.py migrate --noinput",
+    "test:calendar": "node --experimental-strip-types lib/calendar.test.mjs"
   },
   "dependencies": {
     "@zxing/browser": "^0.2.1",
