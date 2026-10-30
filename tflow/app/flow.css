@@ -133,7 +133,7 @@ body{font-size:15px;color:#222329;background:#fff}
 .optional-fields:not([open]) input:invalid{visibility:hidden}
 .quick-event-form .form-footer .button{width:100%}
 .personal-layout{display:grid;grid-template-columns:minmax(0,370px) minmax(0,1fr);gap:35px;align-items:start;margin-bottom:45px}
-.organizer-app .personal-layout{grid-template-columns:minmax(0,670px)}
+.profile-sections{display:grid;gap:22px;min-width:0}
 .personal-pass{border:1px solid var(--flow-border);border-radius:23px;padding:25px 27px 0;text-align:center;overflow:hidden;background:#fff;box-shadow:0 7px 25px #25344905}
 .pass-top{display:flex;align-items:center;justify-content:space-between;gap:10px;margin-bottom:22px}
 .pass-top .brand{font-size:19px}
@@ -257,6 +257,32 @@ body{font-size:15px;color:#222329;background:#fff}
 @media(max-width:350px){:root{--flow-padding:16px}.flow-topbar-inner{padding-inline:16px}.flow-heading h1{font-size:27px}.flow-topbar .brand{font-size:22px}.flow-account{gap:2px}.flow-account .avatar{width:30px;height:30px}.flow-account .icon-button{min-width:30px}.flow-account>.role-chip{font-size:8px;padding:5px 8px}.discovery-cover{height:190px}.host-event{padding:14px;gap:12px;grid-template-columns:60px minmax(0,1fr)}.host-event-art{height:70px}.metric-grid>div{padding:14px 10px}.metric-grid>div>span{font-size:9px}.metric-grid strong{font-size:25px}.metric-grid small{font-size:10px}.attendee-row>.arrival-badge{margin-left:44px}.registration-card{padding-inline:16px;gap:10px}.registration-card>.button{font-size:11px;padding:11px 8px}.price-line strong{font-size:17px}.scanner-buttons{grid-template-columns:minmax(0,1fr)}.personal-pass{padding-inline:19px}.pass-caption{margin-inline:-19px;font-size:8px}.host-event-actions .button{font-size:9px}.host-event-actions .button svg{width:14px}}
 @media(prefers-reduced-motion:reduce){.cover-open .event-art{transition:none!important}}
 @media(max-width:350px){.flow-account>.role-chip{display:none}}
+.role-switch{display:inline-flex;align-items:center;justify-content:center;gap:8px;min-height:40px;padding:8px 12px;border:1px solid #eadb92;border-radius:12px;background:#fffae4;font-size:12px;color:#5d5125;white-space:nowrap}
+.role-switch:hover{background:#fff2b3}
+.role-switch:focus-visible{outline:2px solid #806a13;outline-offset:3px}
+.profile-organizer{padding:25px 27px;border:1px solid #f0e3ab;border-radius:19px;background:#fffbeb;min-width:0}
+.organizer-eyebrow{display:inline-flex;align-items:center;gap:8px;color:#806a25;font-size:12px;font-weight:500}
+.profile-organizer h2{font-size:21px;line-height:1.3;letter-spacing:-.5px;margin-top:14px;overflow-wrap:anywhere}
+.profile-organizer p{color:#6e7480;font-size:13px;line-height:1.7;margin:12px 0 20px}
+.profile-organizer .button{width:100%}
+.organizer-intro{max-width:100%;padding:22px 0 48px}
+.organizer-intro>h1{font-size:clamp(30px,4.5vw,53px);line-height:1.13;letter-spacing:-1.5px;margin-top:20px;overflow-wrap:anywhere}
+.organizer-lead{color:#6e7480;max-width:650px;font-size:16px;line-height:1.8;margin:22px 0 30px}
+.organizer-steps{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:18px;list-style:none;padding:0;margin:0 0 30px;counter-reset:organizer-step}
+.organizer-steps li{position:relative;min-width:0;padding:25px;border:1px solid var(--flow-border);border-radius:18px;background:#fafbfc;counter-increment:organizer-step}
+.organizer-steps li:after{content:"0" counter(organizer-step);position:absolute;right:22px;top:24px;color:#a3a7b0;font-size:12px}
+.organizer-steps li>svg{color:#927926;margin-bottom:22px}
+.organizer-steps h2{font-size:17px;line-height:1.4;overflow-wrap:anywhere}
+.organizer-steps p{font-size:13px;line-height:1.8;color:#6e7480;margin-top:10px}
+.organizer-enable{display:grid;justify-items:start;gap:18px}
+.organizer-enable>p{display:flex;align-items:flex-start;gap:9px;color:#626d7d;font-size:13px;line-height:1.7;max-width:650px}
+.organizer-enable>p>svg{flex-shrink:0;margin-top:2px;color:#528168}
+.draft-notice{display:flex;align-items:flex-start;gap:12px;padding:18px 20px;background:#fffbeb;border:1px solid #f0e3ab;border-radius:14px;margin-bottom:24px;color:#665927}
+.draft-notice>svg{flex-shrink:0;margin-top:2px}
+.draft-notice strong{font-size:13px}
+.draft-notice p{font-size:12px;line-height:1.8;margin-top:7px}
+@media(max-width:1050px){.desktop-navigation{gap:14px}.flow-topbar-inner{gap:16px}.flow-account{gap:8px}.role-switch{font-size:11px;padding:8px}.organizer-steps li{padding:21px}}
+@media(max-width:760px){.role-switch{min-width:40px;min-height:40px;padding:9px}.role-switch>span{display:none}.flow-account>.favorite-link{display:none}.organizer-steps{grid-template-columns:minmax(0,1fr);gap:12px}.organizer-steps li{padding:22px}.organizer-steps li>svg{margin-bottom:14px}.organizer-intro{padding-top:6px}.organizer-lead{font-size:14px;line-height:1.75}.organizer-enable{justify-items:stretch}.organizer-enable>.text-button{justify-content:center}.profile-organizer{padding:22px}.draft-notice{padding:16px}}
 /* Secondary copy stays readable on white, including on small mobile screens. */
 .flow-heading p,.discovery-copy>p,.discovery-copy>span,.discovery-count,.event-facts,.metric-grid>div>span,.host-event-numbers,.attendee-row p,.arrival-badge,.advanced-program>p,.guest-program>p,.advanced-program>summary>span,.guest-program>summary>span,.simple-activity>span,.simple-activity small,.simple-activity p,.personal-pass>p,.pass-top>span:last-child,.pass-caption,.person-heading>div>span,.personal-info dt,.price-line>span,.guest-event-title>span,.event-about>p,.event-host>div>span,.registration-card>p,.registration-facts,.camera-placeholder p,.scanner-event-label,.manual-scan summary,.flow-footer,.flow-notices small{color:#6e7480}
 .personal-info dd,.flow-notices>button>span{color:#626d7d}

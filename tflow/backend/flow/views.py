@@ -283,7 +283,10 @@ def dispatch_api(request, path):
             raise FlowError("VALIDATION", "Ожидается объект с полями формы", 400)
         if any(isinstance(value, (dict, list)) for value in body.values()):
             raise FlowError("VALIDATION", "Поля формы должны содержать простые значения", 400)
-    if path == "profile" and method == "PATCH":
+    if path == "profile/become-organizer" and method == "POST":
+        services.become_organizer(user)
+        return JsonResponse({"user": identity(user)})
+    elif path == "profile" and method == "PATCH":
         values = validate(ProfileInput, body)
         for key, value in values.items():
             setattr(user, key, value)

@@ -47,6 +47,13 @@ def require_organizer(user):
         raise FlowError("FORBIDDEN", "Это действие доступно только организатору", 403)
 
 
+def become_organizer(user):
+    """Enable event creation on the current account, preserving all other data."""
+    User.objects.filter(pk=user.pk).update(role="organizer")
+    user.role = "organizer"
+    return user
+
+
 def check_community(data):
     if (
         data.get("community_id")

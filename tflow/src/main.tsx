@@ -18,7 +18,7 @@ function App() {
   }, []);
   if (error) return <main className="connection-error"><h1>Не удалось подключиться к серверу</h1><p>Убедитесь, что Django запущен, и обновите страницу.</p><button className="button primary" onClick={() => window.location.reload()}>Повторить</button></main>;
   if (!session) return <main className="loading-state" role="status">Подключаемся к ТФлоу…</main>;
-  return <TFlow user={session.user} />;
+  return <TFlow user={session.user} onUserChange={user => setSession({user})} />;
 }
 
 createRoot(document.getElementById("root")!).render(<App />);
