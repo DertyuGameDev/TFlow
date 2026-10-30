@@ -1,6 +1,6 @@
 {% load static %}<!doctype html>
-<html lang="ru"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>{% if mode == 'register' %}Регистрация{% else %}Вход{% endif %} — ТФлоу</title><link rel="icon" href="{% static 'favicon.svg' %}"><link rel="stylesheet" href="{% static 'auth.css' %}"></head>
-<body><main class="auth-shell"><a class="auth-brand" href="/"><img src="{% static 'favicon.svg' %}" alt="" width="40" height="40">ТФлоу<span>.</span></a>
+<html lang="ru"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>{% if mode == 'register' %}Регистрация{% else %}Вход{% endif %} — ТФлоу</title><link rel="icon" href="{% static 'logo-mark.svg' %}"><link rel="stylesheet" href="{% static 'auth.css' %}"></head>
+<body><main class="auth-shell"><a class="auth-brand" href="/" aria-label="ТФлоу — главная"><img src="{% static 'logo.svg' %}" alt="ТФлоу" width="200" height="55"></a>
 <section class="auth-card"><a class="back" href="/">← К мероприятиям</a><h1>{% if mode == 'register' %}Создать аккаунт{% else %}С возвращением{% endif %}</h1><p class="intro">{% if mode == 'register' %}Выбирайте активности и собирайте своё расписание.{% else %}Ваши мероприятия и расписание уже ждут.{% endif %}</p>
 <form method="post" novalidate>{% csrf_token %}<input type="hidden" name="next" value="{{ next }}">
 {% if form.non_field_errors %}<div class="error-summary" role="alert">{{ form.non_field_errors }}</div>{% endif %}
