@@ -1,0 +1,13 @@
+.git
+.venv
+node_modules
+dist
+backend/data
+backend/staticfiles
+.wrangler
+.vinext
+.sites-runtime
+.playwright-mcp
+.env*
+__pycache__
+*.pyc

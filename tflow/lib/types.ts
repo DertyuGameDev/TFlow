@@ -1,3 +1,4 @@
+export type UserIdentity = { userId: string; displayName: string; email: string; fullName: string | null };
 export type Profile = { id: string; name: string; email?: string; city: string; about: string; interests: string };
 export type FlowEvent = {
   id: string; owner_id: string; title: string; description: string; starts_at: number; ends_at: number;

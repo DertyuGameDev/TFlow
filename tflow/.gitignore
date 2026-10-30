@@ -28,6 +28,7 @@ yarn-error.log*
 
 # Local environment and keys
 .env*
+!.env.example
 .dev.vars*
 *.pem
 
@@ -43,3 +44,10 @@ yarn-error.log*
 
 # OS metadata
 .DS_Store
+
+# Django runtime data and Python environment
+/.venv/
+/backend/data/
+/backend/staticfiles/
+__pycache__/
+*.py[cod]
