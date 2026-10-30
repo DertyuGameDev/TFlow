@@ -3,7 +3,18 @@ from django.db import transaction
 from django.db.models import Q
 from django.utils import timezone
 from .contracts import FlowError
-from .models import Activity, CheckIn, Community, Event, EventRegistration, Notification, Registration, Room, ScheduleLock, User
+from .models import (
+    Activity,
+    CheckIn,
+    Community,
+    Event,
+    EventRegistration,
+    Notification,
+    Registration,
+    Room,
+    ScheduleLock,
+    User,
+)
 
 
 @contextmanager
@@ -23,7 +34,11 @@ def owned_event(event_id, user):
     except Event.DoesNotExist as error:
         raise FlowError("NOT_FOUND", "Мероприятие не найдено", 404) from error
     if event.owner_id != user.pk:
-        raise FlowError("FORBIDDEN", "Управлять программой может только организатор этого мероприятия", 403)
+        raise FlowError(
+            "FORBIDDEN",
+            "Управлять программой может только организатор этого мероприятия",
+            403,
+        )
     return event
 
 
@@ -33,7 +48,10 @@ def require_organizer(user):
 
 
 def check_community(data):
-    if data.get("community_id") and not Community.objects.filter(pk=data["community_id"]).exists():
+    if (
+        data.get("community_id")
+        and not Community.objects.filter(pk=data["community_id"]).exists()
+    ):
         raise FlowError("INVALID_REFERENCE", "Сообщество не найдено", 400)
 
 
@@ -49,20 +67,37 @@ def update_event(user, event_id, data):
         event = owned_event(event_id, user)
         check_community(data)
         if event.enrollments.count() > data["capacity"]:
-            raise FlowError("BELOW_REGISTERED", "Нельзя уменьшить число мест ниже количества регистраций")
-        if event.activities.filter(Q(starts_at__lt=data["starts_at"]) | Q(ends_at__gt=data["ends_at"])).exists():
-            raise FlowError("EVENT_DATES", "Активности должны проходить в пределах дат мероприятия")
+            raise FlowError(
+                "BELOW_REGISTERED",
+                "Нельзя уменьшить число мест ниже количества регистраций",
+            )
+        if event.activities.filter(
+            Q(starts_at__lt=data["starts_at"]) | Q(ends_at__gt=data["ends_at"])
+        ).exists():
+            raise FlowError(
+                "EVENT_DATES", "Активности должны проходить в пределах дат мероприятия"
+            )
         changed = any(getattr(event, key) != value for key, value in data.items())
         for key, value in data.items():
             setattr(event, key, value)
         event.updated_at = timezone.now()
         event.save()
         if changed:
-            users = Registration.objects.filter(activity__event=event).values_list("user_id", flat=True).distinct()
-            Notification.objects.bulk_create([
-                Notification(user_id=uid, event=event, message=f"Обновлена информация о мероприятии «{event.title}».")
-                for uid in users
-            ])
+            users = set(event.enrollments.values_list("user_id", flat=True)) | set(
+                Registration.objects.filter(activity__event=event).values_list(
+                    "user_id", flat=True
+                )
+            )
+            Notification.objects.bulk_create(
+                [
+                    Notification(
+                        user_id=uid,
+                        event=event,
+                        message=f"Обновлена информация о мероприятии «{event.title}».",
+                    )
+                    for uid in users
+                ]
+            )
         return event
 
 
@@ -82,7 +117,10 @@ def save_room(user, data, *, event_id=None, room_id=None):
                 raise FlowError("NOT_FOUND", "Аудитория не найдена", 404) from error
             owned_event(room.event_id, user)
             if room.activities.filter(capacity__gt=data["capacity"]).exists():
-                raise FlowError("ROOM_CAPACITY", "Вместимость аудитории не может быть меньше лимита её активностей")
+                raise FlowError(
+                    "ROOM_CAPACITY",
+                    "Вместимость аудитории не может быть меньше лимита её активностей",
+                )
             for key, value in data.items():
                 setattr(room, key, value)
             room.save()
@@ -97,21 +135,47 @@ def validate_activity(activity):
     try:
         room = Room.objects.get(pk=activity.room_id, event=event)
     except Room.DoesNotExist as error:
-        raise FlowError("INVALID_REFERENCE", "Аудитория не принадлежит этому мероприятию", 400) from error
+        raise FlowError(
+            "INVALID_REFERENCE", "Аудитория не принадлежит этому мероприятию", 400
+        ) from error
     if activity.capacity > room.capacity:
-        raise FlowError("ROOM_CAPACITY", "Лимит участников превышает вместимость аудитории")
+        raise FlowError(
+            "ROOM_CAPACITY", "Лимит участников превышает вместимость аудитории"
+        )
     if activity.starts_at < event.starts_at or activity.ends_at > event.ends_at:
-        raise FlowError("EVENT_DATES", "Активности должны проходить в пределах дат мероприятия")
-    if Activity.objects.filter(room=room, starts_at__lt=activity.ends_at, ends_at__gt=activity.starts_at).exclude(pk=activity.pk).exists():
-        raise FlowError("ROOM_CONFLICT", "В этой аудитории уже проходит другая активность. Измените время или аудиторию")
+        raise FlowError(
+            "EVENT_DATES", "Активности должны проходить в пределах дат мероприятия"
+        )
+    if (
+        Activity.objects.filter(
+            room=room, starts_at__lt=activity.ends_at, ends_at__gt=activity.starts_at
+        )
+        .exclude(pk=activity.pk)
+        .exists()
+    ):
+        raise FlowError(
+            "ROOM_CONFLICT",
+            "В этой аудитории уже проходит другая активность. Измените время или аудиторию",
+        )
     registered = Registration.objects.filter(activity_id=activity.pk)
     if registered.count() > activity.capacity:
-        raise FlowError("BELOW_REGISTERED", "Нельзя уменьшить лимит ниже числа зарегистрированных участников")
-    if Registration.objects.filter(
-        user_id__in=registered.values("user_id"),
-        activity__starts_at__lt=activity.ends_at, activity__ends_at__gt=activity.starts_at,
-    ).exclude(activity_id=activity.pk).exists():
-        raise FlowError("ENROLLED_CONFLICT", "Перенос создаёт пересечение у зарегистрированных участников. Выберите другое время")
+        raise FlowError(
+            "BELOW_REGISTERED",
+            "Нельзя уменьшить лимит ниже числа зарегистрированных участников",
+        )
+    if (
+        Registration.objects.filter(
+            user_id__in=registered.values("user_id"),
+            activity__starts_at__lt=activity.ends_at,
+            activity__ends_at__gt=activity.starts_at,
+        )
+        .exclude(activity_id=activity.pk)
+        .exists()
+    ):
+        raise FlowError(
+            "ENROLLED_CONFLICT",
+            "Перенос создаёт пересечение у зарегистрированных участников. Выберите другое время",
+        )
 
 
 def save_activity(user, data, *, event_id=None, activity_id=None):
@@ -129,13 +193,20 @@ def save_activity(user, data, *, event_id=None, activity_id=None):
         validate_activity(activity)
         activity.updated_at = timezone.now()
         activity.save()
-        Event.objects.filter(pk=activity.event_id).update(updated_at=activity.updated_at)
+        Event.objects.filter(pk=activity.event_id).update(
+            updated_at=activity.updated_at
+        )
         if activity_id:
-            Notification.objects.bulk_create([
-                Notification(user_id=uid, event_id=activity.event_id,
-                             message=f"Обновлена активность «{activity.title}». Проверьте время и аудиторию в своём расписании.")
-                for uid in activity.registrations.values_list("user_id", flat=True)
-            ])
+            Notification.objects.bulk_create(
+                [
+                    Notification(
+                        user_id=uid,
+                        event_id=activity.event_id,
+                        message=f"Обновлена активность «{activity.title}». Проверьте время и аудиторию в своём расписании.",
+                    )
+                    for uid in activity.registrations.values_list("user_id", flat=True)
+                ]
+            )
         return activity
 
 
@@ -148,13 +219,26 @@ def register(user, activity_id):
         if Registration.objects.filter(user=user, activity=activity).exists():
             raise FlowError("ALREADY_REGISTERED", "Вы уже записаны на эту активность")
         if activity.event.status != "published":
-            raise FlowError("NOT_PUBLISHED", "Регистрация на неопубликованную программу недоступна")
+            raise FlowError(
+                "NOT_PUBLISHED", "Регистрация на неопубликованную программу недоступна"
+            )
         if activity.starts_at <= timezone.now():
-            raise FlowError("REGISTRATION_CLOSED", "Регистрация закрыта: активность уже началась")
+            raise FlowError(
+                "REGISTRATION_CLOSED", "Регистрация закрыта: активность уже началась"
+            )
         if activity.registrations.count() >= activity.capacity:
-            raise FlowError("NO_SEATS", "Свободные места закончились. Выберите другую активность")
-        if Registration.objects.filter(user=user, activity__starts_at__lt=activity.ends_at, activity__ends_at__gt=activity.starts_at).exists():
-            raise FlowError("PARTICIPANT_CONFLICT", "Это время занято другой активностью в вашем расписании")
+            raise FlowError(
+                "NO_SEATS", "Свободные места закончились. Выберите другую активность"
+            )
+        if Registration.objects.filter(
+            user=user,
+            activity__starts_at__lt=activity.ends_at,
+            activity__ends_at__gt=activity.starts_at,
+        ).exists():
+            raise FlowError(
+                "PARTICIPANT_CONFLICT",
+                "Это время занято другой активностью в вашем расписании",
+            )
         enroll_locked(user, activity.event)
         Registration.objects.create(user=user, activity=activity)
 
@@ -188,7 +272,9 @@ def enroll_event(user, event_id):
 def cancel_event(user, event_id):
     with schedule_write():
         if CheckIn.objects.filter(user=user, event_id=event_id).exists():
-            raise FlowError("ALREADY_CHECKED_IN", "Вход уже подтверждён. Отменить этот билет нельзя")
+            raise FlowError(
+                "ALREADY_CHECKED_IN", "Вход уже подтверждён. Отменить этот билет нельзя"
+            )
         Registration.objects.filter(user=user, activity__event_id=event_id).delete()
         EventRegistration.objects.filter(user=user, event_id=event_id).delete()
 
@@ -200,27 +286,70 @@ def move_event(user, event_id, data):
         activities = list(event.activities.select_related("room"))
         ids = [activity.pk for activity in activities]
         for activity in activities:
-            start, end = activity.starts_at + delta, activity.ends_at + delta
+            try:
+                start, end = activity.starts_at + delta, activity.ends_at + delta
+            except OverflowError as error:
+                raise FlowError(
+                    "VALIDATION", "Дата программы выходит за допустимый диапазон", 400
+                ) from error
             if start < data["starts_at"] or end > data["ends_at"]:
-                raise FlowError("EVENT_DATES", "Программа не помещается в новое время. Увеличьте длительность мероприятия")
-            if Activity.objects.filter(room_id=activity.room_id, starts_at__lt=end, ends_at__gt=start).exclude(pk__in=ids).exists():
+                raise FlowError(
+                    "EVENT_DATES",
+                    "Программа не помещается в новое время. Увеличьте длительность мероприятия",
+                )
+            if (
+                Activity.objects.filter(
+                    room_id=activity.room_id, starts_at__lt=end, ends_at__gt=start
+                )
+                .exclude(pk__in=ids)
+                .exists()
+            ):
                 raise FlowError("ROOM_CONFLICT", "На новое время аудитория уже занята")
             users = activity.registrations.values("user_id")
-            if Registration.objects.filter(user_id__in=users, activity__starts_at__lt=end, activity__ends_at__gt=start).exclude(activity_id__in=ids).exists():
-                raise FlowError("ENROLLED_CONFLICT", "Перенос создаёт пересечение у участников. Выберите другое время")
-            activity.starts_at, activity.ends_at, activity.updated_at = start, end, timezone.now()
+            if (
+                Registration.objects.filter(
+                    user_id__in=users,
+                    activity__starts_at__lt=end,
+                    activity__ends_at__gt=start,
+                )
+                .exclude(activity_id__in=ids)
+                .exists()
+            ):
+                raise FlowError(
+                    "ENROLLED_CONFLICT",
+                    "Перенос создаёт пересечение у участников. Выберите другое время",
+                )
+            activity.starts_at, activity.ends_at, activity.updated_at = (
+                start,
+                end,
+                timezone.now(),
+            )
         for key, value in data.items():
             setattr(event, key, value)
         event.updated_at = timezone.now()
         event.save()
         Activity.objects.bulk_update(activities, ["starts_at", "ends_at", "updated_at"])
-        recipients = set(event.enrollments.values_list("user_id", flat=True)) | set(Registration.objects.filter(activity__event=event).values_list("user_id", flat=True))
-        Notification.objects.bulk_create([Notification(user_id=uid, event=event, message=f"Мероприятие «{event.title}» перенесено. Проверьте дату и место в своих билетах.") for uid in recipients])
+        recipients = set(event.enrollments.values_list("user_id", flat=True)) | set(
+            Registration.objects.filter(activity__event=event).values_list(
+                "user_id", flat=True
+            )
+        )
+        Notification.objects.bulk_create(
+            [
+                Notification(
+                    user_id=uid,
+                    event=event,
+                    message=f"Мероприятие «{event.title}» перенесено. Проверьте дату и место в своих билетах.",
+                )
+                for uid in recipients
+            ]
+        )
 
 
 def attendee_by_qr(user, event_id, raw):
     import uuid
     from urllib.parse import urlparse
+
     event = owned_event(event_id, user)
     if not isinstance(raw, str) or len(raw) > 2048:
         raise FlowError("INVALID_QR", "Это не QR-код участника ТФлоу", 400)
@@ -229,7 +358,9 @@ def attendee_by_qr(user, event_id, raw):
         try:
             parsed = urlparse(value)
         except ValueError as error:
-            raise FlowError("INVALID_QR", "Это не QR-код участника ТФлоу", 400) from error
+            raise FlowError(
+                "INVALID_QR", "Это не QR-код участника ТФлоу", 400
+            ) from error
         if parsed.scheme not in {"http", "https"}:
             raise FlowError("INVALID_QR", "Это не QR-код участника ТФлоу", 400)
         value = parsed.fragment.removeprefix("/")
@@ -242,12 +373,16 @@ def attendee_by_qr(user, event_id, raw):
         raise FlowError("INVALID_QR", "Это не QR-код участника ТФлоу", 400) from error
     person = User.objects.filter(pass_token=token, is_active=True).first()
     if not person or not event.enrollments.filter(user=person).exists():
-        raise FlowError("NOT_REGISTERED", "Нет регистрации на это мероприятие. Вход не подтверждён")
+        raise FlowError(
+            "NOT_REGISTERED", "Нет регистрации на это мероприятие. Вход не подтверждён"
+        )
     return event, person
 
 
 def check_in(user, event_id, raw):
     with schedule_write():
         event, person = attendee_by_qr(user, event_id, raw)
-        entry, created = CheckIn.objects.get_or_create(user=person, event=event, defaults={"checked_by": user})
+        entry, created = CheckIn.objects.get_or_create(
+            user=person, event=event, defaults={"checked_by": user}
+        )
         return person, entry, not created

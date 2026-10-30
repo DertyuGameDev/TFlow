@@ -10,74 +10,121 @@ from django.db import migrations, models
 class Migration(migrations.Migration):
 
     dependencies = [
-        ('flow', '0002_schedule_lock'),
+        ("flow", "0002_schedule_lock"),
     ]
 
     operations = [
         migrations.CreateModel(
-            name='CheckIn',
+            name="CheckIn",
             fields=[
-                ('id', models.BigAutoField(auto_created=True, primary_key=True, serialize=False, verbose_name='ID')),
-                ('created_at', models.DateTimeField(default=django.utils.timezone.now)),
+                (
+                    "id",
+                    models.BigAutoField(
+                        auto_created=True,
+                        primary_key=True,
+                        serialize=False,
+                        verbose_name="ID",
+                    ),
+                ),
+                ("created_at", models.DateTimeField(default=django.utils.timezone.now)),
             ],
         ),
         migrations.CreateModel(
-            name='EventRegistration',
+            name="EventRegistration",
             fields=[
-                ('id', models.BigAutoField(auto_created=True, primary_key=True, serialize=False, verbose_name='ID')),
-                ('created_at', models.DateTimeField(default=django.utils.timezone.now)),
+                (
+                    "id",
+                    models.BigAutoField(
+                        auto_created=True,
+                        primary_key=True,
+                        serialize=False,
+                        verbose_name="ID",
+                    ),
+                ),
+                ("created_at", models.DateTimeField(default=django.utils.timezone.now)),
             ],
         ),
         migrations.AddField(
-            model_name='event',
-            name='capacity',
+            model_name="event",
+            name="capacity",
             field=models.PositiveIntegerField(default=500),
         ),
         migrations.AddField(
-            model_name='user',
-            name='pass_token',
+            model_name="user",
+            name="pass_token",
             field=models.UUIDField(editable=False, null=True, unique=True),
         ),
         migrations.AddField(
-            model_name='user',
-            name='role',
-            field=models.CharField(choices=[('participant', 'Участник'), ('organizer', 'Организатор')], default='participant', max_length=16),
+            model_name="user",
+            name="role",
+            field=models.CharField(
+                choices=[("participant", "Участник"), ("organizer", "Организатор")],
+                default="participant",
+                max_length=16,
+            ),
         ),
         migrations.AddConstraint(
-            model_name='event',
-            constraint=models.CheckConstraint(condition=models.Q(('capacity__gte', 1), ('capacity__lte', 100000)), name='event_valid_capacity'),
+            model_name="event",
+            constraint=models.CheckConstraint(
+                condition=models.Q(("capacity__gte", 1), ("capacity__lte", 100000)),
+                name="event_valid_capacity",
+            ),
         ),
         migrations.AddField(
-            model_name='checkin',
-            name='checked_by',
-            field=models.ForeignKey(on_delete=django.db.models.deletion.PROTECT, related_name='performed_check_ins', to=settings.AUTH_USER_MODEL),
+            model_name="checkin",
+            name="checked_by",
+            field=models.ForeignKey(
+                on_delete=django.db.models.deletion.PROTECT,
+                related_name="performed_check_ins",
+                to=settings.AUTH_USER_MODEL,
+            ),
         ),
         migrations.AddField(
-            model_name='checkin',
-            name='event',
-            field=models.ForeignKey(on_delete=django.db.models.deletion.CASCADE, related_name='check_ins', to='flow.event'),
+            model_name="checkin",
+            name="event",
+            field=models.ForeignKey(
+                on_delete=django.db.models.deletion.CASCADE,
+                related_name="check_ins",
+                to="flow.event",
+            ),
         ),
         migrations.AddField(
-            model_name='checkin',
-            name='user',
-            field=models.ForeignKey(on_delete=django.db.models.deletion.CASCADE, related_name='check_ins', to=settings.AUTH_USER_MODEL),
+            model_name="checkin",
+            name="user",
+            field=models.ForeignKey(
+                on_delete=django.db.models.deletion.CASCADE,
+                related_name="check_ins",
+                to=settings.AUTH_USER_MODEL,
+            ),
         ),
         migrations.AddField(
-            model_name='eventregistration',
-            name='event',
-            field=models.ForeignKey(on_delete=django.db.models.deletion.CASCADE, related_name='enrollments', to='flow.event'),
+            model_name="eventregistration",
+            name="event",
+            field=models.ForeignKey(
+                on_delete=django.db.models.deletion.CASCADE,
+                related_name="enrollments",
+                to="flow.event",
+            ),
         ),
         migrations.AddField(
-            model_name='eventregistration',
-            name='user',
-            field=models.ForeignKey(on_delete=django.db.models.deletion.CASCADE, related_name='event_registrations', to=settings.AUTH_USER_MODEL),
+            model_name="eventregistration",
+            name="user",
+            field=models.ForeignKey(
+                on_delete=django.db.models.deletion.CASCADE,
+                related_name="event_registrations",
+                to=settings.AUTH_USER_MODEL,
+            ),
         ),
         migrations.AddConstraint(
-            model_name='checkin',
-            constraint=models.UniqueConstraint(fields=('user', 'event'), name='unique_event_check_in'),
+            model_name="checkin",
+            constraint=models.UniqueConstraint(
+                fields=("user", "event"), name="unique_event_check_in"
+            ),
         ),
         migrations.AddConstraint(
-            model_name='eventregistration',
-            constraint=models.UniqueConstraint(fields=('user', 'event'), name='unique_event_registration'),
+            model_name="eventregistration",
+            constraint=models.UniqueConstraint(
+                fields=("user", "event"), name="unique_event_registration"
+            ),
         ),
     ]

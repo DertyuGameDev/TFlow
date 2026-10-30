@@ -2,7 +2,9 @@ from django.db import migrations
 
 
 def create_lock(apps, schema_editor):
-    apps.get_model("flow", "ScheduleLock").objects.using(schema_editor.connection.alias).get_or_create(pk=1)
+    apps.get_model("flow", "ScheduleLock").objects.using(
+        schema_editor.connection.alias
+    ).get_or_create(pk=1)
 
 
 class Migration(migrations.Migration):
