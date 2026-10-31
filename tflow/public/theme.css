@@ -106,7 +106,7 @@
 @media(max-width:1024px){.theme-toggle-label{display:none}}
 @media(max-width:420px){.flow-app .flow-topbar .brand-logo{width:124px;height:36px}}
 @media(max-width:350px){.flow-app .flow-topbar .brand-logo{width:44px;height:40px}.flow-topbar .brand-logo::after{display:none}}
-@media(forced-colors:active){.theme-toggle{border:1px solid ButtonText}:root[data-theme="dark"] :is(.brand-logo img,.auth-brand img){filter:none}:root[data-theme="dark"] :is(.brand-logo,.auth-brand)::after{display:none}}
+@media(forced-colors:active){.theme-toggle{border:1px solid ButtonText}:is(.brand-logo img,.auth-brand img){filter:none}:root[data-theme="dark"] :is(.brand-logo,.auth-brand)::after{display:none}}
 
 :root[data-theme="dark"] :is(button,a,input,select,textarea):focus-visible{outline-color:#ffdd2d}
 
@@ -116,3 +116,61 @@
 :root[data-theme="dark"] .cal-dot-ticket{background:#ffdd2d}
 :root[data-theme="dark"] .cal-dot-activity{background:#91cba8}
 :root[data-theme="dark"] .cal-dot-owned{background:#e4c45e}
+
+/* Extend the remote graphite theme to the newer screens using its palette. */
+:root[data-theme="dark"] :is(.clubs-card,.clubs-search,.clubs-filters select,
+  .clubs-event,.notification-card,.webinar-panel,.event-format-picker label>span,
+  .catalog-category-filter select){background:var(--theme-panel);color:var(--theme-text)}
+:root[data-theme="dark"] :is(.clubs-tabs button,.notification-filters,
+  .notification-icon,.event-form-steps button>span,.webinar-state,
+  .webinar-message){background:var(--theme-raised);color:var(--theme-muted)}
+:root[data-theme="dark"] :is(.clubs-tabs button:hover,.clubs-event:hover,
+  .clubs-card .button.secondary:hover){background:#383838}
+:root[data-theme="dark"] :is(.clubs-tabs button[aria-pressed=true],.clubs-symbol,
+  .clubs-hero,.event-club-link,.notification-card.is-unread,
+  .notification-filters button>span,.is-unread .notification-read-state,
+  .event-native-webinar,.event-format-picker label:has(input:checked)>span,
+  .webinar-message.own){background:var(--theme-warm);color:var(--theme-warm-text);border-color:#625431}
+:root[data-theme="dark"] :is(.clubs-topic,.clubs-tip a,.event-club-link,
+  .event-native-webinar strong,.event-native-webinar p){color:var(--theme-warm-text)}
+:root[data-theme="dark"] :is(.clubs-filters .category-select,.clubs-search,
+  .clubs-tabs button,.clubs-card>p,.clubs-counts,.clubs-tip,.clubs-hero>p,
+  .clubs-events-heading label,.clubs-event,.event-club-picker>small,
+  .notification-filters button,.notification-toolbar>p,.notification-content>p,
+  .notification-actions .text-button,.event-form-steps button,.event-field-label small,
+  .catalog-category-filter .category-select,.catalog-club-filter,
+  .webinar-heading p,.webinar-viewers,.webinar-lobby,.webinar-lobby p,
+  .webinar-camera-off span,.webinar-chat-hint,.webinar-message strong,
+  .webinar-chat-empty,.interest-group-title){color:var(--theme-muted)}
+:root[data-theme="dark"] :is(.clubs-event strong,.clubs-empty h1,.clubs-empty h2,
+  .notification-empty h2,.event-form-section>legend,
+  .event-form-steps button[aria-current=step],.webinar-lobby h3,
+  .webinar-message p,.interest-category-group h3){color:var(--theme-text)}
+:root[data-theme="dark"] :is(.clubs-empty,.notification-empty,
+  .webinar-lobby,.webinar-chat,#id_interests.grouped-interests){background:#1b1b1b;color:var(--theme-muted)}
+:root[data-theme="dark"] :is(.notification-filters button[aria-pressed=true],
+  .event-format-picker label>span){background:var(--theme-panel);color:var(--theme-text)}
+:root[data-theme="dark"] .event-form-steps button[aria-current=step]>span{background:#ffdd2d;color:#272514}
+:root[data-theme="dark"] .event-step-line{background:var(--theme-border)}
+:root[data-theme="dark"] :is(.clubs-match,.cal-entry-details>.cal-registration-state){color:var(--theme-green-text)}
+:root[data-theme="dark"] .cal-entry-details>.cal-registration-state{background:var(--theme-green)}
+:root[data-theme="dark"] :is(.notification-card.is-cancellation .notification-icon,
+  .webinar-state.is-live){background:var(--theme-red);color:var(--theme-red-text)}
+:root[data-theme="dark"] .notification-card.is-cancellation{border-left-color:var(--theme-red-text)}
+:root[data-theme="dark"] .notification-link .notification-count{border-color:var(--theme-panel)}
+:root[data-theme="dark"] .button.danger-outline{background:var(--theme-panel);color:var(--theme-red-text);border-color:#775051}
+:root[data-theme="dark"] .button.danger-outline:hover:not(:disabled){background:var(--theme-red);border-color:#a66d6e}
+:root[data-theme="dark"] .confirmation-copy{color:var(--theme-muted)}
+:root[data-theme="dark"] .webinar-stage{background:#101010;color:var(--theme-text)}
+:root[data-theme="dark"] .webinar-chat textarea{background:var(--theme-panel);color:var(--theme-text);border-color:#484848}
+:root[data-theme="dark"] :is(.event-format-picker label:has(input:focus-visible)>span,
+  .registration-settings>summary:focus-visible,.attendee-record>summary:focus-visible){outline-color:#ffdd2d}
+:root[data-theme="dark"] .requirement-options input{accent-color:#ffdd2d}
+:root[data-theme="dark"] :is(.skip-link,.filter-button b){color:#272514}
+:root[data-theme="dark"] .personal-pass>img{background:#fff;border-radius:12px}
+:root[data-theme="dark"] :is(.clubs-tabs button[aria-pressed=true],
+  .event-format-picker label:has(input:checked)>span){background:var(--theme-warm);color:var(--theme-warm-text);border-color:#625431}
+:root[data-theme="dark"] .interest-option:has(input:focus-visible)>span,
+:root[data-theme="dark"] #id_interests label:has(input:focus-visible){outline-color:#ffdd2d}
+:root[data-theme="dark"] #id_interests.grouped-interests{border-color:var(--theme-border)}
+:root[data-theme="dark"] .clubs-search:focus-within{border-color:#ffdd2d}

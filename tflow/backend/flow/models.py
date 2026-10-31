@@ -79,6 +79,13 @@ class Community(models.Model):
     description = models.TextField(max_length=5000)
     topic = models.CharField(max_length=80)
     color = models.CharField(max_length=30)
+    owner = models.ForeignKey(
+        User,
+        on_delete=models.SET_NULL,
+        null=True,
+        blank=True,
+        related_name="owned_clubs",
+    )
 
 
 class Event(models.Model):
@@ -120,6 +127,16 @@ class Event(models.Model):
                 name="event_valid_capacity",
             ),
         ]
+
+
+class Webinar(models.Model):
+    event = models.OneToOneField(
+        Event, on_delete=models.CASCADE, related_name="webinar"
+    )
+    room = models.UUIDField(default=uuid.uuid4, unique=True)
+    active = models.BooleanField(default=False)
+    started_at = models.DateTimeField(null=True, blank=True)
+    ended_at = models.DateTimeField(null=True, blank=True)
 
 
 class Room(models.Model):
@@ -269,10 +286,27 @@ class Notification(models.Model):
     user = models.ForeignKey(
         User, on_delete=models.CASCADE, related_name="notifications"
     )
-    event = models.ForeignKey(Event, on_delete=models.CASCADE)
+    event = models.ForeignKey(Event, on_delete=models.SET_NULL, null=True, blank=True)
+    kind = models.CharField(
+        max_length=24,
+        choices=[("info", "Обновление"), ("event_cancelled", "Отмена мероприятия")],
+        default="info",
+    )
     message = models.TextField(max_length=1000)
     created_at = models.DateTimeField(default=timezone.now)
     read = models.BooleanField(default=False)
 
     class Meta:
         ordering = ["-created_at", "id"]
+
+
+class NotificationEmail(models.Model):
+    notification = models.OneToOneField(
+        Notification, on_delete=models.CASCADE, related_name="email_delivery"
+    )
+    recipient = models.EmailField()
+    sent_at = models.DateTimeField(null=True, blank=True)
+    attempts = models.PositiveIntegerField(default=0)
+    next_attempt_at = models.DateTimeField(default=timezone.now, db_index=True)
+    locked_until = models.DateTimeField(null=True, blank=True)
+    last_error = models.CharField(max_length=80, blank=True)

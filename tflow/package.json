@@ -17,11 +17,13 @@
     "test:backend": "node scripts/python.mjs manage.py test flow.tests --noinput",
     "db:migrate": "node scripts/python.mjs manage.py migrate --noinput",
     "test:calendar": "node --experimental-strip-types lib/calendar.test.mjs",
+    "setup:video": "node scripts/setup-video.mjs",
     "test:frontend": "npm run test:calendar && node --experimental-strip-types lib/activities.test.mjs"
   },
   "dependencies": {
     "@zxing/browser": "^0.2.1",
     "@zxing/library": "0.23.0",
+    "livekit-client": "^2.23.0",
     "lucide-react": "^1.31.0",
     "react": "19.2.6",
     "react-dom": "19.2.6"

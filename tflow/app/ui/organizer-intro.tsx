@@ -37,11 +37,11 @@ export function OrganizerIntro({ user, send, onEnabled }: Props) {
     <p className="organizer-lead">От небольшой встречи до большой конференции — создайте событие и пригласите участников в ТФлоу.</p>
     <ol className="organizer-steps">
       <li><CalendarDays size={24} /><h2>Расскажите о событии</h2><p>Название, время, место и количество участников. Программу можно добавить позже.</p></li>
-      <li><Users size={24} /><h2>Откройте регистрацию</h2><p>Опубликуйте готовый черновик. Событие появится в каталоге, а билеты — у участников.</p></li>
+      <li><Users size={24} /><h2>Откройте регистрацию</h2><p>Опубликуйте готовый черновик. Событие появится в каталоге, и участники смогут записаться.</p></li>
       <li><ScanLine size={24} /><h2>Встречайте гостей</h2><p>Сканируйте QR на входе и следите за регистрациями в своём кабинете.</p></li>
     </ol>
     {user ? <form className="organizer-enable" onSubmit={enable} aria-busy={busy}>
-      <p><Check size={18} /> Ваши билеты, расписание и личный QR сохранятся. Вы сможете и участвовать, и организовывать.</p>
+      <p><Check size={18} /> Ваши записи на события, расписание и личный QR сохранятся. Вы сможете и участвовать, и организовывать.</p>
       <FormError error={error} />
       <button className="button primary" type="submit" disabled={busy}>{busy ? "Открываем кабинет…" : "Стать организатором"}<ArrowRight size={18} /></button>
     </form> : <div className="organizer-enable">

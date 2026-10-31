@@ -39,6 +39,10 @@ class OrganizerSwitch(forms.CheckboxInput):
         return data.get(name, "participant")
 
 
+class InterestCategoriesWidget(forms.CheckboxSelectMultiple):
+    template_name = "widgets/interest_categories.html"
+
+
 class RegisterForm(UserCreationForm):
     role = forms.ChoiceField(
         label="Организовывать",
@@ -78,8 +82,8 @@ class RegisterForm(UserCreationForm):
         label="Интересы",
         required=False,
         choices=INTEREST_CHOICES,
-        widget=forms.CheckboxSelectMultiple,
-        help_text="Можно выбрать несколько категорий или пропустить этот шаг.",
+        widget=InterestCategoriesWidget,
+        help_text="Можно выбрать несколько тем или пропустить этот шаг. Прокрутите список, чтобы увидеть все направления.",
     )
     password1 = forms.CharField(
         label="Пароль",
@@ -123,7 +127,12 @@ class RegisterForm(UserCreationForm):
         return user
 
     def clean_interests(self):
-        return ", ".join(dict.fromkeys(self.cleaned_data["interests"]))
+        value = ", ".join(dict.fromkeys(self.cleaned_data["interests"]))
+        if len(value) > 300:
+            raise forms.ValidationError(
+                "Выберите меньше интересов — оставьте самые важные для вас."
+            )
+        return value
 
     def clean_role(self):
         return self.cleaned_data.get("role") or "participant"

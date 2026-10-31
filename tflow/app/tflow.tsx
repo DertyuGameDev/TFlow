@@ -1,4 +1,11 @@
-import { useCallback, useEffect, useRef, useState } from "react";
+import {
+  lazy,
+  Suspense,
+  useCallback,
+  useEffect,
+  useRef,
+  useState,
+} from "react";
 import {
   ArrowLeft,
   ArrowRight,
@@ -19,8 +26,9 @@ import {
   ScanLine,
   Search,
   SlidersHorizontal,
-  Ticket,
+  Trash2,
   Users,
+  Video,
   X,
 } from "lucide-react";
 import type {
@@ -33,18 +41,15 @@ import type {
   RequiredProfileField,
   Room,
   UserIdentity,
+  Community,
 } from "../lib/types";
-import { TOPICS } from "../lib/types";
+import { CategorySelect } from "./ui/category-select";
 import { parseInterests } from "../lib/interests";
 import { csrfToken, signInPath } from "../lib/session";
 import { dateLabel, timeLabel } from "../lib/time";
+import { canEnterWebinar, hasWebinar } from "../lib/webinars";
 import { Modal } from "./ui/dialog";
-import {
-  ActivityForm,
-  FormError,
-  RoomForm,
-  type Send,
-} from "./ui/forms";
+import { ActivityForm, FormError, RoomForm, type Send } from "./ui/forms";
 import { QuickEventForm } from "./ui/quick-event-form";
 import { QRScanner } from "./ui/qr-scanner";
 import { EventArt } from "./ui/event-card";
@@ -58,17 +63,32 @@ import { CityPicker } from "./ui/city-picker";
 import { BrandLogo } from "./ui/brand-logo";
 import { OrganizerIntro } from "./ui/organizer-intro";
 import { Calendar } from "./ui/calendar";
+import { EventRemovalDialog } from "./ui/event-removal-dialog";
+import { NotificationCenter } from "./ui/notification-center";
+import { Clubs } from "./ui/clubs";
 import { ThemeToggle } from "./ui/theme-toggle";
-import { CompleteRegistrationForm, ExpandedProfileForm, ParticipantDetails, RegistrationSettings } from "./ui/profile-data";
+const Webinar = lazy(() => import("./ui/webinar"));
+import {
+  CompleteRegistrationForm,
+  ExpandedProfileForm,
+  ParticipantDetails,
+  RegistrationSettings,
+} from "./ui/profile-data";
 import { ApiError } from "../lib/api-error";
 import { REQUIREMENT_FIELDS } from "../lib/profile-fields";
 
 type Route = { view: string; id?: string; mode?: string };
 type DialogState =
-  | { type: "create"; startsAt?: number }
-  | { type: "edit" | "move" | "cancel"; event: FlowEvent }
+  | { type: "create"; startsAt?: number; communityId?: string }
+  | { type: "edit" | "move" | "cancel" | "delete"; event: FlowEvent }
   | { type: "profile" | "avatar" }
-  | { type: "enroll"; event: FlowEvent; path: string; missing: RequiredProfileField[]; message: string }
+  | {
+      type: "enroll";
+      event: FlowEvent;
+      path: string;
+      missing: RequiredProfileField[];
+      message: string;
+    }
   | { type: "filters" }
   | { type: "room"; room?: Room }
   | { type: "activity"; activity?: Activity }
@@ -80,6 +100,7 @@ const empty: Bootstrap = {
   waitlist: [],
   communities: [],
   notifications: [],
+  unread_notification_count: 0,
   profile: null,
 };
 const go = (view: string, id?: string) => {
@@ -88,10 +109,11 @@ const go = (view: string, id?: string) => {
 };
 const routeFromHash = (organizer: boolean): Route => {
   const [view, id, mode] = location.hash.slice(1).split("/");
+  if (view === "tickets") return { view: "calendar" };
+  if (view === "webinar" && !id) return { view: "events" };
   const valid = [
     "events",
     "calendar",
-    "tickets",
     "profile",
     "saved",
     "schedule",
@@ -99,9 +121,11 @@ const routeFromHash = (organizer: boolean): Route => {
     "manage",
     "scan",
     "event",
+    "webinar",
     "pass",
     "notifications",
     "communities",
+    "clubs",
     "places",
   ];
   return valid.includes(view)
@@ -119,12 +143,12 @@ function Empty({
   title,
   text,
   children,
-  icon: Icon = Ticket,
+  icon: Icon = CalendarDays,
 }: {
   title: string;
   text: string;
   children?: React.ReactNode;
-  icon?: typeof Ticket;
+  icon?: typeof CalendarDays;
 }) {
   return (
     <div className="quiet-empty">
@@ -235,9 +259,11 @@ function EventMeta({ event }: { event: FlowEvent }) {
 function DiscoveryCard({
   event,
   onSave,
+  userId,
 }: {
   event: FlowEvent;
   onSave: () => void;
+  userId?: string;
 }) {
   return (
     <article className="discovery-card">
@@ -249,7 +275,7 @@ function DiscoveryCard({
         >
           <EventArt
             cover={event.cover}
-            title={event.topic === TOPICS[0] ? "AI" : undefined}
+            title={event.topic === "Искусственный интеллект" ? "AI" : undefined}
           />
         </button>
         <span className="event-kind">{event.kind}</span>
@@ -285,6 +311,15 @@ function DiscoveryCard({
             : `${event.city} · ${event.venue}`}
         </span>
         <strong>Бесплатно</strong>
+        {canEnterWebinar(event, userId) && (
+          <button
+            className="button secondary webinar-card-entry"
+            onClick={() => go("webinar", event.id)}
+          >
+            <Video size={18} />
+            {event.owner_id === userId ? "Открыть студию" : "Войти в вебинар"}
+          </button>
+        )}
       </div>
     </article>
   );
@@ -292,13 +327,11 @@ function DiscoveryCard({
 
 function ProfileView({
   profile,
-  tickets,
   organizer,
   onEdit,
   onAvatar,
 }: {
   profile: Profile;
-  tickets: FlowEvent[];
   organizer: boolean;
   onEdit: () => void;
   onAvatar: () => void;
@@ -381,18 +414,12 @@ function ProfileView({
                 <Pencil size={18} />
               </button>
             </div>
-            <p className="profile-sharing-note">Заполните профиль один раз. При записи организатор получит ваши данные, а недостающее можно будет добавить по пути.</p>
-            <ParticipantDetails data={profile} showEmpty/>
+            <p className="profile-sharing-note">
+              Заполните профиль один раз. При записи организатор получит ваши
+              данные, а недостающее можно будет добавить по пути.
+            </p>
+            <ParticipantDetails data={profile} showEmpty />
 
-            <button
-              className="profile-ticket-link"
-              onClick={() => go("tickets")}
-            >
-              <Ticket size={20} />
-              <span>Мои билеты</span>
-              <b>{tickets.length}</b>
-              <ArrowRight size={17} />
-            </button>
             <button className="button secondary" onClick={onEdit}>
               <Pencil size={16} />
               Изменить профиль
@@ -426,7 +453,7 @@ function ProfileView({
             <p>
               {organizer
                 ? "Создавайте события, управляйте регистрациями и встречайте гостей по QR."
-                : "Соберите встречу, лекцию или конференцию. Билеты и личный QR останутся в этом аккаунте."}
+                : "Соберите встречу, лекцию или конференцию. Записи на события и личный QR останутся в этом аккаунте."}
             </p>
             <a className="button primary" href="#organizer">
               {organizer ? "Мои события" : "Стать организатором"}
@@ -442,9 +469,11 @@ function ProfileView({
 function OrganizerEvent({
   event,
   onMove,
+  onDelete,
 }: {
   event: FlowEvent;
   onMove: () => void;
+  onDelete: () => void;
 }) {
   const published = event.status === "published";
   return (
@@ -482,14 +511,37 @@ function OrganizerEvent({
       <div className="host-event-actions">
         <button
           className="button primary"
-          onClick={() => go(published ? "scan" : "manage", event.id)}
+          onClick={() =>
+            go(
+              published ? (hasWebinar(event) ? "webinar" : "scan") : "manage",
+              event.id,
+            )
+          }
         >
-          {published ? <ScanLine size={18} /> : <Pencil size={18} />}
-          <span>{published ? "Сканировать QR" : "Подготовить событие"}</span>
+          {published ? (
+            hasWebinar(event) ? (
+              <Video size={18} />
+            ) : (
+              <ScanLine size={18} />
+            )
+          ) : (
+            <Pencil size={18} />
+          )}
+          <span>
+            {published
+              ? hasWebinar(event)
+                ? "Открыть студию"
+                : "Сканировать QR"
+              : "Подготовить событие"}
+          </span>
         </button>
         <button className="button secondary" onClick={onMove}>
           <CalendarDays size={17} />
           Перенести
+        </button>
+        <button className="button danger-outline" onClick={onDelete}>
+          <Trash2 size={17} />
+          Удалить мероприятие
         </button>
         <button
           className="text-button"
@@ -509,6 +561,7 @@ function OrganizerManage({
   onScan,
   onMove,
   onEdit,
+  onDelete,
   onPublish,
   onRoom,
   onActivity,
@@ -520,6 +573,7 @@ function OrganizerManage({
   onScan: () => void;
   onMove: () => void;
   onEdit: () => void;
+  onDelete: () => void;
   onPublish: () => void;
   onRoom: (room?: Room) => void;
   onActivity: (activity?: Activity) => void;
@@ -545,8 +599,20 @@ function OrganizerManage({
       <div className="host-event-summary">
         <EventMeta event={e} />
         <div className="host-quick-actions">
+          {hasWebinar(e) && (
+            <button
+              className="button primary"
+              onClick={() => go("webinar", e.id)}
+            >
+              <Video size={19} />
+              Открыть студию вебинара
+            </button>
+          )}
           {e.status === "published" && (
-            <button className="button primary" onClick={onScan}>
+            <button
+              className={`button ${hasWebinar(e) ? "secondary" : "primary"}`}
+              onClick={onScan}
+            >
               <ScanLine size={19} />
               Сканировать QR
             </button>
@@ -558,6 +624,10 @@ function OrganizerManage({
           <button className="button secondary" onClick={onEdit}>
             <Pencil size={16} />
             Изменить
+          </button>
+          <button className="button danger-outline" onClick={onDelete}>
+            <Trash2 size={17} />
+            Удалить мероприятие
           </button>
           {e.status === "draft" && (
             <button className="button primary" onClick={onPublish}>
@@ -598,7 +668,12 @@ function OrganizerManage({
           </strong>
         </div>
       </div>
-      <RegistrationSettings key={e.id} event={e} send={send} refresh={refresh}/>
+      <RegistrationSettings
+        key={e.id}
+        event={e}
+        send={send}
+        refresh={refresh}
+      />
       <section className="attendee-section">
         <div className="section-title">
           <h2>Участники</h2>
@@ -633,7 +708,41 @@ function OrganizerManage({
         </div>
         {visible.length ? (
           <div className="attendee-list">
-            {visible.map(p=><details className="attendee-record" key={p.id}><summary className="attendee-row"><span className="small-person-avatar">{p.name.slice(0,1)}</span><div><h3>{p.name}</h3><p>{p.email}</p></div><span className={`arrival-badge ${p.checked_in_at?"arrived":""}`}>{p.checked_in_at?<><Check size={14}/>Вошёл в {timeLabel(p.checked_in_at)}</>:"Ожидаем"}</span><span className="attendee-expand">Данные<ArrowRight size={15} aria-hidden="true"/></span></summary><div className="attendee-profile"><p className="snapshot-caption">Данные, переданные при записи · {dateLabel(p.created_at)}</p><ParticipantDetails data={p.profile_data}/></div></details>)}
+            {visible.map((p) => (
+              <details className="attendee-record" key={p.id}>
+                <summary className="attendee-row">
+                  <span className="small-person-avatar">
+                    {p.name.slice(0, 1)}
+                  </span>
+                  <div>
+                    <h3>{p.name}</h3>
+                    <p>{p.email}</p>
+                  </div>
+                  <span
+                    className={`arrival-badge ${p.checked_in_at ? "arrived" : ""}`}
+                  >
+                    {p.checked_in_at ? (
+                      <>
+                        <Check size={14} />
+                        Вошёл в {timeLabel(p.checked_in_at)}
+                      </>
+                    ) : (
+                      "Ожидаем"
+                    )}
+                  </span>
+                  <span className="attendee-expand">
+                    Данные
+                    <ArrowRight size={15} aria-hidden="true" />
+                  </span>
+                </summary>
+                <div className="attendee-profile">
+                  <p className="snapshot-caption">
+                    Данные, переданные при записи · {dateLabel(p.created_at)}
+                  </p>
+                  <ParticipantDetails data={p.profile_data} />
+                </div>
+              </details>
+            ))}
           </div>
         ) : (
           <Empty
@@ -689,7 +798,8 @@ function OrganizerManage({
             <div>
               <strong>{a.title}</strong>
               <small>
-                {a.room_name} · {a.taken} занято · {Math.max(0, a.capacity - a.taken)} свободно
+                {a.room_name} · {a.taken} занято ·{" "}
+                {Math.max(0, a.capacity - a.taken)} свободно
                 {a.waiting_count > 0 ? ` · в очереди: ${a.waiting_count}` : ""}
               </small>
             </div>
@@ -737,6 +847,7 @@ export function TFlow({
   const [query, setQuery] = useState(""),
     [city, setCity] = useState(""),
     [topic, setTopic] = useState(""),
+    [clubFilter, setClubFilter] = useState(""),
     [format, setFormat] = useState(""),
     [date, setDate] = useState("");
   const latest = useRef(route),
@@ -769,7 +880,7 @@ export function TFlow({
         .catch(() => ({ error: "Сервер недоступен. Повторите действие." }));
       if (!response.ok) {
         if (response.status === 401) location.assign(signInPath());
-        throw new ApiError(payload);
+        throw Object.assign(new ApiError(payload), { status: response.status });
       }
       return payload;
     },
@@ -811,7 +922,7 @@ export function TFlow({
   const refresh = useCallback(async () => {
     await load();
     const r = latest.current;
-    if (r.id && ["event", "manage", "scan"].includes(r.view))
+    if (r.id && ["event", "webinar", "manage", "scan"].includes(r.view))
       await loadDetail(r.id, organizer && ["manage", "scan"].includes(r.view));
   }, [load, loadDetail, organizer]);
   useEffect(() => {
@@ -839,8 +950,11 @@ export function TFlow({
     setDetail(null);
     setRows([]);
     setDetailError("");
-    if (route.id && ["event", "manage", "scan"].includes(route.view))
-      void loadDetail(route.id, organizer && route.view !== "event");
+    if (route.id && ["event", "webinar", "manage", "scan"].includes(route.view))
+      void loadDetail(
+        route.id,
+        organizer && ["manage", "scan"].includes(route.view),
+      );
   }, [route, organizer, loadDetail]);
   useEffect(() => {
     if (!toast) return;
@@ -873,14 +987,42 @@ export function TFlow({
         ),
       event.saved ? "Убрали из избранного" : "Сохранили событие",
     );
-  const enrollmentDone=(message="Вы записаны. Данные переданы организатору, билет — в профиле.")=>{setDialog(null);void refresh();setToast({text:message,error:false});};
-  async function enroll(event:FlowEvent,path=`events/${event.id}/registration`,message="Вы записаны. Данные переданы организатору, билет — в профиле."){
-    if(!user){location.assign(signupLink("event",event.id));return;}
-    if(pending)return;
+  const enrollmentDone = (
+    message = "Вы записаны. Событие добавлено в календарь.",
+  ) => {
+    setDialog(null);
+    void refresh();
+    setToast({ text: message, error: false });
+  };
+  async function enroll(
+    event: FlowEvent,
+    path = `events/${event.id}/registration`,
+    message = hasWebinar(event)
+      ? "Вы зарегистрированы. Войти в вебинар можно из карточки события или календаря."
+      : "Вы зарегистрированы. Событие добавлено в календарь, QR — в профиле.",
+  ) {
+    if (!user) {
+      location.assign(signupLink("event", event.id));
+      return;
+    }
+    if (pending) return;
     setPending(true);
-    try{await send(path,"POST",{});enrollmentDone(message);}
-    catch(e){if(e instanceof ApiError&&e.code==="PROFILE_INCOMPLETE")setDialog({type:"enroll",event,path,missing:e.missing_fields,message});else setToast({text:(e as Error).message,error:true});}
-    finally{setPending(false);}
+    try {
+      await send(path, "POST", {});
+      enrollmentDone(message);
+    } catch (e) {
+      if (e instanceof ApiError && e.code === "PROFILE_INCOMPLETE")
+        setDialog({
+          type: "enroll",
+          event,
+          path,
+          missing: e.missing_fields,
+          message,
+        });
+      else setToast({ text: (e as Error).message, error: true });
+    } finally {
+      setPending(false);
+    }
   }
   const closeForm = (id?: string) => {
     setDialog(null);
@@ -907,31 +1049,47 @@ export function TFlow({
           .includes(query.toLowerCase())) &&
       (!city || e.city === city) &&
       (!topic || e.topic === topic) &&
+      (!clubFilter ||
+        (clubFilter === "@joined"
+          ? data.communities.some(
+              (club) => club.id === e.community_id && club.joined,
+            )
+          : e.community_id === clubFilter)) &&
       (!format || e.format === format) &&
       (!date ||
         new Date(e.starts_at + 3 * 3600000).toISOString().slice(0, 10) ===
           date),
   );
-  const hasFilters = !!(query.trim() || city || format || date || topic);
+  const hasFilters = !!(
+    query.trim() ||
+    city ||
+    format ||
+    date ||
+    topic ||
+    clubFilter
+  );
   const resetFilters = () => {
     setQuery("");
     setCity("");
     setFormat("");
     setDate("");
     setTopic("");
+    setClubFilter("");
   };
+  const clubsNav = { id: "clubs", name: "Клубы", icon: Heart };
   const calendarNav = { id: "calendar", name: "Календарь", icon: CalendarDays };
   const nav = organizerArea
     ? [
         { id: "organizer", name: "Мои события", icon: CalendarDays },
+        clubsNav,
         calendarNav,
         { id: "scan", name: "Сканировать", icon: ScanLine },
         { id: "profile", name: "Профиль", icon: Users },
       ]
     : [
         { id: "events", name: "События", icon: Search },
+        clubsNav,
         calendarNav,
-        { id: "tickets", name: "Мои билеты", icon: Ticket },
         { id: "profile", name: "Профиль", icon: Users },
       ];
   const participantProfile =
@@ -942,9 +1100,12 @@ export function TFlow({
   const brandDestination = organizerArea ? "organizer" : "events";
   const activeNav = (id: string) =>
     route.view === id ||
+    (id === "clubs" && route.view === "communities") ||
     (id === "calendar" && route.view === "schedule") ||
     (organizer && id === "organizer" && route.view === "manage") ||
-    (!organizerArea && id === "events" && route.view === "event") ||
+    (!organizerArea &&
+      id === "events" &&
+      ["event", "webinar"].includes(route.view)) ||
     (!organizerArea && id === "profile" && route.view === "pass");
 
   function activityAction(a: Activity, operation: ActivityAction) {
@@ -956,9 +1117,16 @@ export function TFlow({
       join: "Вы в листе ожидания. При появлении места запишем автоматически и уведомим вас.",
       leave: "Вы вышли из листа ожидания",
     }[operation];
-    if(!leaving){
-      const event=data.events.find(event=>event.id===a.event_id);
-      if(event){void enroll(event,`activities/${a.id}/${queue?"waitlist":"registration"}`,message);return;}
+    if (!leaving) {
+      const event = data.events.find((event) => event.id === a.event_id);
+      if (event) {
+        void enroll(
+          event,
+          `activities/${a.id}/${queue ? "waitlist" : "registration"}`,
+          message,
+        );
+        return;
+      }
     }
     void action(
       () =>
@@ -1008,15 +1176,6 @@ export function TFlow({
           </nav>
           <div className="flow-account">
             <ThemeToggle />
-            {user && !organizerArea && (
-              <a
-                className="icon-button favorite-link"
-                href="#saved"
-                aria-label="Избранное"
-              >
-                <Heart size={21} />
-              </a>
-            )}
             <a
               className="role-switch"
               href={organizerArea ? "#events" : "#organizer"}
@@ -1043,15 +1202,34 @@ export function TFlow({
                       : "Организаторам"}
               </span>
             </a>
+            {user && !organizerArea && (
+              <a
+                className="icon-button favorite-link"
+                href="#saved"
+                aria-label="Избранное"
+              >
+                <Heart size={21} />
+              </a>
+            )}
             {user ? (
               <>
                 <a
                   className="icon-button notification-link"
                   href="#notifications"
-                  aria-label="Уведомления"
+                  aria-label={
+                    data.unread_notification_count
+                      ? `Уведомления: ${data.unread_notification_count} непрочитанных`
+                      : "Уведомления"
+                  }
                 >
                   <Bell size={20} />
-                  {data.notifications.some((n) => !n.read) && <i />}
+                  {data.unread_notification_count > 0 && (
+                    <span className="notification-count">
+                      {data.unread_notification_count > 99
+                        ? "99+"
+                        : data.unread_notification_count}
+                    </span>
+                  )}
                 </a>
                 <a
                   className="avatar"
@@ -1143,25 +1321,30 @@ export function TFlow({
                     )}
                   </button>
                 </div>
-                <nav className="discovery-topics" aria-label="Темы событий">
-                  <button
-                    className={!topic ? "active" : ""}
-                    aria-pressed={!topic}
-                    onClick={() => setTopic("")}
-                  >
-                    Все события
-                  </button>
-                  {TOPICS.map((t) => (
-                    <button
-                      className={topic === t ? "active" : ""}
-                      aria-pressed={topic === t}
-                      key={t}
-                      onClick={() => setTopic(topic === t ? "" : t)}
-                    >
-                      {t === TOPICS[0] ? "Искусственный интеллект" : t}
-                    </button>
-                  ))}
-                </nav>
+                <div className="catalog-category-filter">
+                  <CategorySelect value={topic} onChange={setTopic} allowAll />
+                  {data.communities.length > 0 && (
+                    <label className="catalog-club-filter">
+                      Клуб
+                      <select
+                        value={clubFilter}
+                        onChange={(event) => setClubFilter(event.target.value)}
+                      >
+                        <option value="">Все клубы</option>
+                        {user && (
+                          <option value="@joined">
+                            Клубы, в которых я состою
+                          </option>
+                        )}
+                        {data.communities.map((club) => (
+                          <option key={club.id} value={club.id}>
+                            {club.name}
+                          </option>
+                        ))}
+                      </select>
+                    </label>
+                  )}
+                </div>
                 <div className="discovery-count">
                   <span role="status">
                     {plural(visible.length, ["событие", "события", "событий"])}
@@ -1218,6 +1401,7 @@ export function TFlow({
                         event={e}
                         key={e.id}
                         onSave={() => save(e)}
+                        userId={user?.userId}
                       />
                     ))}
                   </div>
@@ -1301,6 +1485,9 @@ export function TFlow({
                           event={e}
                           key={e.id}
                           onMove={() => setDialog({ type: "move", event: e })}
+                          onDelete={() =>
+                            setDialog({ type: "delete", event: e })
+                          }
                         />
                       ))}
                     </div>
@@ -1353,6 +1540,9 @@ export function TFlow({
                     }
                     onEdit={() =>
                       setDialog({ type: "edit", event: detail.event })
+                    }
+                    onDelete={() =>
+                      setDialog({ type: "delete", event: detail.event })
                     }
                     onPublish={() =>
                       void action(
@@ -1458,7 +1648,6 @@ export function TFlow({
                 {data.profile ? (
                   <ProfileView
                     profile={data.profile}
-                    tickets={data.tickets}
                     organizer={organizer}
                     onEdit={() => setDialog({ type: "profile" })}
                     onAvatar={() => setDialog({ type: "avatar" })}
@@ -1482,93 +1671,6 @@ export function TFlow({
                       </a>
                     </Empty>
                   </>
-                )}
-              </>
-            )}
-            {route.view === "tickets" && (
-              <>
-                <Heading
-                  title="Мои билеты"
-                  text="Личный QR в профиле подходит для всех ваших событий"
-                />
-                {data.tickets.length ? (
-                  <div className="ticket-list">
-                    {data.tickets.map((e) => (
-                      <article className="ticket-card" key={e.id}>
-                        <div className="ticket-date">
-                          <strong>
-                            {dateLabel(e.starts_at, { month: undefined })}
-                          </strong>
-                          <span>
-                            {dateLabel(e.starts_at, {
-                              day: undefined,
-                              month: "short",
-                            })}
-                          </span>
-                        </div>
-                        <div className="ticket-info">
-                          <span
-                            className={`arrival-badge ${e.checked_in ? "arrived" : ""}`}
-                          >
-                            {e.checked_in ? (
-                              <>
-                                <Check size={14} />
-                                Вход подтверждён
-                              </>
-                            ) : (
-                              "Вы зарегистрированы"
-                            )}
-                          </span>
-                          <h2>
-                            <button onClick={() => go("event", e.id)}>
-                              {e.title}
-                            </button>
-                          </h2>
-                          <EventMeta event={e} />
-                          <div className="ticket-actions">
-                            <button
-                              className="button primary"
-                              onClick={() => go("profile")}
-                            >
-                              <QrCode size={18} />
-                              Показать QR
-                            </button>
-                            <button
-                              className="text-button"
-                              onClick={() => go("event", e.id)}
-                            >
-                              О событии
-                              <ArrowRight size={15} />
-                            </button>
-                            {!e.checked_in && (
-                              <button
-                                className="text-button cancel-ticket"
-                                disabled={pending}
-                                onClick={() =>
-                                  setDialog({ type: "cancel", event: e })
-                                }
-                              >
-                                Отменить
-                              </button>
-                            )}
-                          </div>
-                        </div>
-                      </article>
-                    ))}
-                  </div>
-                ) : (
-                  <Empty
-                    title="Впереди столько интересного"
-                    text="Выберите событие и нажмите «Зарегистрироваться». Билет появится здесь."
-                  >
-                    <button
-                      className="button primary"
-                      onClick={() => go("events")}
-                    >
-                      Найти событие
-                      <ArrowRight size={17} />
-                    </button>
-                  </Empty>
                 )}
               </>
             )}
@@ -1599,6 +1701,21 @@ export function TFlow({
                         <section className="event-about">
                           <h2>О событии</h2>
                           <p>{detail.event.description}</p>
+                          {detail.event.community_id && (
+                            <button
+                              className="event-club-link"
+                              onClick={() =>
+                                go("clubs", detail.event.community_id!)
+                              }
+                            >
+                              <Users size={17} />
+                              Клуб:{" "}
+                              {data.communities.find(
+                                (club) => club.id === detail.event.community_id,
+                              )?.name ?? "Открыть клуб"}
+                              <ArrowRight size={16} />
+                            </button>
+                          )}
                           <a
                             className="text-button event-calendar-link"
                             href={`/api/events/${detail.event.id}/calendar`}
@@ -1629,7 +1746,7 @@ export function TFlow({
                               Мы проверим пересечения в вашем расписании. Если
                               мест нет, встаньте в очередь: при освобождении
                               места запишем автоматически и пришлём уведомление.
-                              При вступлении в очередь также оформляется билет
+                              При вступлении в очередь вы также регистрируетесь
                               на событие.
                             </p>
                             <ActivityProgram
@@ -1652,19 +1769,67 @@ export function TFlow({
                         {organizer && detail.event.owner_id === user?.userId ? (
                           <button
                             className="button primary"
-                            onClick={() => go("manage", detail.event.id)}
+                            onClick={() =>
+                              go(
+                                hasWebinar(detail.event) ? "webinar" : "manage",
+                                detail.event.id,
+                              )
+                            }
                           >
-                            В кабинет организатора
+                            {hasWebinar(detail.event)
+                              ? "Открыть студию вебинара"
+                              : "В кабинет организатора"}
                             <ArrowRight size={17} />
                           </button>
                         ) : detail.event.enrolled ? (
-                          <button
-                            className="button primary"
-                            onClick={() => go("profile")}
-                          >
-                            <QrCode size={20} />
-                            Показать мой QR
-                          </button>
+                          <>
+                            <button
+                              className="button primary"
+                              onClick={() =>
+                                go(
+                                  hasWebinar(detail.event)
+                                    ? "webinar"
+                                    : "profile",
+                                  hasWebinar(detail.event)
+                                    ? detail.event.id
+                                    : undefined,
+                                )
+                              }
+                            >
+                              {["Онлайн", "Гибрид"].includes(
+                                detail.event.format,
+                              ) ? (
+                                <>
+                                  <Video size={20} />
+                                  Войти в вебинар
+                                </>
+                              ) : (
+                                <>
+                                  <QrCode size={20} />
+                                  Показать мой QR
+                                </>
+                              )}
+                            </button>
+                            <button
+                              className="button danger-outline event-withdraw"
+                              disabled={pending || !!detail.event.checked_in}
+                              onClick={() =>
+                                setDialog({
+                                  type: "cancel",
+                                  event: detail.event,
+                                })
+                              }
+                            >
+                              <X size={17} />
+                              Отменить регистрацию
+                            </button>
+                            {!!detail.event.checked_in && (
+                              <p className="withdraw-note">
+                                Вход уже подтверждён — отмена регистрации
+                                недоступна.
+                              </p>
+                            )}
+                          </>
                         ) : user ? (
                           <button
                             className="button primary register-event"
@@ -1698,10 +1863,24 @@ export function TFlow({
                         )}
                         <p>
                           {detail.event.enrolled
-                            ? "Покажите QR из профиля на входе"
-                            : "При записи организатор получит данные вашего профиля"}
+                            ? hasWebinar(detail.event)
+                              ? "Комната вебинара откроется прямо здесь, на ТФлоу."
+                              : "Покажите QR из профиля на входе"
+                            : "После регистрации событие появится в календаре."}
                         </p>
-                        {!detail.event.enrolled&&detail.event.required_profile_fields?.length>0&&<p className="required-data-note">Для записи: {REQUIREMENT_FIELDS.filter(f=>detail.event.required_profile_fields.includes(f.key as RequiredProfileField)).map(f=>f.label.toLowerCase()).join(", ")}</p>}
+                        {!detail.event.enrolled &&
+                          detail.event.required_profile_fields?.length > 0 && (
+                            <p className="required-data-note">
+                              Для записи:{" "}
+                              {REQUIREMENT_FIELDS.filter((f) =>
+                                detail.event.required_profile_fields.includes(
+                                  f.key as RequiredProfileField,
+                                ),
+                              )
+                                .map((f) => f.label.toLowerCase())
+                                .join(", ")}
+                            </p>
+                          )}
                         <div className="registration-facts">
                           <span>
                             <Clock3 size={17} />
@@ -1719,6 +1898,106 @@ export function TFlow({
                 )}
               </>
             )}
+            {route.view === "webinar" && (
+              <section className="webinar-room-page">
+                <button
+                  className="back-link"
+                  onClick={() =>
+                    go(
+                      detail?.event.owner_id === user?.userId
+                        ? "manage"
+                        : "event",
+                      route.id,
+                    )
+                  }
+                >
+                  <ArrowLeft size={17} />К событию
+                </button>
+                {detailError ? (
+                  <FormError error={detailError} />
+                ) : !detail ? (
+                  <p className="loading-state">Открываем комнату вебинара…</p>
+                ) : !hasWebinar(detail.event) ? (
+                  <Empty
+                    icon={MapPin}
+                    title="Это очное событие"
+                    text="Место встречи и программа указаны на странице события."
+                  />
+                ) : (
+                  <>
+                    <Heading
+                      title={detail.event.title}
+                      text={`${dateLabel(detail.event.starts_at)} · ${timeLabel(detail.event.starts_at)} МСК · ${detail.event.organizer}`}
+                    />
+                    {!user ? (
+                      <Empty
+                        icon={Video}
+                        title="Войдите, чтобы открыть вебинар"
+                        text="Мы проверим вашу регистрацию и откроем комнату встречи."
+                      >
+                        <a
+                          className="button primary"
+                          href={loginLink("webinar", detail.event.id)}
+                        >
+                          Войти в аккаунт
+                          <ArrowRight size={18} />
+                        </a>
+                        <a
+                          className="text-button"
+                          href={signupLink("webinar", detail.event.id)}
+                        >
+                          Создать аккаунт
+                        </a>
+                      </Empty>
+                    ) : !detail.event.enrolled &&
+                      detail.event.owner_id !== user.userId ? (
+                      <Empty
+                        icon={Video}
+                        title="Сначала зарегистрируйтесь"
+                        text="Участие бесплатное. После регистрации здесь появится вход в комнату."
+                      >
+                        <button
+                          className="button primary"
+                          disabled={
+                            pending ||
+                            detail.event.status !== "published" ||
+                            detail.event.ends_at < Date.now() ||
+                            detail.event.participant_count >=
+                              detail.event.capacity
+                          }
+                          onClick={() => enroll(detail.event)}
+                        >
+                          {pending
+                            ? "Регистрируем…"
+                            : detail.event.ends_at < Date.now()
+                              ? "Событие завершено"
+                              : detail.event.participant_count >=
+                                  detail.event.capacity
+                                ? "Мест больше нет"
+                                : "Зарегистрироваться"}
+                          <ArrowRight size={18} />
+                        </button>
+                      </Empty>
+                    ) : (
+                      <Suspense
+                        fallback={
+                          <p className="loading-state">
+                            Готовим комнату эфира…
+                          </p>
+                        }
+                      >
+                        <Webinar
+                          key={detail.event.id}
+                          event={detail.event}
+                          user={user}
+                          send={send}
+                        />
+                      </Suspense>
+                    )}
+                  </>
+                )}
+              </section>
+            )}
             {["calendar", "schedule"].includes(route.view) && (
               <>
                 {user ? (
@@ -1733,10 +2012,19 @@ export function TFlow({
                         setDialog({ type: "create", startsAt })
                       }
                       onBrowse={() => go("events")}
+                      onCancelEvent={(event) =>
+                        setDialog({ type: "cancel", event })
+                      }
                       onCancelActivity={async (activityId) => {
-                        await send(`activities/${activityId}/registration`, "DELETE");
+                        await send(
+                          `activities/${activityId}/registration`,
+                          "DELETE",
+                        );
                         await refresh();
-                        setToast({text: "Запись отменена. Расписание обновлено.", error: false});
+                        setToast({
+                          text: "Запись отменена. Расписание обновлено.",
+                          error: false,
+                        });
                       }}
                       onOpenEvent={(entry) =>
                         go(
@@ -1744,6 +2032,7 @@ export function TFlow({
                           entry.eventId,
                         )
                       }
+                      onOpenWebinar={(event) => go("webinar", event.id)}
                     />
                     {(data.schedule.length > 0 || data.waitlist.length > 0) && (
                       <>
@@ -1785,7 +2074,7 @@ export function TFlow({
                               Место освободится — запишем вас автоматически и
                               уведомим. Если время будет занято, сохраним
                               очередь и пропустим следующего участника. Отмена
-                              билета также убирает вас из очередей этого
+                              регистрации также убирает вас из очередей этого
                               события.
                             </p>
                             {data.waitlist.map((a) => (
@@ -1831,105 +2120,77 @@ export function TFlow({
                 )}
               </>
             )}
-            {route.view === "notifications" && (
-              <>
-                <Heading title="Уведомления" />
-                {data.notifications.length ? (
-                  <>
-                    <button
-                      className="text-button"
-                      onClick={() =>
-                        void action(
-                          () => send("notifications", "PATCH", {}),
-                          "Все уведомления прочитаны",
-                        )
-                      }
-                    >
-                      Прочитать все
-                      <Check size={15} />
-                    </button>
-                    <div className="flow-notices">
-                      {data.notifications.map((n) => (
-                        <button
-                          className={!n.read ? "unread" : ""}
-                          key={n.id}
-                          onClick={() => go("event", n.event_id)}
-                        >
-                          <Bell size={20} />
-                          <span>
-                            {n.message}
-                            <small>
-                              {dateLabel(n.created_at)} ·{" "}
-                              {timeLabel(n.created_at)}
-                            </small>
-                          </span>
-                          <ArrowRight size={17} />
-                        </button>
-                      ))}
-                    </div>
-                  </>
-                ) : (
-                  <Empty
-                    title="Всё по плану"
-                    text="Здесь появятся изменения ваших событий."
-                  />
-                )}
-              </>
-            )}
-            {["communities", "places"].includes(route.view) && (
-              <>
-                <Heading
-                  title={
-                    route.view === "communities" ? "Сообщества" : "Площадки"
+            {route.view === "notifications" &&
+              (user ? (
+                <NotificationCenter
+                  send={send}
+                  unreadCount={data.unread_notification_count}
+                  revision={`${data.notifications[0]?.id ?? ""}:${data.unread_notification_count}`}
+                  onChange={load}
+                  onOpen={(eventId) =>
+                    go(eventId ? "event" : "calendar", eventId ?? undefined)
                   }
                 />
+              ) : (
+                <Empty
+                  icon={Bell}
+                  title="Ваши уведомления"
+                  text="Войдите, чтобы получать сообщения об отменах и изменениях ваших мероприятий."
+                >
+                  <a
+                    className="button primary"
+                    href={loginLink("notifications")}
+                  >
+                    Войти
+                    <ArrowRight size={17} />
+                  </a>
+                </Empty>
+              ))}
+            {["clubs", "communities"].includes(route.view) && (
+              <Clubs
+                data={data}
+                user={user}
+                clubId={route.id}
+                send={send}
+                onChange={load}
+                onOpenClub={(id) => go("clubs", id)}
+                onOpenEvent={(event) =>
+                  go(
+                    event.owner_id === user?.userId ? "manage" : "event",
+                    event.id,
+                  )
+                }
+                onCreateEvent={(club) =>
+                  setDialog({ type: "create", communityId: club.id })
+                }
+              />
+            )}
+            {route.view === "places" && (
+              <>
+                <Heading title="Площадки" />
                 <div className="simple-directory">
-                  {route.view === "communities"
-                    ? data.communities.map((c) => (
-                        <article key={c.id}>
-                          <Users size={25} />
-                          <h2>{c.name}</h2>
-                          <p>{c.description}</p>
-                          <button
-                            className="button secondary"
-                            onClick={() =>
-                              void action(
-                                () =>
-                                  send(
-                                    `communities/${c.id}/join`,
-                                    c.joined ? "DELETE" : "POST",
-                                    c.joined ? undefined : {},
-                                  ),
-                                c.joined
-                                  ? "Вы вышли из сообщества"
-                                  : "Вы в сообществе",
-                              )
-                            }
-                          >
-                            {c.joined ? "Вы в сообществе" : "Присоединиться"}
-                          </button>
-                        </article>
-                      ))
-                    : Array.from(
-                        new Map(data.events.map((e) => [e.venue, e])).values(),
-                      ).map((e) => (
-                        <article key={e.venue}>
-                          <MapPin size={25} />
-                          <h2>{e.venue}</h2>
-                          <p>
-                            {e.city} · {e.address}
-                          </p>
-                          <button
-                            className="button secondary"
-                            onClick={() => {
-                              setCity(e.city);
-                              go("events");
-                            }}
-                          >
-                            Смотреть события
-                          </button>
-                        </article>
-                      ))}
+                  {Array.from(
+                    new Map(
+                      data.events.map((event) => [event.venue, event]),
+                    ).values(),
+                  ).map((event) => (
+                    <article key={event.venue}>
+                      <MapPin size={25} />
+                      <h2>{event.venue}</h2>
+                      <p>
+                        {event.city} · {event.address}
+                      </p>
+                      <button
+                        className="button secondary"
+                        onClick={() => {
+                          setCity(event.city);
+                          go("events");
+                        }}
+                      >
+                        Смотреть события
+                      </button>
+                    </article>
+                  ))}
                 </div>
               </>
             )}
@@ -1937,14 +2198,14 @@ export function TFlow({
         )}
         <footer className="flow-footer">
           <span>ТФлоу · События и люди</span>
-          <div>
+          <nav className="flow-footer-links" aria-label="Ссылки внизу страницы">
             <a href="#organizer">
               {organizer ? "Кабинет организатора" : "Организаторам"}
             </a>
-            <a href="#communities">Сообщества</a>
+            <a href="#clubs">Клубы по интересам</a>
             <a href="#places">Площадки</a>
             <span>Время по МСК</span>
-          </div>
+          </nav>
         </footer>
       </main>
       <nav
@@ -2000,7 +2261,17 @@ export function TFlow({
                 : undefined
             }
             move={dialog.type === "move"}
-            city={data.profile?.city||"Москва"}
+            city={data.profile?.city || "Москва"}
+            communities={data.communities.filter(
+              (club) =>
+                club.joined ||
+                club.owner_id === user?.userId ||
+                ((dialog.type === "edit" || dialog.type === "move") &&
+                  club.id === dialog.event.community_id),
+            )}
+            initialCommunityId={
+              dialog.type === "create" ? dialog.communityId : undefined
+            }
             send={send}
             done={closeForm}
           />
@@ -2024,7 +2295,21 @@ export function TFlow({
           />
         </Modal>
       )}
-      {dialog?.type === "enroll" && data.profile && <Modal title="Дополните данные для записи" onClose={()=>setDialog(null)}><CompleteRegistrationForm profile={data.profile} event={dialog.event} path={dialog.path} missing={dialog.missing} send={send} done={()=>enrollmentDone(dialog.message)}/></Modal>}
+      {dialog?.type === "enroll" && data.profile && (
+        <Modal
+          title="Дополните данные для записи"
+          onClose={() => setDialog(null)}
+        >
+          <CompleteRegistrationForm
+            profile={data.profile}
+            event={dialog.event}
+            path={dialog.path}
+            missing={dialog.missing}
+            send={send}
+            done={() => enrollmentDone(dialog.message)}
+          />
+        </Modal>
+      )}
       {dialog?.type === "room" && detail && (
         <Modal
           title={dialog.room ? "Изменить аудиторию" : "Новая аудитория"}
@@ -2067,34 +2352,32 @@ export function TFlow({
           />
         </Modal>
       )}
-      {dialog?.type === "cancel" && (
-        <Modal title="Отменить регистрацию?" onClose={() => setDialog(null)}>
-          <p className="confirmation-copy">
-            Вы освободите место на событии «{dialog.event.title}». Записаться
-            снова получится, если останутся свободные места.
-          </p>
-          <div className="confirmation-actions">
-            <button
-              className="button secondary"
-              onClick={() => setDialog(null)}
-            >
-              Оставить билет
-            </button>
-            <button
-              className="button danger-button"
-              disabled={pending}
-              onClick={() => {
-                const eventId = dialog.event.id;
-                void action(async () => {
-                  await send(`events/${eventId}/registration`, "DELETE");
-                  setDialog(null);
-                }, "Регистрация отменена");
-              }}
-            >
-              {pending ? "Отменяем…" : "Отменить регистрацию"}
-            </button>
-          </div>
-        </Modal>
+      {(dialog?.type === "cancel" || dialog?.type === "delete") && (
+        <EventRemovalDialog
+          event={dialog.event}
+          deleting={dialog.type === "delete"}
+          onClose={() => setDialog(null)}
+          onConfirm={async () => {
+            const deleting = dialog.type === "delete";
+            await send(
+              `events/${dialog.event.id}${deleting ? "" : "/registration"}`,
+              "DELETE",
+            );
+            setDialog(null);
+            if (deleting) {
+              go("organizer");
+              await load();
+            } else {
+              await refresh();
+            }
+            setToast({
+              text: deleting
+                ? "Мероприятие удалено. Участники уведомлены."
+                : "Регистрация отменена",
+              error: false,
+            });
+          }}
+        />
       )}
     </div>
   );

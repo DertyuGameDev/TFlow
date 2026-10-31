@@ -56,3 +56,10 @@ footer{text-align:center;font-size:var(--font-size-min);color:#626b78;margin-top
 #id_interests label:has(input:checked){background:#fff6cf;border-color:#dfbf37;color:#63521b}
 #id_interests label:has(input:checked)::before{content:'✓';font-size:13px}
 #id_interests label:has(input:focus-visible){outline:3px solid #1769e8;outline-offset:3px}
+
+#id_interests.grouped-interests{display:grid;gap:18px;max-height:320px;overflow:auto;overscroll-behavior:contain;padding:2px 5px 5px 2px;scrollbar-gutter:stable}
+.interest-group-title{display:block;font-size:13px;line-height:1.5;font-weight:600;color:#414a57;margin-bottom:9px}
+.interest-choice-items{display:flex;flex-wrap:wrap;gap:8px}
+.interest-choice-items>div{min-width:0;max-width:100%}
+
+#id_interests.grouped-interests{padding:12px;border:1px solid #e5e7eb;border-radius:12px;background:#fafbfc;scrollbar-width:thin}

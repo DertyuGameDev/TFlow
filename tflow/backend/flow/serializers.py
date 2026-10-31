@@ -213,9 +213,21 @@ def activity_json(activity, schedule=False):
     return data
 
 
+def notice_json(notice):
+    return {
+        "id": notice.pk,
+        "event_id": notice.event_id,
+        "kind": notice.kind,
+        "message": notice.message,
+        "created_at": milliseconds(notice.created_at),
+        "read": int(notice.read),
+    }
+
+
 def bootstrap(user):
     communities = Community.objects.annotate(
-        member_count=Count("memberships"),
+        member_count=Count("memberships", distinct=True),
+        event_count=Count("event", filter=Q(event__status="published"), distinct=True),
         joined=Exists(
             Membership.objects.filter(
                 community_id=OuterRef("pk"),
@@ -247,19 +259,17 @@ def bootstrap(user):
                 "color": c.color,
                 "member_count": c.member_count,
                 "joined": int(c.joined),
+                "owner_id": c.owner_id,
+                "event_count": c.event_count,
             }
             for c in communities
         ],
-        "notifications": [
-            {
-                "id": n.pk,
-                "event_id": n.event_id,
-                "message": n.message,
-                "created_at": milliseconds(n.created_at),
-                "read": int(n.read),
-            }
-            for n in notifications
-        ],
+        "notifications": [notice_json(n) for n in notifications],
+        "unread_notification_count": (
+            user.notifications.filter(read=False).count()
+            if user.is_authenticated
+            else 0
+        ),
         "profile": profile(user),
         "tickets": (
             [

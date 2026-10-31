@@ -1,5 +1,6 @@
 from django.test import Client, TestCase, override_settings
 from flow.models import User
+from flow.interests import INTEREST_CATEGORIES
 from .test_api import FAST_HASHER, Scenario
 
 
@@ -39,3 +40,17 @@ class InterestTests(Scenario, TestCase):
         self.request("profile", "patch", {**body, "interests": ""}, client=self.participant)
         self.person.refresh_from_db()
         self.assertEqual(self.person.interests, "")
+
+    def test_categories_cover_nontechnical_events_and_render_in_groups(self):
+        response = Client().get("/register/")
+        for label in ["Культура и творчество", "Спорт и отдых", "Люди и город"]:
+            self.assertContains(response, label)
+        interests = ["Музыка", "Спорт и фитнес", "Семья и дети"]
+        self.assertEqual(self.signup(interests=interests).status_code, 302)
+        self.assertEqual(User.objects.get(email="categories@example.test").interests, ", ".join(interests))
+
+    def test_too_many_interests_show_validation_error_instead_of_failing_to_save(self):
+        response = self.signup(interests=INTEREST_CATEGORIES)
+        self.assertEqual(response.status_code, 200)
+        self.assertIn("interests", response.context["form"].errors)
+        self.assertFalse(User.objects.filter(email="categories@example.test").exists())
