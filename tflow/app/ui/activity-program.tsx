@@ -1,7 +1,7 @@
 import { useId, useState } from "react";
 import { AlertCircle, Check, Clock3, MapPin, Search, Users, Video } from "lucide-react";
 import type { Activity } from "../../lib/types";
-import { dateKey, dateLabel, overlaps, timeLabel } from "../../lib/time";
+import { dateKey, dateLabel, timeLabel } from "../../lib/time";
 import { activityAvailability } from "../../lib/activities";
 import { webinarPath } from "../../lib/webinars";
 

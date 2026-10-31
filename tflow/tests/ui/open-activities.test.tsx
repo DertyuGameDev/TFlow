@@ -2,7 +2,14 @@ import { render, screen } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { describe, expect, it, vi } from "vitest";
 import { ActivityCard } from "../../app/ui/activity-program";
-import { activity } from "../fixtures";
+import { event } from "../fixtures";
+import type { Activity } from "../../lib/types";
+
+const activity: Activity = {
+  id:"open", event_id:event.id, room_id:"main", room_name:"Зал", title:"Открытая лекция",
+  description:"", speaker:"", starts_at:event.starts_at, ends_at:event.ends_at, capacity:10,
+  taken:0, registered:0, waitlisted:0, waiting_count:0, waitlist_position:0, updated_at:1,
+};
 
 describe("активности без отдельной регистрации", () => {
   it("показывает добавление в расписание вместо бронирования даже при заполненном лимите", async () => {
