@@ -41,7 +41,7 @@ def livekit_config(values):
 
 
 DNS_HOOK = r'''#!/usr/bin/python3
-import hashlib, hmac, json, os, subprocess, sys, time, urllib.request
+import hashlib, hmac, json, os, socket, subprocess, sys, time, urllib.request
 from pathlib import Path
 values=json.loads(Path('/etc/tflow-video/dns.json').read_text())
 host=values['domain']
@@ -52,10 +52,19 @@ if not txt: raise SystemExit('Missing ACME validation')
 payload=json.dumps({'txt':txt,'clear':clear,'timestamp':int(time.time())},separators=(',',':')).encode()
 signature=hmac.new(values['relay_secret'].encode(),payload,hashlib.sha256).hexdigest()
 request=urllib.request.Request('https://tflow-one.vercel.app/api/internal/dns-challenge',data=payload,headers={'Content-Type':'application/json','X-TFlow-Hook-Signature':signature},method='POST')
-try:
-    with urllib.request.urlopen(request,timeout=30) as response:
-        if json.load(response).get('ok') is not True: raise ValueError()
-except Exception: raise SystemExit('DNS update failed; credential output withheld')
+resolver=socket.getaddrinfo
+for fallback in [False,True]:
+    try:
+        if fallback:
+            # Vercel's documented general-purpose edge; keep the original
+            # HTTPS hostname/SNI and certificate validation unchanged.
+            socket.getaddrinfo=lambda host,port,*args,**kwargs: resolver('76.76.21.21' if host=='tflow-one.vercel.app' else host,port,*args,**kwargs)
+        with urllib.request.urlopen(request,timeout=10 if not fallback else 20) as response:
+            if json.load(response).get('ok') is not True: raise ValueError()
+        break
+    except Exception:
+        if fallback: raise SystemExit('DNS update failed; credential output withheld')
+    finally: socket.getaddrinfo=resolver
 if not clear:
     for attempt in range(24):
         answers=[subprocess.run(['dig','+time=3','+tries=1','+short','@'+resolver,'TXT','_acme-challenge.'+host],capture_output=True,text=True).stdout for resolver in ['1.1.1.1','8.8.8.8']]
@@ -72,6 +81,7 @@ import os, shutil, subprocess
 source=Path('/etc/letsencrypt/live/tflow-video-162f2c.duckdns.org')
 target=Path('/etc/tflow-video/tls')
 target.mkdir(mode=0o750,exist_ok=True)
+os.chmod(target,0o750)
 shutil.chown(target,group='tflow-video')
 for name in ['fullchain.pem','privkey.pem']:
     dest=target/name
@@ -137,6 +147,7 @@ def main(path):
     run("usermod", "-aG", "tflow-video", "caddy")
     base = Path("/etc/tflow-video")
     base.mkdir(mode=0o750, exist_ok=True)
+    base.chmod(0o750)
     shutil.chown(base, group="tflow-video")
     private_write(Path("/etc/tflow-video/dns.json"), json.dumps({"domain":HOST,"relay_secret":values["relay_secret"]}))
     private_write(Path("/usr/local/lib/tflow/video-dns-hook"), DNS_HOOK, 0o700)
@@ -160,8 +171,9 @@ def main(path):
                 member = next(member for member in bundle.getmembers() if member.name == "livekit-server" and member.isfile())
                 binary.write_bytes(bundle.extractfile(member).read())
             binary.chmod(0o755)
-    private_write(Path("/etc/tflow-video/livekit.yaml"), livekit_config(values), 0o640)
-    shutil.chown("/etc/tflow-video/livekit.yaml", group="tflow-video")
+    private_write(Path("/etc/tflow-video/livekit.yaml"), livekit_config(values), 0o400)
+    # Caddy shares the TLS group, but must not be able to read media API keys.
+    shutil.chown("/etc/tflow-video/livekit.yaml", user="tflow-video", group="root")
     private_write(Path("/etc/systemd/system/tflow-video.service"), UNIT, 0o644)
     caddy = Path("/etc/caddy/Caddyfile")
     text = caddy.read_text()
