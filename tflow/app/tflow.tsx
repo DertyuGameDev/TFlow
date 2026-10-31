@@ -76,7 +76,7 @@ import type { ProgramRange } from "../lib/program-editing";
 import { matchesEventTime, type EventTimeFilter } from "../lib/event-filters";
 import { OrganizerTutorial } from "./ui/organizer-tutorial";
 import { ProfileUpcomingEvents } from "./ui/profile-upcoming-events";
-import { EventParticipants } from "./ui/event-participants";
+import { EventFlows } from "./ui/event-flows";
 import { ThemeToggle } from "./ui/theme-toggle";
 const Webinar = lazy(() => import("./ui/webinar"));
 import {
@@ -90,7 +90,6 @@ import { REQUIREMENT_FIELDS } from "../lib/profile-fields";
 type Route = { view: string; id?: string; mode?: string };
 function attendanceScope(view: string, organizer: boolean) {
   if (!organizer) return "none";
-  if (view === "event") return "owner";
   return ["manage", "scan"].includes(view) ? "required" : "none";
 }
 type DialogState =
@@ -698,20 +697,14 @@ export function TFlow({ user }: { user: UserIdentity | null }) {
     }
   }, [send, user?.userId, user?.role]);
   const loadDetail = useCallback(
-    async (id: string, attendance: "none" | "owner" | "required" = "none") => {
+    async (id: string, attendance: "none" | "required" = "none") => {
       const n = ++detailSequence.current;
       try {
         const eventRequest: Promise<EventDetail> = send(`events/${id}`);
         const rowsRequest =
           attendance === "required"
             ? send(`events/${id}/attendance`)
-            : attendance === "owner"
-              ? eventRequest.then((next) =>
-                  next.event.owner_id === user?.userId
-                    ? send(`events/${id}/attendance`)
-                    : [],
-                )
-              : Promise.resolve([]);
+            : Promise.resolve([]);
         const [next, attendees] = await Promise.all([
           eventRequest,
           rowsRequest,
@@ -725,7 +718,7 @@ export function TFlow({ user }: { user: UserIdentity | null }) {
         if (n === detailSequence.current) setDetailError((e as Error).message);
       }
     },
-    [send, user?.userId],
+    [send],
   );
   const refresh = useCallback(async () => {
     await load();
@@ -1645,38 +1638,14 @@ export function TFlow({ user }: { user: UserIdentity | null }) {
                             </div>
                           </div>
                         </section>
-                        {organizer &&
-                          detail.event.owner_id === user?.userId && (
-                            <EventParticipants
-                              key={detail.event.id}
-                              rows={rows}
-                              onShowAll={() =>
-                                go("manage", detail.event.id, "participants")
-                              }
-                            />
-                          )}
-                        {detail.activities.length > 0 && (
-                          <details className="guest-program" open>
-                            <summary>
-                              Программа{" "}
-                              <span>
-                                Активностей: {detail.activities.length}
-                              </span>
-                            </summary>
-                            <p>
-                              Мы проверим пересечения в вашем расписании. Если
-                              мест нет, встаньте в очередь: при освобождении
-                              места запишем автоматически и пришлём уведомление.
-                              При вступлении в очередь вы также регистрируетесь
-                              на событие.
-                            </p>
-                            <ActivityProgram
-                              key={detail.event.id}
-                              activities={detail.activities}
-                              {...programActions}
-                            />
-                          </details>
-                        )}
+                        <EventFlows
+                          key={detail.event.id}
+                          activities={detail.activities}
+                          {...programActions}
+                          onManage={organizer && detail.event.owner_id === user?.userId
+                            ? () => go("manage", detail.event.id, "program")
+                            : undefined}
+                        />
                       </div>
                       <aside className="registration-card">
                         {user?.role === "participant" && !!detail.event.checked_in && (
