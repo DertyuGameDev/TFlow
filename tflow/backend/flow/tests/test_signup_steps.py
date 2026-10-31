@@ -62,6 +62,23 @@ class CompactSignupTests(TestCase):
         user = User.objects.get(email="skip@example.test")
         self.assertEqual((user.interests, user.role), ("", "participant"))
 
+    def test_compact_event_signup_preserves_tags_and_forces_participant(self):
+        data = {
+            "email": "compact-event@example.test",
+            "password1": self.password,
+            "next": "/#event/an-event",
+            "role": "organizer",
+            "interests": ["Дизайн"],
+        }
+        response = self.client.post("/register/", {**data, "intent": "credentials"})
+        self.assertEqual(response.status_code, 200)
+        self.assertTrue(response.json()["valid"])
+        self.assertFalse(User.objects.exists())
+        response = self.client.post("/register/", data)
+        self.assertRedirects(response, data["next"], fetch_redirect_response=False)
+        user = User.objects.get(email=data["email"])
+        self.assertEqual((user.role, user.name, user.interests), ("participant", "", "Дизайн"))
+
     def test_single_password_still_enforces_the_server_password_policy(self):
         response = self.client.post("/register/", {
             "email": "weak@example.test", "password1": "123",

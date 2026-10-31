@@ -3,6 +3,9 @@ import {
   ArrowLeft,
   ArrowRight,
   CalendarDays,
+  Camera,
+  Bell,
+  BellOff,
   Check,
   Heart,
   Pencil,
@@ -21,6 +24,7 @@ import { dateLabel, timeLabel } from "../../lib/time";
 import { CategorySelect } from "./category-select";
 import { FormError, Submit, useSubmit, type Send } from "./forms";
 import { Modal } from "./dialog";
+import { Avatar, AvatarForm } from "./avatar";
 import "../clubs.css";
 
 function ClubForm({
@@ -47,8 +51,6 @@ function ClubForm({
         <input
           name="name"
           required
-          minLength={3}
-          maxLength={160}
           defaultValue={club?.name}
           placeholder="Например, любители настольных игр"
         />
@@ -59,8 +61,6 @@ function ClubForm({
         <textarea
           name="description"
           required
-          minLength={10}
-          maxLength={1000}
           rows={4}
           defaultValue={club?.description}
           placeholder="Кого объединяет клуб и какие встречи вы планируете?"
@@ -95,6 +95,7 @@ export function Clubs({
     [topic, setTopic] = useState(""),
     [mode, setMode] = useState("all");
   const [editing, setEditing] = useState<Community | "new" | null>(null);
+  const [avatarEditing, setAvatarEditing] = useState<Community | null>(null);
   const [busy, setBusy] = useState(false),
     [error, setError] = useState(""),
     [showPast, setShowPast] = useState(false);
@@ -163,6 +164,16 @@ export function Clubs({
       </a>
     );
   }
+  async function subscription(item: Community) {
+    if (busy) return;
+    setBusy(true);
+    setError("");
+    try {
+      await send(`communities/${item.id}/subscription`, "PATCH", {enabled: !item.subscribed});
+      await onChange();
+    } catch (cause) { setError((cause as Error).message); }
+    finally { setBusy(false); }
+  }
   return (
     <section className="clubs-page">
       {clubId ? (
@@ -179,9 +190,38 @@ export function Clubs({
           ) : (
             <>
               <div className="clubs-hero">
-                <span className="clubs-symbol">
-                  <Users size={32} />
-                </span>
+                <div className="club-photo-heading">
+                  {club.owner_id === user?.userId ? (
+                    <>
+                      <button
+                        className="club-avatar-edit"
+                        aria-label="Изменить фото клуба"
+                        onClick={() => setAvatarEditing(club)}
+                      >
+                        <Avatar
+                          profile={club}
+                          className="club-avatar club-avatar-large"
+                        />
+                        <span className="club-avatar-camera">
+                          <Camera size={17} />
+                        </span>
+                      </button>
+                      <button
+                        className="text-button"
+                        onClick={() => setAvatarEditing(club)}
+                      >
+                        {club.avatar_url
+                          ? "Изменить фото"
+                          : "Добавить фото клуба"}
+                      </button>
+                    </>
+                  ) : (
+                    <Avatar
+                      profile={club}
+                      className="club-avatar club-avatar-large"
+                    />
+                  )}
+                </div>
                 <span className="clubs-topic">{club.topic}</span>
                 <h1>{club.name}</h1>
                 <p>{club.description}</p>
@@ -191,6 +231,11 @@ export function Clubs({
                 </span>
                 <div className="clubs-hero-actions">
                   {membership(club)}
+                  {!!club.joined && <button type="button" className="button secondary" disabled={busy}
+                    aria-pressed={club.subscribed} onClick={()=>void subscription(club)}>
+                    {club.subscribed ? <Bell size={17} /> : <BellOff size={17} />}
+                    {club.subscribed ? "Вы подписаны на события" : "Подписаться на события"}
+                  </button>}
                   {club.owner_id === user?.userId && (
                     <button
                       className="button secondary"
@@ -211,6 +256,9 @@ export function Clubs({
                       </button>
                     )}
                 </div>
+                {!!club.joined && <p className="club-subscription-hint">
+                  {club.subscribed ? "Новые встречи клуба появятся в ваших уведомлениях." : "Подпишитесь, чтобы узнавать о новых встречах клуба."}
+                </p>}
               </div>
               <div className="clubs-events-heading">
                 <h2>События клуба</h2>
@@ -322,37 +370,38 @@ export function Clubs({
             <div className="clubs-grid">
               {visible.map((item) => (
                 <article className="clubs-card" key={item.id}>
-                  <div className="clubs-card-heading">
-                    <span className="clubs-symbol">
-                      <Users size={24} />
-                    </span>
+                  <button
+                    className="club-avatar-link"
+                    aria-label={`Открыть клуб ${item.name}`}
+                    onClick={() => onOpenClub(item.id)}
+                  >
+                    <Avatar profile={item} className="club-avatar" />
+                  </button>
+                  <div className="clubs-card-copy">
+                    <h2>
+                      <button onClick={() => onOpenClub(item.id)}>
+                        <span>{item.name}</span>
+                        <ArrowRight size={16} />
+                      </button>
+                    </h2>
                     <span className="clubs-topic">{item.topic}</span>
-                  </div>
-                  <h2>
-                    <button onClick={() => onOpenClub(item.id)}>
-                      {item.name}
-                    </button>
-                  </h2>
-                  <p>{item.description}</p>
-                  <span className="clubs-counts">
-                    Участников: {item.member_count} · Событий:{" "}
-                    {item.event_count}
-                  </span>
-                  {interests.includes(item.topic) && (
-                    <span className="clubs-match">
-                      <Heart size={14} />
-                      Совпадает с вашими интересами
+                    <p className="clubs-card-description">{item.description}</p>
+                    <span className="clubs-counts">
+                      Участников: {item.member_count} · Событий:{" "}
+                      {item.event_count}
                     </span>
-                  )}
-                  <div className="clubs-card-actions">
-                    <button
-                      className="button secondary"
-                      onClick={() => onOpenClub(item.id)}
-                    >
-                      Открыть клуб
-                      <ArrowRight size={16} />
-                    </button>
-                    {membership(item)}
+                    {Boolean(item.joined) && (
+                      <span className="clubs-member">
+                        <Check size={14} />
+                        Вы в клубе
+                      </span>
+                    )}
+                    {interests.includes(item.topic) && (
+                      <span className="clubs-match">
+                        <Heart size={14} />
+                        Совпадает с вашими интересами
+                      </span>
+                    )}
                   </div>
                 </article>
               ))}
@@ -390,6 +439,20 @@ export function Clubs({
         </>
       )}
       <FormError error={error} />
+      {avatarEditing && (
+        <Modal title="Фото клуба" onClose={() => setAvatarEditing(null)}>
+          <AvatarForm
+            profile={avatarEditing}
+            endpoint={`communities/${avatarEditing.id}/avatar`}
+            description="Фото появится в списке и на странице клуба. Изображение обрежется по центру в круг."
+            send={send}
+            done={async () => {
+              await onChange();
+              setAvatarEditing(null);
+            }}
+          />
+        </Modal>
+      )}
       {editing && (
         <Modal
           title={editing === "new" ? "Создать клуб" : "Изменить клуб"}

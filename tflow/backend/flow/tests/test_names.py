@@ -54,14 +54,17 @@ class NameTests(Scenario, TestCase):
         self.assertEqual(self.person.name, "Софья Иванова Петровна")
         self.assertEqual(self.person.first_name, "")
 
-    def test_profile_rejects_blank_surname_and_excessive_combined_length(self):
+    def test_profile_and_signup_accept_optional_surname_and_long_names(self):
         body = {"first_name": "Софья", "last_name": "", "city": "Мурманск", "about": "", "interests": ""}
-        self.request("profile", "patch", body, client=self.participant, status=400, code="VALIDATION")
-        self.request("profile", "patch", {**body, "first_name": "А"*50, "last_name": "Б"*50}, client=self.participant, status=400, code="VALIDATION")
-        _, response = self.signup(first_name="А"*50, last_name="Б"*50)
-        self.assertIn("last_name", response.context["form"].errors)
+        self.request("profile", "patch", body, client=self.participant)
         self.person.refresh_from_db()
-        self.assertEqual(self.person.name, "Участник")
+        self.assertEqual(self.person.name, "Софья")
+        self.request("profile", "patch", {**body, "first_name": "А"*500, "last_name": "Б"*500}, client=self.participant)
+        _, response = self.signup(first_name="А"*500, last_name="Б"*500)
+        self.assertEqual(response.status_code, 302)
+        self.person.refresh_from_db()
+        self.assertEqual(self.person.name, "А"*500 + " " + "Б"*500)
+        self.assertEqual(User.objects.get(email="separate-names@example.test").name, self.person.name)
 
     def test_legacy_profile_payload_keeps_name_parts_consistent(self):
         self.request("profile", "patch", {"name": "Софья Петрова", "city": "Мурманск", "about": "", "interests": ""}, client=self.participant)

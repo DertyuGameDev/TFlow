@@ -2,3 +2,26 @@
 @media(max-width:760px){.clubs-filters{grid-template-columns:1fr;gap:14px}.clubs-grid{grid-template-columns:1fr;gap:16px}.clubs-card{padding:20px}.clubs-card h2{font-size:21px}.clubs-card-actions{flex-direction:column}.clubs-card-actions .button{justify-content:space-between}.clubs-hero{padding:24px 20px}.clubs-hero h1{font-size:29px}.clubs-hero-actions{flex-direction:column}.clubs-event{padding:18px 14px;gap:12px}.clubs-event strong{font-size:17px}.clubs-event small{font-size:13px}.clubs-page .flow-heading{flex-wrap:wrap}}
 .clubs-search:focus-within{border-color:#a78a20;box-shadow:0 0 0 3px #ffdd2d24}
 .clubs-search input:focus-visible{outline:none}
+.clubs-grid{grid-template-columns:repeat(auto-fill,minmax(min(100%,360px),1fr));gap:14px}
+.clubs-card{flex-direction:row;align-items:flex-start;gap:14px;padding:18px;border-radius:16px}
+.club-avatar-link,.club-avatar-edit{display:inline-flex;align-items:center;justify-content:center;flex-shrink:0;border:0;padding:0;border-radius:50%;background:none}
+.profile-avatar.club-avatar{width:88px;height:88px;border-radius:50%;font-size:34px;font-weight:600;box-shadow:0 0 0 1px var(--flow-border)}
+.profile-avatar.club-avatar-large{width:104px;height:104px;font-size:40px}
+:root[data-theme] .clubs-page .profile-avatar.club-avatar:not(:has(img)){background:#ffdd2d;color:#272514;box-shadow:0 0 0 3px var(--theme-panel,#fff);text-transform:uppercase}
+.clubs-card .profile-avatar.club-avatar{width:48px;height:48px;font-size:21px}
+.clubs-card .club-avatar-link{margin-top:3px}
+.clubs-card-copy{min-width:0;flex:1}
+.clubs-card h2{font-size:18px;line-height:1.4;margin:0 0 3px}
+.clubs-card h2 button{display:flex;align-items:center;gap:10px;justify-content:space-between;width:100%;min-height:32px;text-align:left}
+.clubs-card h2 button>span{display:-webkit-box;-webkit-box-orient:vertical;-webkit-line-clamp:2;overflow:hidden;overflow-wrap:anywhere}
+.clubs-card h2 button>svg{flex-shrink:0;color:var(--flow-muted)}
+.clubs-card-description{font-size:14px;line-height:1.6;color:var(--flow-muted);margin:9px 0;overflow-wrap:anywhere;display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical;overflow:hidden}
+.clubs-card .clubs-counts{display:block;font-size:12px}
+.clubs-member{display:flex;align-items:center;gap:5px;margin-top:7px;font-size:12px;color:var(--theme-green-text,#548567)}
+.clubs-card .clubs-match{margin-top:7px;color:var(--theme-green-text,#548567)}
+.club-photo-heading{display:flex;flex-direction:column;align-items:flex-start;gap:12px;margin-bottom:20px}
+.club-photo-heading>.text-button{font-size:14px;min-height:32px}
+.clubs-hero>.clubs-topic{font-size:18px;font-weight:500;line-height:1.5}
+.club-avatar-edit{position:relative}
+.club-avatar-camera{position:absolute;right:0;bottom:0;display:grid;place-items:center;width:31px;height:31px;border:3px solid var(--theme-warm,#fff9dc);border-radius:50%;background:#ffdd2d;color:#272514}
+@media(max-width:760px){.profile-avatar.club-avatar{width:80px;height:80px;font-size:31px}.profile-avatar.club-avatar-large{width:96px;height:96px;font-size:36px}}

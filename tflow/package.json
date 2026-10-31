@@ -18,7 +18,10 @@
     "db:migrate": "node scripts/python.mjs manage.py migrate --noinput",
     "test:calendar": "node --experimental-strip-types lib/calendar.test.mjs",
     "setup:video": "node scripts/setup-video.mjs",
-    "test:frontend": "npm run test:calendar && node --experimental-strip-types lib/activities.test.mjs && node --experimental-strip-types lib/screen-share.test.mjs"
+    "setup:mail": "node scripts/python.mjs ../scripts/setup-mail.py",
+    "test:frontend": "npm run test:calendar && node --experimental-strip-types lib/activities.test.mjs && node --experimental-strip-types lib/screen-share.test.mjs && node --experimental-strip-types lib/audio-level.test.mjs && npm run test:ui",
+    "test:ui": "vitest run",
+    "test": "npm run test:frontend && npm run test:backend"
   },
   "dependencies": {
     "@zxing/browser": "^0.2.1",
@@ -30,12 +33,17 @@
   },
   "devDependencies": {
     "@tailwindcss/postcss": "4.2.1",
+    "@testing-library/jest-dom": "^7.0.1",
+    "@testing-library/react": "^16.3.3",
+    "@testing-library/user-event": "^14.6.8",
     "@types/node": "22.19.19",
     "@types/react": "19.2.14",
     "@types/react-dom": "19.2.3",
     "@vitejs/plugin-react": "6.0.2",
+    "jsdom": "^27.4.0",
     "tailwindcss": "4.2.1",
     "typescript": "5.9.3",
-    "vite": "8.0.13"
+    "vite": "8.0.13",
+    "vitest": "^5.0.5"
   }
 }

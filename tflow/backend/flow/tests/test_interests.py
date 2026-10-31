@@ -49,8 +49,7 @@ class InterestTests(Scenario, TestCase):
         self.assertEqual(self.signup(interests=interests).status_code, 302)
         self.assertEqual(User.objects.get(email="categories@example.test").interests, ", ".join(interests))
 
-    def test_too_many_interests_show_validation_error_instead_of_failing_to_save(self):
+    def test_all_interests_can_be_selected_and_saved(self):
         response = self.signup(interests=INTEREST_CATEGORIES)
-        self.assertEqual(response.status_code, 200)
-        self.assertIn("interests", response.context["form"].errors)
-        self.assertFalse(User.objects.filter(email="categories@example.test").exists())
+        self.assertEqual(response.status_code, 302)
+        self.assertEqual(User.objects.get(email="categories@example.test").interests, ", ".join(INTEREST_CATEGORIES))

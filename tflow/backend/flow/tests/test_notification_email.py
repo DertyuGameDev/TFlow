@@ -5,7 +5,7 @@ from django.db import transaction
 from django.test import TestCase, override_settings
 from django.utils import timezone
 from flow.mailing import claim_email, create_notifications, send_pending_emails
-from flow.models import EventRegistration, Notification, NotificationEmail
+from flow.models import Community, EventRegistration, Membership, Notification, NotificationEmail, Registration
 from .test_api import FAST_HASHER, Scenario
 
 
@@ -17,6 +17,74 @@ from .test_api import FAST_HASHER, Scenario
     PUBLIC_APP_URL="https://tflow.example.test",
 )
 class NotificationEmailTests(Scenario, TestCase):
+    def test_club_event_change_emails_registered_users_not_every_club_member(self):
+        self.publish()
+        club = Community.objects.create(
+            owner=self.owner, name="Клуб", description="Встречи сообщества",
+            topic="Музыка", color="yellow",
+        )
+        for person in [self.owner, self.person, self.other]:
+            Membership.objects.create(user=person, community=club)
+        self.event.community = club
+        self.event.save(update_fields=["community"])
+        EventRegistration.objects.create(user=self.person, event=self.event)
+        self.request(
+            f"events/{self.event.pk}", "patch",
+            self.event_body(title="Новая тема встречи", community_id=club.pk),
+        )
+        self.assertEqual(send_pending_emails()["sent"], 1)
+        self.assertEqual(mail.outbox[0].to, [self.person.email])
+        self.assertIn("Новая тема встречи", mail.outbox[0].body)
+        self.assertEqual(mail.outbox[0].cc, [])
+        self.assertEqual(mail.outbox[0].bcc, [])
+
+    def test_saving_unchanged_activity_does_not_queue_email(self):
+        self.publish()
+        EventRegistration.objects.create(user=self.person, event=self.event)
+        Registration.objects.create(user=self.person, activity=self.a)
+        self.request(f"activities/{self.a.pk}", "patch", self.activity_body(self.a))
+        body_without_room = self.activity_body(self.a)
+        body_without_room.pop("room_id")
+        self.request(f"activities/{self.a.pk}", "patch", body_without_room)
+        self.assertFalse(Notification.objects.exists())
+        self.assertFalse(NotificationEmail.objects.exists())
+
+    def test_repeating_activity_update_does_not_queue_duplicate_email(self):
+        self.publish()
+        EventRegistration.objects.create(user=self.person, event=self.event)
+        Registration.objects.create(user=self.person, activity=self.a)
+        body = self.activity_body(self.a, title="Изменённая лекция")
+        for _ in range(2):
+            self.request(f"activities/{self.a.pk}", "patch", body)
+        self.assertEqual(Notification.objects.count(), 1)
+        self.assertEqual(send_pending_emails()["sent"], 1)
+        self.assertEqual(len(mail.outbox), 1)
+
+    def test_move_to_current_time_and_place_does_not_queue_email(self):
+        self.publish()
+        EventRegistration.objects.create(user=self.person, event=self.event)
+        body = self.event_body()
+        self.request(
+            f"events/{self.event.pk}/move", "patch",
+            {key: body[key] for key in ["starts_at", "ends_at", "city", "venue", "address"]},
+        )
+        self.assertFalse(Notification.objects.exists())
+        self.assertFalse(NotificationEmail.objects.exists())
+
+    def test_repeating_event_move_only_emails_once(self):
+        self.publish()
+        EventRegistration.objects.create(user=self.person, event=self.event)
+        body = self.event_body()
+        values = {key: body[key] for key in ["starts_at", "ends_at", "city", "venue", "address"]}
+        values["starts_at"] += 3_600_000
+        values["ends_at"] += 3_600_000
+        for _ in range(2):
+            self.request(f"events/{self.event.pk}/move", "patch", values)
+        self.assertEqual(NotificationEmail.objects.count(), 1)
+        self.assertEqual(send_pending_emails()["sent"], 1)
+        self.assertEqual(len(mail.outbox), 1)
+        self.assertIn("перенесено", mail.outbox[0].body)
+
     def test_cancellation_queues_private_email_for_each_participant_and_sends_once(
         self,
     ):

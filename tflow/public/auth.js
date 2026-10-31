@@ -14,6 +14,7 @@
   const roleChoices = [...form.querySelectorAll('[data-role-choice]')];
   const participantCopy = form.querySelector('.participant-copy');
   const organizerCopy = form.querySelector('.organizer-copy');
+  const credentialsIntro = intro.textContent;
   let busy = false;
 
   function showRole() {
@@ -25,17 +26,19 @@
     organizerCopy.hidden = !role.checked;
   }
 
-  for (const choice of roleChoices) {
-    choice.disabled = false;
-    choice.addEventListener('click', () => {
-      const organizer = choice.dataset.roleChoice === 'organizer';
-      if (role.checked === organizer) return;
-      role.checked = organizer;
-      role.dispatchEvent(new Event('change', { bubbles: true }));
-    });
+  if (roleChoices.length) {
+    for (const choice of roleChoices) {
+      choice.disabled = false;
+      choice.addEventListener('click', () => {
+        const organizer = choice.dataset.roleChoice === 'organizer';
+        if (role.checked === organizer) return;
+        role.checked = organizer;
+        role.dispatchEvent(new Event('change', { bubbles: true }));
+      });
+    }
+    role.addEventListener('change', showRole);
+    showRole();
   }
-  role.addEventListener('change', showRole);
-  showRole();
 
   function showStep(second) {
     credentials.hidden = second;
@@ -43,7 +46,7 @@
     back.hidden = !second;
     home.hidden = second;
     title.textContent = second ? 'Любимые теги' : 'Создать аккаунт';
-    intro.textContent = second ? 'Настройте подборку мероприятий под себя.' : 'Начните с почты и пароля.';
+    intro.textContent = second ? 'Настройте подборку мероприятий под себя.' : credentialsIntro;
     progress.textContent = second ? 'Шаг 2 из 2' : 'Шаг 1 из 2';
     title.focus({ preventScroll: true });
     window.scrollTo({ top: 0, behavior: 'instant' });
@@ -74,17 +77,7 @@
 
   form.addEventListener('submit', async event => {
     if (busy) { event.preventDefault(); return; }
-    if (!preferences.hidden) {
-      const selected = new FormData(form).getAll('interests').join(', ');
-      const error = document.getElementById('id_interests_error');
-      if (selected.length > 300) {
-        event.preventDefault();
-        error.textContent = 'Выберите меньше тегов — оставьте самые важные для вас.';
-        error.hidden = false;
-        preferences.querySelector('input[name="interests"]:checked')?.focus();
-      }
-      return;
-    }
+    if (!preferences.hidden) return;
     event.preventDefault();
     summary.hidden = true;
     for (const name of ['email', 'password1']) {
@@ -93,7 +86,7 @@
       if (!input.reportValidity()) return;
     }
     const data = new FormData();
-    for (const name of ['csrfmiddlewaretoken', 'email', 'password1']) data.set(name, form.elements.namedItem(name).value);
+    for (const name of ['csrfmiddlewaretoken', 'email', 'password1', 'next']) data.set(name, form.elements.namedItem(name).value);
     data.set('intent', 'credentials');
     busy = true;
     next.disabled = true;

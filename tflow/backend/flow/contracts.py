@@ -33,21 +33,21 @@ class MillisecondsField(forms.Field):
 
 
 class EventInput(forms.Form):
-    title = forms.CharField(min_length=3, max_length=160)
-    description = forms.CharField(min_length=10, max_length=5000)
+    title = forms.CharField()
+    description = forms.CharField()
     starts_at = MillisecondsField()
     ends_at = MillisecondsField()
-    city = forms.CharField(min_length=2, max_length=80)
-    venue = forms.CharField(min_length=2, max_length=160)
-    address = forms.CharField(required=False, max_length=240)
+    city = forms.CharField()
+    venue = forms.CharField()
+    address = forms.CharField(required=False)
     format = forms.ChoiceField(choices=[(v, v) for v in ["Очно", "Онлайн", "Гибрид"]])
-    topic = forms.CharField(min_length=2, max_length=80)
-    kind = forms.CharField(min_length=2, max_length=60)
+    topic = forms.CharField()
+    kind = forms.CharField()
     cover = forms.ChoiceField(
         choices=[(v, v) for v in ["yellow", "photo", "blue", "mint", "peach", "violet"]]
     )
-    community_id = forms.CharField(required=False, max_length=100)
-    capacity = forms.IntegerField(required=False, min_value=1, max_value=100000)
+    community_id = forms.CharField(required=False)
+    capacity = forms.IntegerField(required=False, min_value=1, max_value=2**53 - 1)
 
     def clean(self):
         data = super().clean()
@@ -63,22 +63,31 @@ class EventInput(forms.Form):
 
 
 class CommunityInput(forms.Form):
-    name = forms.CharField(min_length=3, max_length=160)
-    description = forms.CharField(min_length=10, max_length=1000)
-    topic = forms.CharField(min_length=2, max_length=80)
+    name = forms.CharField()
+    description = forms.CharField()
+    topic = forms.CharField()
 
 
 class ActivityInput(forms.Form):
-    title = forms.CharField(min_length=3, max_length=160)
-    description = forms.CharField(required=False, max_length=5000)
-    speaker = forms.CharField(required=False, max_length=160)
-    room_id = forms.CharField(max_length=100)
+    title = forms.CharField()
+    description = forms.CharField(required=False)
+    speaker = forms.CharField(required=False)
+    room_id = forms.CharField(required=False)
+    new_room_name = forms.CharField(required=False)
+    new_room_capacity = forms.IntegerField(required=False, min_value=1, max_value=2**53 - 1)
+    online_room = forms.BooleanField(required=False)
     starts_at = MillisecondsField()
     ends_at = MillisecondsField()
-    capacity = forms.IntegerField(min_value=1, max_value=10000)
+    capacity = forms.IntegerField(min_value=1, max_value=2**53 - 1)
 
     def clean(self):
         data = super().clean()
+        if data.get("new_room_name") and data.get("room_id"):
+            self.add_error("room_id", "Выберите существующую аудиторию или создайте новую")
+        if data.get("new_room_capacity") and not data.get("new_room_name"):
+            self.add_error("new_room_name", "Укажите название новой аудитории")
+        if data.get("online_room") and (data.get("new_room_name") or data.get("new_room_capacity")):
+            self.add_error("new_room_name", "Выберите онлайн-поток или создайте новую очную аудиторию")
         if (
             data.get("starts_at")
             and data.get("ends_at")
@@ -89,8 +98,8 @@ class ActivityInput(forms.Form):
 
 
 class RoomInput(forms.Form):
-    name = forms.CharField(min_length=2, max_length=120)
-    capacity = forms.IntegerField(min_value=1, max_value=10000)
+    name = forms.CharField()
+    capacity = forms.IntegerField(min_value=1, max_value=2**53 - 1)
 
 
 class ProfileDateField(forms.DateField):
@@ -102,31 +111,31 @@ class ProfileDateField(forms.DateField):
 
 class ProfileInput(forms.Form):
     # The legacy name payload stays supported for existing API clients.
-    name = forms.CharField(required=False, min_length=2, max_length=80)
-    first_name = forms.CharField(required=False, max_length=80)
-    last_name = forms.CharField(required=False, max_length=80)
-    city = forms.CharField(required=False, min_length=2, max_length=80)
-    phone = forms.CharField(required=False, max_length=32)
+    name = forms.CharField(required=False)
+    first_name = forms.CharField(required=False)
+    last_name = forms.CharField(required=False)
+    city = forms.CharField(required=False)
+    phone = forms.CharField(required=False)
     birth_date = ProfileDateField(required=False, input_formats=["%Y-%m-%d"])
-    telegram = forms.RegexField(r"^@?[A-Za-z][A-Za-z0-9_]{3,31}$", required=False, max_length=64,
+    telegram = forms.RegexField(r"^@?[A-Za-z][A-Za-z0-9_]*$", required=False,
                                 error_messages={"invalid": "Укажите логин Telegram, например @username"})
-    organization = forms.CharField(required=False, max_length=160)
-    job_title = forms.CharField(required=False, max_length=160)
-    education = forms.CharField(required=False, max_length=240)
-    website = forms.URLField(required=False, max_length=300, assume_scheme="https")
-    about = forms.CharField(required=False, max_length=1000)
-    interests = forms.CharField(required=False, max_length=300)
+    organization = forms.CharField(required=False)
+    job_title = forms.CharField(required=False)
+    education = forms.CharField(required=False)
+    website = forms.URLField(required=False, assume_scheme="https")
+    about = forms.CharField(required=False)
+    interests = forms.CharField(required=False)
 
     def clean_phone(self):
         value = self.cleaned_data["phone"]
-        if value and (not re.fullmatch(r"\+?[\d ()\-]+", value) or not 7 <= len(re.sub(r"\D", "", value)) <= 15):
-            raise forms.ValidationError("Укажите телефон: от 7 до 15 цифр")
+        if value and (not re.fullmatch(r"\+?[\d ()\-]+", value) or not re.search(r"\d", value)):
+            raise forms.ValidationError("Укажите телефон цифрами")
         return value
 
     def clean_birth_date(self):
         value = self.cleaned_data["birth_date"]
-        if value and (value.year < 1900 or value > timezone.localdate()):
-            raise forms.ValidationError("Укажите дату рождения с 1900 года до сегодняшнего дня")
+        if value and value > timezone.localdate():
+            raise forms.ValidationError("Дата рождения не может быть в будущем")
         return value
 
     def clean_website(self):
@@ -138,22 +147,15 @@ class ProfileInput(forms.Form):
     def clean(self):
         data = super().clean()
         if "first_name" in self.data or "last_name" in self.data:
-            for field, label in [("first_name", "имя"), ("last_name", "фамилию")]:
-                if not data.get(field):
-                    self.add_error(field, f"Укажите {label}")
+            if not data.get("first_name"):
+                self.add_error("first_name", "Укажите имя")
             data["name"] = full_name(
                 data.get("first_name", ""), data.get("last_name", "")
             )
-            if len(data["name"]) > 80:
-                self.add_error(
-                    "last_name",
-                    "Имя и фамилия вместе должны быть не длиннее 80 символов",
-                )
         elif data.get("name"):
             data["first_name"], data["last_name"] = split_name(data["name"])
         else:
             self.add_error("first_name", "Укажите имя")
-            self.add_error("last_name", "Укажите фамилию")
         return data
 
 
@@ -175,9 +177,9 @@ class RequirementsInput(forms.Form):
 class MoveEventInput(forms.Form):
     starts_at = MillisecondsField()
     ends_at = MillisecondsField()
-    city = forms.CharField(min_length=2, max_length=80)
-    venue = forms.CharField(min_length=2, max_length=160)
-    address = forms.CharField(required=False, max_length=240)
+    city = forms.CharField()
+    venue = forms.CharField()
+    address = forms.CharField(required=False)
 
     def clean(self):
         data = super().clean()

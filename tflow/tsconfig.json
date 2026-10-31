@@ -22,10 +22,19 @@
         "./*"
       ]
     },
-    "types": ["node", "vite/client"]
+    "types": [
+      "node",
+      "vite/client"
+    ]
   },
   "include": [
-    "src/**/*.tsx", "app/**/*.tsx", "lib/**/*.ts", "vite.config.mts"
+    "src/**/*.tsx",
+    "app/**/*.tsx",
+    "lib/**/*.ts",
+    "vite.config.mts",
+    "tests/**/*.ts",
+    "tests/**/*.tsx",
+    "vitest.config.ts"
   ],
   "exclude": [
     "node_modules",

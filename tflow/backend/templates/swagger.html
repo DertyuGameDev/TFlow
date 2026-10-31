@@ -1,0 +1,21 @@
+<!doctype html>
+<html lang="ru"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Swagger — ТФлоу API</title>
+<link rel="stylesheet" href="{% url 'swagger-asset' 'swagger-ui.css' %}">
+<style>body{margin:0;background:#fafafa}header{padding:16px 24px;background:#222329;color:white;font:15px system-ui;display:flex;gap:24px;align-items:center;flex-wrap:wrap}header strong{color:#ffdd2d}header a{color:white}header p{margin:0;font-size:13px;color:#d5d5d8}</style>
+</head><body><header><strong>ТФлоу API</strong><a href="/">В приложение</a><a href="/login/?next=/api/docs/">Войти</a><p>Запросы выполняются от текущего аккаунта. Права доступа и CSRF проверяются сервером.</p></header>
+<div id="swagger-ui"></div><script src="{% url 'swagger-asset' 'swagger-ui-bundle.js' %}"></script>
+<script>
+window.addEventListener('DOMContentLoaded',function(){
+  SwaggerUIBundle({url:'{% url "openapi-schema" %}',dom_id:'#swagger-ui',deepLinking:true,
+    presets:[SwaggerUIBundle.presets.apis],layout:'BaseLayout',validatorUrl:null,
+    requestInterceptor:function(request){
+      if(new URL(request.url,location.href).origin===location.origin){
+        request.credentials='same-origin';
+        const token=document.cookie.split(';').map(value=>value.trim()).find(value=>value.startsWith('csrftoken='));
+        if(token)request.headers['X-CSRFToken']=decodeURIComponent(token.slice('csrftoken='.length));
+      }
+      return request;
+    }});
+});
+</script></body></html>

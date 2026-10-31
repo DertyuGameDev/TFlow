@@ -102,6 +102,7 @@ import json
 from config import settings as s
 print(json.dumps({
     "debug": s.DEBUG, "session_secure": s.SESSION_COOKIE_SECURE,
+    "demo_mode": s.DEMO_MODE, "password_validators": len(s.AUTH_PASSWORD_VALIDATORS),
     "csrf_secure": s.CSRF_COOKIE_SECURE, "https_redirect": s.SECURE_SSL_REDIRECT,
     "hosts": s.ALLOWED_HOSTS, "origins": s.CSRF_TRUSTED_ORIGINS,
     "database": s.DATABASES["default"],
@@ -131,6 +132,18 @@ print(json.dumps({
         result = self.read_config(DJANGO_SECRET_KEY="")
         self.assertNotEqual(result.returncode, 0)
         self.assertIn("Set DJANGO_SECRET_KEY", result.stderr)
+
+    def test_demo_mode_only_relaxes_passwords_in_local_debug(self):
+        production = self.read_config(TFLOW_DEMO_MODE="1")
+        self.assertEqual(production.returncode, 0, production.stderr)
+        values = json.loads(production.stdout)
+        self.assertFalse(values["demo_mode"])
+        self.assertGreater(values["password_validators"], 0)
+        local = self.read_config(DJANGO_DEBUG="1", TFLOW_DEMO_MODE="1")
+        self.assertEqual(local.returncode, 0, local.stderr)
+        values = json.loads(local.stdout)
+        self.assertTrue(values["demo_mode"])
+        self.assertEqual(values["password_validators"], 0)
 
     def test_vercel_requires_persistent_database(self):
         result = self.read_config(VERCEL="1")

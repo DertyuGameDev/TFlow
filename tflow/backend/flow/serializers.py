@@ -5,6 +5,7 @@ from .models import (
     Bookmark,
     CheckIn,
     Community,
+    CommunityAvatar,
     Event,
     EventRegistration,
     Membership,
@@ -193,6 +194,7 @@ def activity_json(activity, schedule=False):
         ends_at=milliseconds(activity.ends_at),
         updated_at=milliseconds(activity.updated_at),
         room_name=activity.room.name,
+        room_is_online=activity.room.is_online,
         taken=activity.taken,
         registered=int(activity.registered),
         waiting_count=activity.waiting_count,
@@ -206,8 +208,8 @@ def activity_json(activity, schedule=False):
     if schedule:
         data.update(
             event_title=activity.event.title,
-            city=activity.event.city,
-            venue=activity.event.venue,
+            city="Онлайн" if activity.room.is_online else activity.event.city,
+            venue="ТФлоу" if activity.room.is_online else activity.event.venue,
             event_cover=activity.event.cover,
         )
     return data
@@ -227,6 +229,11 @@ def notice_json(notice):
 def bootstrap(user):
     participant = user.is_authenticated and user.role == "participant"
     communities = Community.objects.annotate(
+        avatar_updated=Subquery(
+            CommunityAvatar.objects.filter(community_id=OuterRef("pk")).values(
+                "updated_at"
+            )[:1]
+        ),
         member_count=Count("memberships", distinct=True),
         event_count=Count("event", filter=Q(event__status="published"), distinct=True),
         joined=Exists(
@@ -235,17 +242,15 @@ def bootstrap(user):
                 user_id=user.pk if user.is_authenticated else "",
             )
         ),
+        subscribed=Exists(Membership.objects.filter(
+            community_id=OuterRef("pk"), notify_events=True,
+            user_id=user.pk if user.is_authenticated else "",
+        )),
     ).order_by("name")
     schedule = (
-        activities_for(user).filter(registrations__user=user)
-        if participant
-        else []
+        activities_for(user).filter(registrations__user=user) if participant else []
     )
-    waitlist = (
-        activities_for(user).filter(waitlist__user=user)
-        if participant
-        else []
-    )
+    waitlist = activities_for(user).filter(waitlist__user=user) if participant else []
     notifications = user.notifications.all()[:50] if user.is_authenticated else []
     return {
         "events": [event_json(event) for event in visible_events(user)],
@@ -260,8 +265,14 @@ def bootstrap(user):
                 "color": c.color,
                 "member_count": c.member_count,
                 "joined": int(c.joined),
+                "subscribed": bool(c.subscribed),
                 "owner_id": c.owner_id,
                 "event_count": c.event_count,
+                "avatar_url": (
+                    f"/api/communities/{c.pk}/avatar?v={c.avatar_updated.timestamp():.6f}"
+                    if c.avatar_updated
+                    else None
+                ),
             }
             for c in communities
         ],

@@ -12,7 +12,7 @@
 </head>
 <body>
 <main class="auth-shell">
-  <a class="auth-brand" href="/" aria-label="ТФлоу — главная"><img src="{% static 'logo.svg' %}" alt="ТФлоу" width="200" height="55"></a>
+  <a class="auth-brand" href="/" aria-label="ТФлоу — главная"><img data-theme-logo data-logo-light-src="{% static 'logo.svg' %}" data-logo-dark-src="{% static 'logo-dark.svg' %}" src="{% static 'logo.svg' %}" alt="ТФлоу" width="200" height="55"></a>
   <section class="auth-card">
     <div class="auth-tools">
       <a class="back" href="/" data-signup-home>← На главную</a>
@@ -24,7 +24,7 @@
     </div>
     {% if mode == 'register' %}<p class="signup-progress" data-signup-progress aria-live="polite">Шаг 1 из 2</p>{% endif %}
     <h1 id="auth-title" tabindex="-1">{% if mode == 'register' %}Создать аккаунт{% else %}С возвращением{% endif %}</h1>
-    <p class="intro" data-signup-intro>{% if mode == 'register' %}Начните с почты и пароля.{% else %}Войдите в свой аккаунт.{% endif %}</p>
+    <p class="intro" data-signup-intro>{% if mode == 'register' %}{% if participant_signup %}Создайте аккаунт участника, чтобы записаться на мероприятие.{% else %}Начните с почты и пароля.{% endif %}{% else %}Войдите в свой аккаунт.{% endif %}</p>
     <form method="post" novalidate{% if mode == 'register' %} data-signup-form aria-labelledby="auth-title"{% endif %}>
       {% csrf_token %}<input type="hidden" name="next" value="{{ next }}">
       {% if form.non_field_errors %}<div class="error-summary" role="alert">{{ form.non_field_errors }}</div>{% endif %}
@@ -40,7 +40,7 @@
           <legend class="visually-hidden">Почта и пароль</legend>
           {% include 'auth_field.html' with field=form.email %}
           {% include 'auth_field.html' with field=form.password1 %}
-          <p class="password-help" id="id_password1_helptext">Пароль — от 8 символов.</p>
+          <p class="password-help" id="id_password1_helptext">{% if form.demo_mode %}Для демонстрации подойдёт любой непустой пароль.{% else %}Пароль — от 8 символов.{% endif %}</p>
           <button class="primary" type="submit" data-signup-next>Продолжить<span aria-hidden="true">→</span></button>
         </fieldset>
         <fieldset class="signup-step" data-signup-step="preferences" hidden>
@@ -51,6 +51,7 @@
             {{ form.interests }}
             <div class="field-error" id="id_interests_error" role="alert"{% if not form.interests.errors %} hidden{% endif %}>{{ form.interests.errors }}</div>
           </fieldset>
+          {% if participant_signup %}{{ form.role }}{% else %}
           <div class="organizer-setting">
             <div class="organizer-switch" role="group" aria-label="Роль аккаунта">
               <button class="role-choice participant-label" type="button" data-role-choice="participant" aria-pressed="{% if form.role.value == 'organizer' %}false{% else %}true{% endif %}" disabled>Участвовать</button>
@@ -60,6 +61,7 @@
             <p class="role-description" id="role-description" aria-live="polite"><span class="participant-copy">Записывайтесь на мероприятия. Билеты и QR — в профиле.</span><span class="organizer-copy">Создавайте мероприятия и отмечайте вход по QR.</span> Роль нельзя изменить после регистрации.</p>
             {% if form.role.errors %}<div class="field-error" id="id_role_error" role="alert">{{ form.role.errors }}</div>{% endif %}
           </div>
+          {% endif %}
           <button class="primary" type="submit">Зарегистрироваться<span aria-hidden="true">↗</span></button>
         </fieldset>
         <noscript><style>[data-signup-step][hidden]{display:block!important}[data-signup-next],.signup-progress{display:none!important}</style></noscript>

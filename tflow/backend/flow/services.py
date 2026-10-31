@@ -128,6 +128,14 @@ def update_event(user, event_id, data):
             raise FlowError(
                 "WEBINAR_ACTIVE", "Завершите эфир перед сменой формата на очный"
             )
+        if (
+            data["format"] == "Очно"
+            and event.activities.filter(room__is_online=True).exists()
+        ):
+            raise FlowError(
+                "ONLINE_PROGRAM",
+                "В программе есть онлайн-пункты. Выберите гибридный формат или перенесите их в очную аудиторию",
+            )
         if event.enrollments.count() > data.get("capacity", event.capacity):
             raise FlowError(
                 "BELOW_REGISTERED",
@@ -166,8 +174,30 @@ def update_event(user, event_id, data):
 def publish_event(user, event_id):
     with schedule_write():
         event = owned_event(event_id, user)
+        if event.status == "published":
+            return
         event.status, event.updated_at = "published", timezone.now()
         event.save(update_fields=["status", "updated_at"])
+        if event.community_id:
+            recipients = Membership.objects.filter(
+                community_id=event.community_id, notify_events=True, user__is_active=True,
+            ).exclude(user_id=user.pk).values_list("user_id", flat=True)
+            create_notifications([
+                Notification(
+                    user_id=uid, event=event, kind="club_event",
+                    message=f"В клубе «{event.community.name}» опубликовано событие «{event.title}».",
+                ) for uid in recipients
+            ])
+
+
+def set_community_subscription(user, community_id, enabled):
+    if type(enabled) is not bool:
+        raise FlowError("VALIDATION", "Укажите, включить ли уведомления", 400)
+    with schedule_write():
+        if not Community.objects.filter(pk=community_id).exists():
+            raise FlowError("NOT_FOUND", "Клуб не найден", 404)
+        if not Membership.objects.filter(user=user, community_id=community_id).update(notify_events=enabled):
+            raise FlowError("CLUB_MEMBERSHIP", "Сначала вступите в клуб", 403)
 
 
 def save_community(user, data, community_id=None):
@@ -308,15 +338,75 @@ def save_activity(user, data, *, event_id=None, activity_id=None):
             owned_event(activity.event_id, user)
         else:
             activity = Activity(event=owned_event(event_id, user))
+        data = dict(data)
+        new_room_name = data.pop("new_room_name", "")
+        new_room_capacity = data.pop("new_room_capacity", None)
+        online_room = data.pop("online_room", False)
+        if new_room_name:
+            room = Room.objects.create(
+                event=activity.event, name=new_room_name,
+                capacity=new_room_capacity or data["capacity"],
+            )
+            data["room_id"] = room.pk
+        if online_room:
+            if data.get("room_id"):
+                if not Room.objects.filter(
+                    pk=data["room_id"], event=activity.event, is_online=True
+                ).exists():
+                    raise FlowError(
+                        "INVALID_REFERENCE",
+                        "Выберите онлайн-аудиторию этого мероприятия",
+                        400,
+                    )
+            else:
+                room, _ = Room.objects.get_or_create(
+                    event=activity.event,
+                    is_online=True,
+                    defaults={
+                        "name": "Онлайн",
+                        "capacity": activity.event.capacity,
+                    },
+                )
+                data["room_id"] = room.pk
+        if not data.get("room_id"):
+            if activity_id:
+                data["room_id"] = activity.room_id
+            else:
+                rooms = list(activity.event.rooms.all()[:2])
+                if len(rooms) > 1:
+                    raise FlowError(
+                        "VALIDATION", "Выберите аудиторию для пункта программы", 400
+                    )
+                room = (
+                    rooms[0]
+                    if rooms
+                    else Room.objects.create(
+                        event=activity.event,
+                        name=(
+                            "Онлайн-комната"
+                            if activity.event.format == "Онлайн"
+                            else "Основная площадка"
+                        ),
+                        capacity=activity.event.capacity,
+                        is_online=activity.event.format == "Онлайн",
+                    )
+                )
+                data["room_id"] = room.pk
+        changed = any(getattr(activity, key) != value for key, value in data.items())
         for key, value in data.items():
             setattr(activity, key, value)
         validate_activity(activity)
         activity.updated_at = timezone.now()
         activity.save()
+        if activity.room.is_online and activity.event.format == "Очно":
+            # Adding the virtual room enables the existing event webinar, while
+            # retaining the physical venue and the rest of the program.
+            activity.event.format = "Гибрид"
+            activity.event.save(update_fields=["format"])
         Event.objects.filter(pk=activity.event_id).update(
             updated_at=activity.updated_at
         )
-        if activity_id:
+        if activity_id and changed:
             create_notifications(
                 [
                     Notification(
@@ -539,6 +629,8 @@ def cancel_event(user, event_id):
 def move_event(user, event_id, data):
     with schedule_write():
         event = owned_event(event_id, user)
+        if all(getattr(event, key) == value for key, value in data.items()):
+            return
         delta = data["starts_at"] - event.starts_at
         activities = list(event.activities.select_related("room"))
         ids = [activity.pk for activity in activities]
