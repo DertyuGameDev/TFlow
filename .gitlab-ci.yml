@@ -144,6 +144,7 @@ spirit-readiness:
   extends: .spirit-control
   script:
     - python tflow/deploy/spirit/control.py inspect
+    - python tflow/deploy/spirit/check_video_network_policy.py
   artifacts:
     expire_in: 1 day
     paths: [.spirit-cli/dp]

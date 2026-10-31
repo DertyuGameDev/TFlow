@@ -43,7 +43,7 @@ print(json.dumps({"local_listeners":ports,"local_trusted_tls":tls,"media_firewal
 def network_metadata(vm):
     allowed = {"id", "name", "kind", "resourceKind", "identifier", "attributes",
                "port", "ports", "protocol", "source", "sourceCidr", "sourceCIDR",
-               "direction", "fromPort", "toPort", "cidr", "ip", "rules", "description"}
+               "direction", "fromPort", "toPort", "cidr", "ip", "rules", "description", "value", "from", "to", "action", "protocols", "sourceCidrs", "destinationCidr"}
     def scrub(value):
         if isinstance(value, dict):
             return {key: scrub(item) for key, item in value.items() if key in allowed}
@@ -54,8 +54,9 @@ def network_metadata(vm):
         return None
     public_fields = {"network", "networks", "networkRules", "networkRulesTemplate",
                      "networkRulesId", "networkRule", "networkRuleTemplate", "networkSettings",
-                     "securityGroups", "firewall", "firewallRules", "networkRulesTemplateId"}
-    names = sorted(key for key in vm if any(word in key.lower() for word in ("network", "firewall", "securitygroup")))
+                     "securityGroups", "firewall", "firewallRules", "networkRulesTemplateId",
+                     "networkRuleTemplates", "networkRulesTemplates", "rulesTemplate", "ruleTemplates", "rules"}
+    names = sorted(key for key in vm if any(word in key.lower() for word in ("network", "firewall", "securitygroup", "rule", "template")))
     return {"field_names": names, "configuration": {key: scrub(value) for key, value in vm.items() if key in public_fields}}
 
 
