@@ -10,7 +10,32 @@
   const intro = document.querySelector('[data-signup-intro]');
   const progress = document.querySelector('[data-signup-progress]');
   const summary = form.querySelector('[data-signup-error]');
+  const role = form.elements.namedItem('role');
+  const roleChoices = [...form.querySelectorAll('[data-role-choice]')];
+  const participantCopy = form.querySelector('.participant-copy');
+  const organizerCopy = form.querySelector('.organizer-copy');
   let busy = false;
+
+  function showRole() {
+    for (const choice of roleChoices) {
+      const selected = (choice.dataset.roleChoice === 'organizer') === role.checked;
+      choice.setAttribute('aria-pressed', String(selected));
+    }
+    participantCopy.hidden = role.checked;
+    organizerCopy.hidden = !role.checked;
+  }
+
+  for (const choice of roleChoices) {
+    choice.disabled = false;
+    choice.addEventListener('click', () => {
+      const organizer = choice.dataset.roleChoice === 'organizer';
+      if (role.checked === organizer) return;
+      role.checked = organizer;
+      role.dispatchEvent(new Event('change', { bubbles: true }));
+    });
+  }
+  role.addEventListener('change', showRole);
+  showRole();
 
   function showStep(second) {
     credentials.hidden = second;

@@ -52,12 +52,12 @@
             <div class="field-error" id="id_interests_error" role="alert"{% if not form.interests.errors %} hidden{% endif %}>{{ form.interests.errors }}</div>
           </fieldset>
           <div class="organizer-setting">
-            <label class="organizer-switch" for="{{ form.role.id_for_label }}">
-              <span class="role-choice participant-label">Участвовать</span>
+            <div class="organizer-switch" role="group" aria-label="Роль аккаунта">
+              <button class="role-choice participant-label" type="button" data-role-choice="participant" aria-pressed="{% if form.role.value == 'organizer' %}false{% else %}true{% endif %}" disabled>Участвовать</button>
               <span class="toggle-control">{{ form.role }}<span class="toggle-track" aria-hidden="true"></span></span>
-              <span class="role-choice organizer-label">Организовывать</span>
-            </label>
-            <p class="role-description" id="role-description"><span class="participant-copy">Записывайтесь на мероприятия. Билеты и QR — в профиле.</span><span class="organizer-copy">Создавайте мероприятия и отмечайте вход по QR.</span> Роль нельзя изменить после регистрации.</p>
+              <button class="role-choice organizer-label" type="button" data-role-choice="organizer" aria-pressed="{% if form.role.value == 'organizer' %}true{% else %}false{% endif %}" disabled>Организовывать</button>
+            </div>
+            <p class="role-description" id="role-description" aria-live="polite"><span class="participant-copy">Записывайтесь на мероприятия. Билеты и QR — в профиле.</span><span class="organizer-copy">Создавайте мероприятия и отмечайте вход по QR.</span> Роль нельзя изменить после регистрации.</p>
             {% if form.role.errors %}<div class="field-error" id="id_role_error" role="alert">{{ form.role.errors }}</div>{% endif %}
           </div>
           <button class="primary" type="submit">Зарегистрироваться<span aria-hidden="true">↗</span></button>
