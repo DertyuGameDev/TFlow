@@ -12,7 +12,7 @@ from control import ControlError
 from install_video import ADDRESS, HOST
 
 VM_CHECK = r'''
-import json,socket,ssl,subprocess
+import json,re,socket,ssl,subprocess
 host="tflow-video-162f2c.duckdns.org"
 ports={}
 for port in (7880,8080,8081,8083):
@@ -25,7 +25,18 @@ try:
 except Exception: tls=False
 result=subprocess.run(["sudo","-n","ufw","status"],capture_output=True,text=True)
 rules=[line.strip() for line in result.stdout.splitlines() if any(str(port)+"/tcp" in line for port in (8080,8081,8083))]
-print(json.dumps({"local_listeners":ports,"local_trusted_tls":tls,"media_firewall_rules":rules}))
+states={}; logs={}
+for service in ("tflow-video","caddy"):
+    states[service]=subprocess.run(["systemctl","show",service,"--property=ActiveState,SubState,Result,ExecMainStatus,NRestarts"],capture_output=True,text=True).stdout.splitlines()
+    raw=subprocess.run(["journalctl","-u",service,"-n","8","--no-pager","-o","cat"],capture_output=True,text=True).stdout
+    # Withhold token/key-like blobs before truncating or emitting log lines.
+    raw=re.sub(r"[A-Za-z0-9+/=_-]{32,}","[redacted]",raw)
+    logs[service]=[line[:600] for line in raw.splitlines()]
+memory={}
+for line in open("/proc/meminfo"):
+    name,value=line.split(":",1)
+    if name in ("MemTotal","MemAvailable","SwapTotal","SwapFree"):memory[name]=value.strip()
+print(json.dumps({"local_listeners":ports,"local_trusted_tls":tls,"media_firewall_rules":rules,"service_state":states,"service_logs":logs,"memory":memory}))
 '''
 
 

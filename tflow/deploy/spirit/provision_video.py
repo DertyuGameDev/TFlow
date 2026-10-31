@@ -75,7 +75,7 @@ def main():
         result = media_command(["ssh",*options,target,shlex.join(["sudo","-n","python3","-",remote+"/video.json"])], "installation", input=script)
         print(result.stdout)
         print("Spirit network metadata:", json.dumps(network_metadata(vm)))
-        diagnostic = media_command(["ssh",*options,target,"python3 -"], "VM network diagnostics", input=VM_CHECK)
+        diagnostic = media_command(["ssh",*options,target,"sudo -n python3 -"], "VM network diagnostics", input=VM_CHECK)
         print(diagnostic.stdout)
         verify_public(json.loads(config.read_text()))
 
