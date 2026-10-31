@@ -104,119 +104,192 @@ function server() {
   return writes;
 }
 
-describe("программа списком с открытой формой", () => {
-  it("сразу показывает аудитории, список и форму; после добавления готова форма следующего пункта", async () => {
+describe("редактирование прямо на графике", () => {
+  it("показывает аудитории над графиком, не создаёт отдельную форму и добавляет пункт по Enter", async () => {
     const writes = server(),
       user = userEvent.setup();
     render(<TFlow user={host} />);
-    const editor = await screen.findByRole("region", {
-      name: "Добавить пункт программы",
-    });
-    const list = screen.getByRole("region", {
-      name: "Список пунктов программы",
+    const graph = await screen.findByRole("region", {
+      name: "Графическое расписание",
     });
     const rooms = screen.getByRole("heading", { name: "Аудитории", level: 2 });
     expect(
-      rooms.compareDocumentPosition(list) & Node.DOCUMENT_POSITION_FOLLOWING,
+      rooms.compareDocumentPosition(graph) & Node.DOCUMENT_POSITION_FOLLOWING,
     ).toBeTruthy();
     expect(
-      list.compareDocumentPosition(editor) & Node.DOCUMENT_POSITION_FOLLOWING,
-    ).toBeTruthy();
-    expect(
-      screen.queryByRole("region", { name: "Графическое расписание" }),
+      screen.queryByLabelText("Название пункта программы"),
     ).not.toBeInTheDocument();
-    expect(screen.queryByRole("dialog")).not.toBeInTheDocument();
-    expect(within(list).getByRole("heading", { name: "Лекция" })).toBeVisible();
-    await user.type(
-      within(editor).getByLabelText("Название пункта программы"),
-      "Новая лекция",
-    );
-    await user.click(
-      within(editor).getByRole("button", { name: "Добавить в программу" }),
-    );
-    await within(list).findByRole("heading", { name: "Новая лекция" });
-    const ready = screen.getByRole("region", {
-      name: "Добавить пункт программы",
+    expect(screen.queryByLabelText("Начало · МСК")).not.toBeInTheDocument();
+    await user.click(screen.getByRole("button", { name: "Добавить пункт" }));
+    const editor = within(graph).getByRole("form", {
+      name: "Пункт на графике",
     });
-    expect(
-      within(ready).getByLabelText("Название пункта программы"),
-    ).toHaveValue("");
-    expect(within(ready).getByLabelText("Начало · МСК")).toHaveValue(
-      "2026-11-12T11:30",
+    expect(screen.queryByRole("dialog")).not.toBeInTheDocument();
+    const title = within(editor).getByRole("textbox", {
+      name: "Название пункта на графике",
+    });
+    expect(title).toHaveFocus();
+    await user.type(title, "Новая лекция");
+    fireEvent.change(
+      within(editor).getByLabelText("Начало пункта на графике"),
+      { target: { value: "10:37" } },
+    );
+    fireEvent.change(
+      within(editor).getByLabelText("Окончание пункта на графике"),
+      { target: { value: "10:49" } },
+    );
+    expect(title).toHaveValue("Новая лекция");
+    await user.click(title);
+    await user.keyboard("{Enter}");
+    await waitFor(() =>
+      expect(
+        screen.queryByRole("form", { name: "Пункт на графике" }),
+      ).not.toBeInTheDocument(),
     );
     expect(writes[0]).toEqual({
       path: `events/${event.id}/activities`,
       body: expect.objectContaining({
         title: "Новая лекция",
-        starts_at: first.ends_at,
-        ends_at: first.ends_at + 3600000,
+        starts_at: event.starts_at + 37 * 60000,
+        ends_at: event.starts_at + 49 * 60000,
       }),
     });
+    expect(
+      within(
+        screen.getByRole("region", { name: "Список пунктов программы" }),
+      ).getByRole("heading", { name: "Новая лекция" }),
+    ).toBeVisible();
   });
 
-  it("редактирует строку с точностью до минуты и возвращается к открытой форме добавления", async () => {
+  it("открывает существующий пункт на графике и сохраняет название и минутное время вместе", async () => {
     const writes = server(),
       user = userEvent.setup();
     render(<TFlow user={host} />);
     await user.click(
-      await screen.findByRole("button", {
-        name: "Изменить пункт программы Лекция",
-      }),
+      await screen.findByRole("button", { name: "Лекция · 10:00–10:30" }),
     );
-    const editor = screen.getByRole("region", {
-      name: "Изменить пункт программы",
+    const editor = screen.getByRole("form", { name: "Пункт на графике" });
+    const title = within(editor).getByRole("textbox", {
+      name: "Название пункта на графике",
     });
-    const title = within(editor).getByLabelText("Название пункта программы");
     await user.clear(title);
     await user.type(title, "Новое название");
-    fireEvent.change(within(editor).getByLabelText("Окончание · МСК"), {
-      target: { value: "2026-11-12T10:31" },
-    });
+    fireEvent.change(
+      within(editor).getByLabelText("Окончание пункта на графике"),
+      { target: { value: "10:31" } },
+    );
     await user.selectOptions(
-      within(editor).getByLabelText("Аудитория"),
+      within(editor).getByLabelText("Аудитория пункта на графике"),
       "second",
     );
     await act(async () => fireEvent.focus(window));
-    expect(within(editor).getByLabelText("Аудитория")).toHaveValue("second");
     expect(title).toHaveValue("Новое название");
     await user.click(
-      within(editor).getByRole("button", { name: "Сохранить пункт программы" }),
+      within(editor).getByRole("button", {
+        name: "Сохранить пункт на графике",
+      }),
     );
-    await screen.findByRole("region", { name: "Добавить пункт программы" });
+    await waitFor(() =>
+      expect(
+        screen.queryByRole("form", { name: "Пункт на графике" }),
+      ).not.toBeInTheDocument(),
+    );
     expect(writes[0]).toEqual({
       path: `activities/${first.id}`,
       body: expect.objectContaining({
         title: "Новое название",
         ends_at: first.ends_at + 60000,
         room_id: "second",
+        expected_updated_at: first.updated_at,
       }),
     });
     expect(
-      within(
-        screen.getByRole("region", { name: "Список пунктов программы" }),
-      ).getByRole("heading", { name: "Новое название" }),
-    ).toBeVisible();
-    expect(screen.getByLabelText("Начало · МСК")).toHaveValue(
-      "2026-11-12T10:31",
-    );
+      screen.queryByLabelText("Название пункта программы"),
+    ).not.toBeInTheDocument();
   });
 
-  it("отменяет редактирование, оставляя добавление открытым", async () => {
+  it("сохраняет перенос целого пункта вместе с названием после подтверждения", async () => {
+    const writes = server(),
+      user = userEvent.setup();
+    render(<TFlow user={host} />);
+    await user.click(
+      await screen.findByRole("button", { name: "Лекция · 10:00–10:30" }),
+    );
+    const editor = screen.getByRole("form", { name: "Пункт на графике" });
+    const title = within(editor).getByRole("textbox", {
+      name: "Название пункта на графике",
+    });
+    await user.clear(title);
+    await user.type(title, "Передвинутая лекция");
+    screen
+      .getByRole("button", { name: "Переместить Лекция" })
+      .focus();
+    await user.keyboard("{Alt>}{ArrowRight}{/Alt}");
+    await waitFor(() =>
+      expect(
+        within(editor).getByLabelText("Начало пункта на графике"),
+      ).toHaveValue("10:01"),
+    );
+    expect(
+      within(editor).getByLabelText("Окончание пункта на графике"),
+    ).toHaveValue("10:31");
+    expect(title).toHaveValue("Передвинутая лекция");
+    expect(writes).toEqual([]);
+    await user.click(title);
+    await user.keyboard("{Enter}");
+    await waitFor(() => expect(writes).toHaveLength(1));
+    expect(writes[0].body).toMatchObject({
+      title: "Передвинутая лекция",
+      starts_at: first.starts_at + 60000,
+      ends_at: first.ends_at + 60000,
+      expected_updated_at: first.updated_at,
+    });
+  });
+
+  it("отменяет новую запись без запроса к серверу", async () => {
+    const writes = server(),
+      user = userEvent.setup();
+    render(<TFlow user={host} />);
+    await user.click(
+      await screen.findByRole("button", { name: "Добавить пункт" }),
+    );
+    const editor = screen.getByRole("form", { name: "Пункт на графике" });
+    await user.type(
+      within(editor).getByRole("textbox", {
+        name: "Название пункта на графике",
+      }),
+      "Не сохранять",
+    );
+    await user.keyboard("{Escape}");
+    expect(
+      screen.queryByRole("form", { name: "Пункт на графике" }),
+    ).not.toBeInTheDocument();
+    expect(writes).toEqual([]);
+  });
+
+  it("дополнительные параметры не дублируют название и время", async () => {
     server();
     const user = userEvent.setup();
     render(<TFlow user={host} />);
     await user.click(
-      await screen.findByRole("button", {
-        name: "Изменить пункт программы Лекция",
-      }),
+      await screen.findByRole("button", { name: "Лекция · 10:00–10:30" }),
     );
     await user.click(
-      screen.getByRole("button", { name: "Отменить редактирование" }),
+      screen.getByRole("button", { name: "Другие параметры пункта" }),
     );
+    const dialog = screen.getByRole("dialog");
     expect(
-      screen.getByRole("region", { name: "Добавить пункт программы" }),
+      within(dialog).queryByLabelText("Название пункта программы"),
+    ).not.toBeInTheDocument();
+    expect(
+      within(dialog).queryByLabelText("Начало · МСК"),
+    ).not.toBeInTheDocument();
+    expect(
+      within(dialog).queryByLabelText("Окончание · МСК"),
+    ).not.toBeInTheDocument();
+    expect(within(dialog).getByLabelText("Лимит мест")).toBeVisible();
+    expect(
+      within(dialog).getByLabelText("Спикер · необязательно"),
     ).toBeVisible();
-    expect(screen.getByLabelText("Название пункта программы")).toHaveValue("");
-    expect(screen.queryByRole("dialog")).not.toBeInTheDocument();
   });
 });

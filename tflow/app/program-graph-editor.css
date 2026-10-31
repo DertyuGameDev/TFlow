@@ -1,0 +1,133 @@
+.program-timeline.has-inline-editor .timeline-scroll {
+  max-height: none;
+}
+.timeline-node-inline .timeline-event-line {
+  top: 0;
+}
+.timeline-inline-move {
+  position: absolute;
+  left: 0;
+  top: -14px;
+  width: 100%;
+  height: 28px;
+  padding: 0;
+  border: 0;
+  background: none;
+  cursor: grab;
+  touch-action: none;
+}
+.timeline-inline-move .timeline-event-line {
+  top: 14px;
+}
+.timeline-inline-content {
+  position: absolute;
+  top: 20px;
+  z-index: 6;
+}
+.program-graph-editor {
+  scroll-margin-block: 84px 100px;
+  display: grid;
+  gap: 6px;
+  padding: 8px;
+  border: 1px solid var(--projection-color, #ffd54f);
+  border-radius: 10px;
+  background: var(--theme-panel, #fff);
+  box-shadow: 0 3px 14px #00000014;
+  color: var(--theme-text, #222329);
+  min-width: 0;
+}
+.program-graph-editor input,
+.program-graph-editor select {
+  width: 100%;
+  min-width: 0;
+  max-width: 100%;
+  min-height: 32px;
+  padding: 3px;
+  border: 0;
+  border-bottom: 1px solid var(--flow-border);
+  border-radius: 0;
+  background: transparent;
+  color: inherit;
+  font: inherit;
+  font-size: 14px;
+}
+.program-graph-editor > input {
+  font-size: 15px;
+  font-weight: 600;
+}
+.program-graph-editor input:focus-visible,
+.program-graph-editor select:focus-visible {
+  outline: 2px solid var(--projection-color);
+  outline-offset: 1px;
+}
+.program-graph-time {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) 8px minmax(0, 1fr) 28px 28px;
+  gap: 4px;
+  align-items: center;
+}
+.program-graph-time > span {
+  color: var(--flow-muted);
+}
+.program-graph-editor .program-graph-time > .icon-button,
+.program-graph-editor .program-graph-room > .icon-button {
+  min-width: 28px;
+  min-height: 32px;
+  padding: 3px;
+}
+.program-graph-time .program-graph-save {
+  background: #ffdd2d;
+  color: #24272d;
+  border-radius: 6px;
+}
+.program-graph-time.is-multiday {
+  grid-template-columns: minmax(0, 1fr) 28px 28px;
+}
+.program-graph-time.is-multiday > input {
+  grid-column: 1 / -1;
+}
+.program-graph-time.is-multiday > span {
+  display: none;
+}
+.program-graph-time.is-multiday > button {
+  grid-row: 3;
+}
+.program-graph-time.is-multiday > .program-graph-save {
+  grid-column: 2;
+}
+.program-graph-time.is-multiday > button:last-child {
+  grid-column: 3;
+}
+.program-graph-room {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  font-size: 12px;
+  color: var(--flow-muted);
+  min-width: 0;
+}
+.program-graph-room > select,
+.program-graph-room > span {
+  flex: 1;
+  min-width: 0;
+}
+.program-graph-room > span {
+  padding: 4px;
+  overflow-wrap: anywhere;
+}
+.program-graph-editor .form-error {
+  font-size: 12px;
+  line-height: 1.5;
+  padding: 8px;
+  margin: 0;
+}
+.program-graph-saving {
+  color: var(--flow-muted);
+  font-size: 12px;
+}
+@media (max-width: 600px) {
+  .program-graph-editor input,
+  .program-graph-editor select {
+    font-size: 16px;
+  }
+}

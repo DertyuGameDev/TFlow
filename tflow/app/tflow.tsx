@@ -886,7 +886,7 @@ export function TFlow({ user }: { user: UserIdentity | null }) {
   const activityEditor = dialog?.type === "activity" && detail ? (
     <ActivityForm
       key={activityEditorKey}
-      compact={route.view === "manage"}
+      detailsOnly={route.view === "manage"}
       event={detail.event}
       rooms={detail.rooms}
       activity={

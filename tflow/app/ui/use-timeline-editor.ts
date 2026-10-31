@@ -1,4 +1,5 @@
 import {
+  useCallback,
   useRef,
   useState,
   type KeyboardEvent,
@@ -56,6 +57,10 @@ export function useTimelineEditor({
     [saving, setSaving] = useState(false);
   const [error, setError] = useState(""),
     [notice, setNotice] = useState("");
+  const resetFeedback = useCallback(() => {
+    setError("");
+    setNotice("");
+  }, []);
   function timeAt(x: number) {
     const bounds = canvas.current!.getBoundingClientRect();
     return timelineTimeAt(x, bounds.left, bounds.width, start, end, step);
@@ -98,17 +103,27 @@ export function useTimelineEditor({
   }
   function rangeAt(current: Gesture, x: number) {
     const value = timeAt(x);
+    const delta =
+      Math.round(
+        (((x - current.x) /
+          Math.max(1, canvas.current!.getBoundingClientRect().width)) *
+          (end - start)) /
+          step,
+      ) * step;
     if (current.activity && current.edge === "move")
-      return moveProgramRange(current.activity, Math.abs(x - current.x) < 4 ? 0 : value - current.anchor, event.starts_at, event.ends_at);
+      return moveProgramRange(
+        current.activity,
+        Math.abs(x - current.x) < 4 ? 0 : delta,
+        event.starts_at,
+        event.ends_at,
+      );
     return current.activity
       ? resizeProgramRange(
           current.activity,
           current.edge === "start" ? "start" : "end",
           (current.edge === "start"
             ? current.activity.starts_at
-            : current.activity.ends_at) +
-            value -
-            current.anchor,
+            : current.activity.ends_at) + delta,
           event.starts_at,
           event.ends_at,
         )
@@ -248,5 +263,6 @@ export function useTimelineEditor({
     resizeWithKeyboard,
     moveWithKeyboard,
     pointerHandlers,
+    resetFeedback,
   };
 }

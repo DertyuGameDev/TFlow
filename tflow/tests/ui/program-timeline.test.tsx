@@ -205,6 +205,30 @@ describe("действия на графике программы", () => {
     await act(async () => sending.resolve());
     expect(screen.getByRole("status")).toHaveTextContent("сохранено");
   });
+  it("считает минутное перемещение ручки точно даже за краем шкалы", async () => {
+    const activity = item(3),
+      onReschedule = vi.fn().mockResolvedValue(undefined);
+    const { container } = render(
+      <ProgramTimeline
+        event={event}
+        activities={[activity]}
+        onEdit={vi.fn()}
+        onReschedule={onReschedule}
+      />,
+    );
+    measureCanvas(container);
+    drag(
+      screen.getByRole("button", { name: "Изменить окончание Лекция 3" }),
+      614,
+      609,
+    );
+    await waitFor(() =>
+      expect(onReschedule).toHaveBeenCalledExactlyOnceWith(activity, {
+        starts_at: activity.starts_at,
+        ends_at: activity.ends_at - 60000,
+      }),
+    );
+  });
   it("отменяет жест через Esc и отмену касания, а нажатие края без перемещения ничего не сохраняет", () => {
     const onReschedule = vi.fn();
     const { container } = render(
