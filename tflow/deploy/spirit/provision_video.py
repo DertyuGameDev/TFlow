@@ -11,6 +11,7 @@ from control import ControlError, HOST, Spirit, authenticate
 from deploy import HOST_KEY
 from install_video import ADDRESS, HOST as VIDEO_HOST, failure_reason, validate
 from video_assets import prepare_assets
+from video_checks import VM_CHECK, network_metadata, verify_public
 
 
 def media_command(arguments, stage, **kwargs):
@@ -73,6 +74,10 @@ def main():
         prepare_assets(private, remote, target, options, script, media_command)
         result = media_command(["ssh",*options,target,shlex.join(["sudo","-n","python3","-",remote+"/video.json"])], "installation", input=script)
         print(result.stdout)
+        print("Spirit network metadata:", json.dumps(network_metadata(vm)))
+        diagnostic = media_command(["ssh",*options,target,"python3 -"], "VM network diagnostics", input=VM_CHECK)
+        print(diagnostic.stdout)
+        verify_public(json.loads(config.read_text()))
 
 
 if __name__ == "__main__":
