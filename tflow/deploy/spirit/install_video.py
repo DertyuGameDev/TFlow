@@ -175,13 +175,30 @@ def private_write(path, text, mode=0o600):
     temp.replace(path)
 
 
+def asset_state(path):
+    if os.geteuid() != 0:
+        raise RuntimeError("Run as root on the owned vm1")
+    values = resolve_values(json.loads(path.read_text()))
+    cert = Path("/etc/tflow-video/tls/fullchain.pem")
+    key = Path("/etc/tflow-video/tls/privkey.pem")
+    ready = cert.is_file() and key.is_file()
+    if ready:
+        ready = all(subprocess.run(args, capture_output=True).returncode == 0 for args in (
+            ["openssl", "x509", "-in", str(cert), "-noout", "-checkend", "2592000"],
+            ["openssl", "x509", "-in", str(cert), "-noout", "-checkhost", HOST]))
+    binary = Path("/usr/local/lib/tflow/livekit-server")
+    binary_ready = binary.is_file() and VERSION in subprocess.run([str(binary), "--version"],capture_output=True,text=True).stdout
+    return {"configuration":values,"certificate_ready":bool(ready),"binary_ready":bool(binary_ready)}
+
+
 def main(path):
     if os.geteuid() != 0:
         raise RuntimeError("Run as root on the owned vm1")
     values = resolve_values(json.loads(path.read_text()))
     os.umask(0o077)
-    run("apt-get", "update", "-qq")
-    run("apt-get", "install", "-y", "--no-install-recommends", "certbot", "dnsutils")
+    if not values.get("ci_managed_certificate"):
+        run("apt-get", "update", "-qq")
+        run("apt-get", "install", "-y", "--no-install-recommends", "certbot", "dnsutils")
     if subprocess.run(["id", "-u", "tflow-video"], capture_output=True).returncode:
         run("useradd", "--system", "--no-create-home", "--shell", "/usr/sbin/nologin", "tflow-video")
     run("usermod", "-aG", "tflow-video", "caddy")
@@ -190,27 +207,54 @@ def main(path):
     base.chmod(0o750)
     shutil.chown(base, group="tflow-video")
     private_write(Path("/etc/tflow-video/dns.json"), json.dumps({"domain":HOST,"relay_secret":values["relay_secret"]}))
-    private_write(Path("/usr/local/lib/tflow/video-dns-hook"), DNS_HOOK, 0o700)
-    private_write(Path("/usr/local/lib/tflow/video-renew-hook"), RENEW_HOOK, 0o700)
+    Path("/usr/local/lib/tflow").mkdir(mode=0o755, parents=True, exist_ok=True)
     Path("/usr/local/lib/tflow").chmod(0o755)
-    print("DNS-01 certificate request started", flush=True)
-    run("certbot", "certonly", "--manual", "--preferred-challenges", "dns", "--manual-auth-hook", "/usr/local/lib/tflow/video-dns-hook", "--manual-cleanup-hook", "/usr/local/lib/tflow/video-dns-hook cleanup", "--deploy-hook", "/usr/local/lib/tflow/video-renew-hook", "--non-interactive", "--agree-tos", "--email", "sidovidchenko@gmail.com", "--keep-until-expiring", "-d", HOST)
-    run("/usr/local/lib/tflow/video-renew-hook")
+    if values.get("ci_managed_certificate"):
+        source = values.get("certificate_directory")
+        target = Path("/etc/tflow-video/tls")
+        if source:
+            if source != "/home/ubuntu/tflow-video-ci/tls":
+                raise ValueError("Unexpected certificate staging directory")
+            target.mkdir(mode=0o750, exist_ok=True)
+            shutil.chown(target, group="tflow-video")
+            for name in ("fullchain.pem", "privkey.pem"):
+                private_write(target / name, (Path(source) / name).read_text(), 0o640)
+                shutil.chown(target / name, group="tflow-video")
+        run("openssl", "x509", "-in", target / "fullchain.pem", "-noout", "-checkend", "86400")
+        run("openssl", "x509", "-in", target / "fullchain.pem", "-noout", "-checkhost", HOST)
+    else:
+        private_write(Path("/usr/local/lib/tflow/video-dns-hook"), DNS_HOOK, 0o700)
+        private_write(Path("/usr/local/lib/tflow/video-renew-hook"), RENEW_HOOK, 0o700)
+        Path("/usr/local/lib/tflow").chmod(0o755)
+        print("DNS-01 certificate request started", flush=True)
+        run("certbot", "certonly", "--manual", "--preferred-challenges", "dns", "--manual-auth-hook", "/usr/local/lib/tflow/video-dns-hook", "--manual-cleanup-hook", "/usr/local/lib/tflow/video-dns-hook cleanup", "--deploy-hook", "/usr/local/lib/tflow/video-renew-hook", "--non-interactive", "--agree-tos", "--email", "sidovidchenko@gmail.com", "--keep-until-expiring", "-d", HOST)
+        run("/usr/local/lib/tflow/video-renew-hook")
     print("Trusted DNS-01 certificate installed", flush=True)
     binary = Path("/usr/local/lib/tflow/livekit-server")
-    if not binary.exists() or VERSION not in run(binary, "--version").stdout:
-        url = f"https://github.com/livekit/livekit/releases/download/v{VERSION}/livekit_{VERSION}_linux_amd64.tar.gz"
-        with tempfile.TemporaryDirectory(prefix="tflow-video-") as directory:
-            archive = Path(directory) / "server.tar.gz"
-            with urllib.request.urlopen(url, timeout=45) as response:
-                content = response.read(100 * 1024 * 1024 + 1)
-            if hashlib.sha256(content).hexdigest() != ARCHIVE_SHA:
-                raise RuntimeError("Official LiveKit checksum mismatch")
-            archive.write_bytes(content)
-            with tarfile.open(archive) as bundle:
-                member = next(member for member in bundle.getmembers() if member.name == "livekit-server" and member.isfile())
-                binary.write_bytes(bundle.extractfile(member).read())
-            binary.chmod(0o755)
+    if values.get("binary_path"):
+        if values["binary_path"] != "/home/ubuntu/tflow-video-ci/livekit-server":
+            raise ValueError("Unexpected binary staging path")
+        content = Path(values["binary_path"]).read_bytes()
+        if hashlib.sha256(content).hexdigest() != values.get("binary_sha256"):
+            raise RuntimeError("Transferred LiveKit checksum mismatch")
+        temporary = binary.with_name("livekit-server.new")
+        temporary.write_bytes(content); temporary.chmod(0o755); temporary.replace(binary)
+    elif not values.get("ci_managed_certificate"):
+        if not binary.exists() or VERSION not in run(binary, "--version").stdout:
+            url = f"https://github.com/livekit/livekit/releases/download/v{VERSION}/livekit_{VERSION}_linux_amd64.tar.gz"
+            with tempfile.TemporaryDirectory(prefix="tflow-video-") as directory:
+                archive = Path(directory) / "server.tar.gz"
+                with urllib.request.urlopen(url, timeout=45) as response:
+                    content = response.read(100 * 1024 * 1024 + 1)
+                if hashlib.sha256(content).hexdigest() != ARCHIVE_SHA:
+                    raise RuntimeError("Official LiveKit checksum mismatch")
+                archive.write_bytes(content)
+                with tarfile.open(archive) as bundle:
+                    member = next(member for member in bundle.getmembers() if member.name == "livekit-server" and member.isfile())
+                    binary.write_bytes(bundle.extractfile(member).read())
+                binary.chmod(0o755)
+    if VERSION not in run(binary, "--version").stdout:
+        raise RuntimeError("Unexpected installed LiveKit version")
     private_write(Path("/etc/tflow-video/livekit.yaml"), livekit_config(values), 0o400)
     # Caddy shares the TLS group, but must not be able to read media API keys.
     shutil.chown("/etc/tflow-video/livekit.yaml", user="tflow-video", group="root")
@@ -230,7 +274,8 @@ def main(path):
         for port in (8080, 8081, 8083):
             run("ufw", "allow", str(port)+"/tcp")
     run("systemctl", "restart", "caddy")
-    run("systemctl", "enable", "--now", "certbot.timer")
+    if not values.get("ci_managed_certificate"):
+        run("systemctl", "enable", "--now", "certbot.timer")
     env = Path("/etc/tflow/app.env")
     original = env.read_text()
     private_write(Path("/var/backups/tflow") / f"before-video-env-{time.time_ns()}.env", original)
@@ -240,11 +285,18 @@ def main(path):
     run("systemctl", "restart", "tflow")
     run("systemctl", "is-active", "--quiet", "tflow", "tflow-video", "caddy")
     path.unlink()
+    if values.get("certificate_directory"):
+        shutil.rmtree("/home/ubuntu/tflow-video-ci/tls")
+    if values.get("binary_path"):
+        Path("/home/ubuntu/tflow-video-ci/livekit-server").unlink(missing_ok=True)
     print(f"Owned video server {VERSION} active at https://{HOST}:8080; browser media verification remains required", flush=True)
 
 
 if __name__ == "__main__":
     try:
-        main(Path(sys.argv[1]))
+        if len(sys.argv) == 3 and sys.argv[2] == "--asset-state":
+            print(json.dumps(asset_state(Path(sys.argv[1]))))
+        else:
+            main(Path(sys.argv[1]))
     except Exception as error:
         raise SystemExit(str(error) if isinstance(error, (ValueError, RuntimeError)) else "Video setup failed; private output withheld") from None
