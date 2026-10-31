@@ -72,6 +72,14 @@ class User(AbstractUser):
         return self.name or self.email
 
 
+class AuthRateLimit(models.Model):
+    """Shared authentication budgets; keys contain no raw email or IP address."""
+
+    key = models.CharField(primary_key=True, max_length=64)
+    attempts = models.PositiveIntegerField(default=0)
+    expires_at = models.DateTimeField(db_index=True)
+
+
 class ScheduleLock(models.Model):
     """A shared write lock: SQLite IMMEDIATE; row lock on PostgreSQL."""
 

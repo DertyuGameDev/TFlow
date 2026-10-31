@@ -13,7 +13,8 @@ from django.utils.http import url_has_allowed_host_and_scheme
 from django.views.decorators.cache import never_cache
 from django.views.decorators.csrf import ensure_csrf_cookie
 from .auth_forms import LoginForm, RegisterForm
-from .avatars import save_avatar, save_community_avatar
+from .avatars import avatar_upload, save_avatar, save_community_avatar
+from .security import auth_attempt_response
 from .notifications import notification_page
 from .calendar import activity_item, calendar_response, event_item
 from .contracts import (
@@ -73,6 +74,10 @@ def safe_next(request):
 def login_view(request):
     if request.user.is_authenticated:
         return redirect(safe_next(request))
+    if request.method == "POST":
+        limited = auth_attempt_response(request, "login")
+        if limited is not None:
+            return limited
     form = LoginForm(request, data=request.POST or None)
     if request.method == "POST" and form.is_valid():
         login(request, form.get_user())
@@ -88,6 +93,10 @@ def login_view(request):
 def register_view(request):
     if request.user.is_authenticated:
         return redirect(safe_next(request))
+    if request.method == "POST":
+        limited = auth_attempt_response(request, "register")
+        if limited is not None:
+            return limited
     next_url = safe_next(request)
     destination = urlsplit(next_url)
     view, _, event_id = destination.fragment.partition("/")
@@ -244,7 +253,7 @@ def dispatch_api(request, path):
                 },
             )
         if method == "POST":
-            save_avatar(user, request.FILES.get("avatar"))
+            save_avatar(user, avatar_upload(request))
             return JsonResponse({"ok": True})
         if method == "DELETE":
             UserAvatar.objects.filter(user=user).delete()
@@ -275,7 +284,7 @@ def dispatch_api(request, path):
                 "FORBIDDEN", "Изменить фото может только создатель клуба", 403
             )
         if method == "POST":
-            save_community_avatar(club, request.FILES.get("avatar"))
+            save_community_avatar(club, avatar_upload(request))
             return JsonResponse({"ok": True})
         if method == "DELETE":
             CommunityAvatar.objects.filter(community=club).delete()

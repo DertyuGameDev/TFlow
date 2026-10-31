@@ -2,7 +2,8 @@ import json
 import time
 import uuid
 from urllib.error import HTTPError, URLError
-from urllib.request import Request, urlopen
+from urllib.parse import urlsplit
+from urllib.request import HTTPRedirectHandler, Request, build_opener
 import jwt
 from django.conf import settings
 from django.utils import timezone
@@ -10,11 +11,33 @@ from .contracts import FlowError
 from .models import Activity, Event, Webinar
 
 
+class NoMediaRedirects(HTTPRedirectHandler):
+    def redirect_request(self, request, response, code, message, headers, new_url):
+        # A redirect must never forward an administrative bearer token elsewhere.
+        return None
+
+
+def urlopen(request, timeout):
+    return build_opener(NoMediaRedirects()).open(request, timeout=timeout)
+
+
 def configured():
-    return bool(
+    if not (
         settings.LIVEKIT_URL
         and settings.LIVEKIT_API_KEY
         and settings.LIVEKIT_API_SECRET
+    ):
+        return False
+    try:
+        url = urlsplit(settings.LIVEKIT_URL)
+        valid = bool(url.hostname) and not (
+            url.username or url.password or url.query or url.fragment
+        )
+    except ValueError:
+        return False
+    schemes = {"ws", "wss", "http", "https"} if settings.DEBUG else {"wss", "https"}
+    return valid and url.scheme in schemes and (
+        settings.DEBUG or len(settings.LIVEKIT_API_SECRET.encode("utf-8")) >= 32
     )
 
 
@@ -65,6 +88,10 @@ def status(user, event_id, *, activity_id=None):
 
 
 def signed_token(identity, name, grants):
+    if not configured():
+        raise FlowError(
+            "VIDEO_NOT_CONFIGURED", "Сервер трансляций не настроен безопасно", 503
+        )
     now = int(time.time())
     return jwt.encode(
         {

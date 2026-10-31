@@ -46,7 +46,7 @@ class WebinarTransportTests(SimpleTestCase):
         self.assertLessEqual(claims["exp"] - claims["nbf"], 305)
         self.assertEqual(transport.call_args.kwargs["timeout"], 5)
 
-    @override_settings(LIVEKIT_URL="ws://127.0.0.1:7880/")
+    @override_settings(DEBUG=True, LIVEKIT_URL="ws://127.0.0.1:7880/")
     @patch("flow.webinars.urlopen")
     def test_remove_participant_uses_http_room_and_identity(self, transport):
         transport.return_value = response()
