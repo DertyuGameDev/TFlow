@@ -10,6 +10,7 @@ import { FormError, Submit, useSubmit, type Send } from "./forms";
 
 const ONLINE_ROOM = "__online__";
 const NEW_ROOM = "@new";
+const NEW_ONLINE_ROOM = "@new-online";
 
 export function ActivityForm({
   event,
@@ -51,9 +52,9 @@ export function ActivityForm({
   );
   const [newRoomName, setNewRoomName] = useState("Основная площадка");
   const [newRoomCapacity, setNewRoomCapacity] = useState(event.capacity);
-  const creatingRoom = roomId === NEW_ROOM;
+  const creatingRoom = roomId === NEW_ROOM || roomId === NEW_ONLINE_ROOM;
   const room = rooms.find((item) => item.id === roomId);
-  const online = roomId === ONLINE_ROOM || !!room?.is_online;
+  const online = roomId === ONLINE_ROOM || roomId === NEW_ONLINE_ROOM || !!room?.is_online;
   const limit = creatingRoom
     ? newRoomCapacity
     : (room?.capacity ?? event.capacity);
@@ -145,30 +146,32 @@ export function ActivityForm({
           value={roomId}
           onChange={(e) => {
             setRoomId(e.target.value);
+            if (e.target.value === NEW_ONLINE_ROOM) setNewRoomName(`Онлайн-поток ${rooms.filter((item) => item.is_online).length + 1}`);
+            if (e.target.value === NEW_ROOM) setNewRoomName("Новая аудитория");
             const next = rooms.find((item) => item.id === e.target.value);
             const nextLimit =
-              e.target.value === NEW_ROOM
+              [NEW_ROOM, NEW_ONLINE_ROOM].includes(e.target.value)
                 ? newRoomCapacity
                 : (next?.capacity ?? event.capacity);
             setCapacity((current) => Math.min(current, nextLimit));
           }}
         >
           {rooms
-            .filter((item) => !item.is_online)
             .map((item) => (
               <option key={item.id} value={item.id}>
-                {item.name} · {item.capacity} мест
+                {item.is_online ? "Онлайн · " : ""}{item.name} · {item.capacity} мест
               </option>
             ))}
-          <option value={onlineRoom?.id ?? ONLINE_ROOM}>
+          {!onlineRoom && <option value={ONLINE_ROOM}>
             Онлайн · Вебинар внутри ТФлоу
-          </option>
+          </option>}
+          <option value={NEW_ONLINE_ROOM}>Создать онлайн-поток</option>
           <option value={NEW_ROOM}>Создать новую аудиторию</option>
         </select>
       </label>
       {creatingRoom && (
         <fieldset className="program-new-room">
-          <legend>Новая аудитория</legend>
+          <legend>{online ? "Новый онлайн-поток" : "Новая аудитория"}</legend>
           <p className="event-field-hint">
             Сохраним аудиторию вместе с пунктом программы.
           </p>
@@ -202,8 +205,8 @@ export function ActivityForm({
       )}
       {online && (
         <p className="event-field-hint">
-          Один онлайн-поток внутри ТФлоу. Может идти одновременно с занятиями в
-          очных аудиториях.
+          У каждого онлайн-флоу свой вебинар. Может идти одновременно с другими
+          потоками и занятиями в очных аудиториях. Для параллельного эфира выберите другую онлайн-аудиторию.
           {event.format === "Очно" &&
             " Событие станет гибридным, очная площадка сохранится."}
         </p>

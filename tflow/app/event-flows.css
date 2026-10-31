@@ -8,4 +8,7 @@
 .event-flows-hint{margin-top:18px}
 .event-flows-empty{display:flex;align-items:center;gap:14px;padding:22px;margin-top:20px;border:1px dashed var(--line);border-radius:14px}
 .event-flows-empty svg{flex-shrink:0}
+.program-webinar-entry{margin-top:12px}
+.webinar-channels>h2{font-size:22px;margin-bottom:10px}
+.webinar-channels>p{color:var(--muted);line-height:1.7;font-size:14px;max-width:760px}
 @media(max-width:600px){.event-flows-heading{flex-direction:column;gap:12px}.event-flows-heading h2{font-size:20px}.event-flows-empty{align-items:flex-start;padding:18px}}

@@ -3,11 +3,12 @@ import { AlertCircle, Check, Clock3, MapPin, Search, Users, Video } from "lucide
 import type { Activity } from "../../lib/types";
 import { dateKey, dateLabel, overlaps, timeLabel } from "../../lib/time";
 import { activityAvailability } from "../../lib/activities";
+import { webinarPath } from "../../lib/webinars";
 
 export type ActivityAction = "register" | "cancel" | "join" | "leave";
-type Actions = { schedule: Activity[]; organizer: boolean; pending: boolean; onAction: (activity: Activity, action: ActivityAction) => void };
+type Actions = { schedule: Activity[]; organizer: boolean; pending: boolean; onAction: (activity: Activity, action: ActivityAction) => void; userId?: string; webinarOwnerId?: string };
 
-export function ActivityCard({ activity: a, schedule, organizer, pending, onAction, personal = false }: Actions & { activity: Activity; personal?: boolean }) {
+export function ActivityCard({ activity: a, schedule, organizer, pending, onAction, personal = false, userId, webinarOwnerId }: Actions & { activity: Activity; personal?: boolean }) {
   const { conflict, closed, free } = activityAvailability(a, schedule, Date.now());
   const full = free === 0;
   const operation: ActivityAction = a.registered ? "cancel" : a.waitlisted ? "leave" : full ? "join" : "register";
@@ -17,7 +18,7 @@ export function ActivityCard({ activity: a, schedule, organizer, pending, onActi
     <div className="program-copy">
       {personal && <a className="program-event" href={`#event/${a.event_id}`}>{a.event_title}</a>}
       <h3>{a.title}</h3>
-      <div className="program-meta"><span>{a.room_is_online ? <Video size={14}/> : <MapPin size={14}/>} {a.room_is_online ? "Онлайн · ТФлоу" : `${personal && a.venue ? `${a.venue} · ` : ""}${a.room_name}`}</span>{a.speaker && <span>{a.speaker}</span>}</div>
+      <div className="program-meta"><span>{a.room_is_online ? <Video size={14}/> : <MapPin size={14}/>} {a.room_is_online ? `Онлайн · ${a.room_name}` : `${personal && a.venue ? `${a.venue} · ` : ""}${a.room_name}`}</span>{a.speaker && <span>{a.speaker}</span>}</div>
       {a.description && <p>{a.description}</p>}
       <div className="program-badges">
         <span className={`program-badge ${full ? "is-full" : ""}`}><Users size={13}/>{full ? "Мест нет" : `${free} из ${a.capacity} мест свободно`}</span>
@@ -25,6 +26,12 @@ export function ActivityCard({ activity: a, schedule, organizer, pending, onActi
         {!!a.waitlisted && <span className="program-badge is-waiting"><Clock3 size={13}/>Вы в очереди · № {a.waitlist_position}</span>}
         {!a.waitlisted && a.waiting_count > 0 && <span className="program-queue-count">В очереди: {a.waiting_count}</span>}
       </div>
+      {a.room_is_online && userId && a.ends_at > Date.now() && (organizer ? webinarOwnerId === userId : !!a.registered) &&
+        <a className="text-button program-webinar-entry" href={webinarPath(a.event_id, a.id)}
+          target={organizer ? "_blank" : undefined} rel={organizer ? "noopener noreferrer" : undefined}
+          title={organizer ? "Откроется в новой вкладке" : undefined}>
+          <Video size={16}/>{organizer ? "Открыть студию флоу" : "Войти в вебинар флоу"}
+        </a>}
       {conflict && !a.registered && <p className="program-conflict"><AlertCircle size={15}/><span>{a.waitlisted ? "Для автоматической записи освободите время: " : "Пересечение с «"}{conflict.title}{a.waitlisted ? ". Ваше место в очереди сохранено." : `» (${timeLabel(conflict.starts_at)}–${timeLabel(conflict.ends_at)}).`}</span></p>}
     </div>
     {!organizer && <button className={`button small-button ${a.registered || a.waitlisted ? "secondary" : "primary"}`} disabled={disabled} onClick={() => onAction(a, operation)}>

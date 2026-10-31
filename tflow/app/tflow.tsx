@@ -77,6 +77,7 @@ import { matchesEventTime, type EventTimeFilter } from "../lib/event-filters";
 import { OrganizerTutorial } from "./ui/organizer-tutorial";
 import { ProfileUpcomingEvents } from "./ui/profile-upcoming-events";
 import { EventFlows } from "./ui/event-flows";
+import { WebinarChannels } from "./ui/webinar-channels";
 import { ThemeToggle } from "./ui/theme-toggle";
 const Webinar = lazy(() => import("./ui/webinar"));
 import {
@@ -975,7 +976,12 @@ export function TFlow({ user }: { user: UserIdentity | null }) {
     organizer,
     pending,
     onAction: activityAction,
+    userId: user?.userId,
+    webinarOwnerId: detail?.event.owner_id,
   };
+  const webinarActivity = route.mode && route.mode !== "general"
+    ? detail?.activities.find((activity) => activity.id === route.mode)
+    : undefined;
 
   return (
     <div
@@ -1800,7 +1806,9 @@ export function TFlow({ user }: { user: UserIdentity | null }) {
                   <FormError error={detailError} />
                 ) : !detail ? (
                   <p className="loading-state">Открываем комнату вебинара…</p>
-                ) : !hasWebinar(detail.event) ? (
+                ) : route.mode && route.mode !== "general" && !webinarActivity ? (
+                  <Empty icon={Video} title="Флоу не найден" text="Откройте список активностей мероприятия и выберите нужный онлайн-флоу." />
+                ) : !hasWebinar(detail.event) || (webinarActivity && !webinarActivity.room_is_online) ? (
                   <Empty
                     icon={MapPin}
                     title="Это очное событие"
@@ -1809,8 +1817,8 @@ export function TFlow({ user }: { user: UserIdentity | null }) {
                 ) : (
                   <>
                     <Heading
-                      title={detail.event.title}
-                      text={`${dateLabel(detail.event.starts_at)} · ${timeLabel(detail.event.starts_at)} МСК · ${detail.event.organizer}`}
+                      title={webinarActivity?.title ?? detail.event.title}
+                      text={`${dateLabel(webinarActivity?.starts_at ?? detail.event.starts_at)} · ${timeLabel(webinarActivity?.starts_at ?? detail.event.starts_at)} МСК · ${detail.event.organizer}`}
                     />
                     {!user ? (
                       <Empty
@@ -1867,6 +1875,13 @@ export function TFlow({ user }: { user: UserIdentity | null }) {
                           <ArrowRight size={18} />
                         </button>
                       </Empty>
+                    ) : webinarActivity && !organizer && !webinarActivity.registered ? (
+                      <Empty icon={Video} title="Запишитесь на этот флоу" text="Для входа в отдельный вебинар нужна запись на его онлайн-активность.">
+                        <ActivityProgram activities={[webinarActivity]} {...programActions} />
+                      </Empty>
+                    ) : !route.mode && detail.activities.some((activity) => activity.room_is_online) ? (
+                      <WebinarChannels event={detail.event}
+                        activities={detail.activities.filter((activity) => activity.room_is_online)} {...programActions} />
                     ) : (
                       <Suspense
                         fallback={
@@ -1876,8 +1891,9 @@ export function TFlow({ user }: { user: UserIdentity | null }) {
                         }
                       >
                         <Webinar
-                          key={detail.event.id}
+                          key={`${detail.event.id}/${webinarActivity?.id ?? "general"}`}
                           event={detail.event}
+                          activity={webinarActivity}
                           user={user}
                           send={send}
                         />

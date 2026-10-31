@@ -270,10 +270,11 @@ def dispatch_api(request, path):
             return JsonResponse({"ok": True})
         return HttpResponseNotAllowed(["GET", "POST", "DELETE"])
     if method == "GET":
-        if resource == "events" and item_id and action == "webinar":
+        if resource in {"events", "activities"} and item_id and action == "webinar":
             from .webinars import status
 
-            return JsonResponse(status(require_user(request), item_id))
+            return JsonResponse(status(require_user(request), item_id if resource == "events" else None,
+                                       activity_id=item_id if resource == "activities" else None))
         if path == "notifications":
             return JsonResponse(
                 notification_page(
@@ -512,7 +513,10 @@ def dispatch_api(request, path):
     elif resource == "rooms" and item_id and not action and method == "PATCH":
         services.save_room(user, validate(RoomInput, body), room_id=item_id)
     elif resource == "activities" and item_id:
-        if action == "registration" and method == "POST":
+        if action == "webinar" and method == "POST":
+            from .webinars import operate
+            return JsonResponse(operate(user, None, body.get("operation"), activity_id=item_id))
+        elif action == "registration" and method == "POST":
             if services.register(user, item_id, body) is False:
                 raise FlowError(
                     "NO_SEATS", "Свободное место получил участник из листа ожидания"

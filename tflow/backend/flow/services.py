@@ -13,6 +13,7 @@ from .models import (
     Event,
     EventRegistration,
     EventWaitlistEntry,
+    Webinar,
     Membership,
     Notification,
     Registration,
@@ -137,8 +138,7 @@ def update_event(user, event_id, data):
     with schedule_write():
         event = owned_event(event_id, user)
         check_community(data, user, event.community_id)
-        webinar = getattr(event, "webinar", None)
-        if data["format"] == "Очно" and webinar and webinar.active:
+        if data["format"] == "Очно" and event.webinars.filter(active=True).exists():
             raise FlowError(
                 "WEBINAR_ACTIVE", "Завершите эфир перед сменой формата на очный"
             )
@@ -255,7 +255,7 @@ def delete_event(user, event_id):
         event = owned_event(event_id, user)
         from .webinars import stop_webinar
 
-        stop_webinar(event)
+        stop_webinar(event, all_rooms=True)
         title = event.title
         users = (
             set(event.enrollments.values_list("user_id", flat=True))
@@ -376,6 +376,7 @@ def save_activity(user, data, *, event_id=None, activity_id=None):
                 event=activity.event,
                 name=new_room_name,
                 capacity=new_room_capacity or data["capacity"],
+                is_online=online_room,
             )
             data["room_id"] = room.pk
         if online_room:
@@ -389,13 +390,11 @@ def save_activity(user, data, *, event_id=None, activity_id=None):
                         400,
                     )
             else:
-                room, _ = Room.objects.get_or_create(
-                    event=activity.event,
-                    is_online=True,
-                    defaults={
-                        "name": "Онлайн",
-                        "capacity": activity.event.capacity,
-                    },
+                online_rooms = list(activity.event.rooms.filter(is_online=True)[:2])
+                if len(online_rooms) > 1:
+                    raise FlowError("VALIDATION", "Выберите онлайн-аудиторию или создайте новый поток", 400)
+                room = online_rooms[0] if online_rooms else Room.objects.create(
+                    event=activity.event, is_online=True, name="Онлайн", capacity=activity.event.capacity,
                 )
                 data["room_id"] = room.pk
         if not data.get("room_id"):
@@ -423,6 +422,8 @@ def save_activity(user, data, *, event_id=None, activity_id=None):
                 )
                 data["room_id"] = room.pk
         changed = any(getattr(activity, key) != value for key, value in data.items())
+        if activity_id and changed and Webinar.objects.filter(activity=activity, active=True).exists():
+            raise FlowError("WEBINAR_ACTIVE", "Завершите эфир перед изменением этой активности")
         for key, value in data.items():
             setattr(activity, key, value)
         validate_activity(activity)
@@ -595,6 +596,8 @@ def cancel(user, activity_id):
         ).delete()
         if removed:
             activity = Activity.objects.select_related("event").get(pk=activity_id)
+            from .webinars import disconnect_viewer
+            disconnect_viewer(user, activity.event_id, activity_id=activity.pk)
             promote_waitlist_locked(activity)
             retry_user_waitlists_locked(user)
 
