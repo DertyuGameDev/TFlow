@@ -750,11 +750,11 @@ export function ProgramTimeline({
               </p>
             )}
             <small>
-              {selected.taken} занято ·{" "}
+              {selected.registration_required === false ? <>Без отдельной записи · в расписании у {selected.taken}</> : <>{selected.taken} занято ·{" "}
               {Math.max(0, selected.capacity - selected.taken)} свободно
               {selected.waiting_count > 0
                 ? ` · в очереди: ${selected.waiting_count}`
-                : ""}
+                : ""}</>}
             </small>
           </div>
           <div className="timeline-detail-actions">

@@ -63,6 +63,16 @@ test("an owned event with an own ticket appears only once", () => {
   assert.equal(calendarEntries(data({ events: [own], tickets: [own] }), "me").length, 1);
 });
 
+test("calendar preserves whether an activity reserves a seat or is only a personal plan", () => {
+  const base = {...event("open"), event_id:"ticket", room_name:"Аудитория"};
+  const result = calendarEntries(data({schedule:[
+    {...base, registration_required:false},
+    {...base, id:"booked", registration_required:true},
+  ]}), "person");
+  assert.equal(result.find(item => item.activityId === "open").registrationRequired, false);
+  assert.equal(result.find(item => item.activityId === "booked").registrationRequired, true);
+});
+
 test("calendar activity keeps its registration target and current seat counts", () => {
   const result = calendarEntries(data({schedule:[{...event("session"),event_id:"conference",room_name:"Зал",capacity:5,taken:3}]}), "me")[0];
   assert.equal(result.activityId, "session");

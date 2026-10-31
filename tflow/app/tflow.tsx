@@ -2025,7 +2025,7 @@ export function TFlow({ user }: { user: UserIdentity | null }) {
                         );
                         await refresh();
                         setToast({
-                          text: "Запись отменена. Расписание обновлено.",
+                          text: data.schedule.find(item => item.id === activityId)?.registration_required === false ? "Активность убрана из расписания. Билет сохранён." : "Запись отменена. Расписание обновлено.",
                           error: false,
                         });
                       }}
@@ -2056,7 +2056,7 @@ export function TFlow({ user }: { user: UserIdentity | null }) {
                         {data.schedule.length > 0 && (
                           <>
                             <p className="calendar-hint">
-                              В файл войдут только подтверждённые активности с
+                              В файл войдут активности вашего расписания с
                               напоминанием за 30 минут. После переноса скачайте
                               его заново — это разовый экспорт.
                             </p>

@@ -16,6 +16,7 @@ export type CalendarEntry = {
   description: string;
   eventTitle?: string;
   activityId?: string;
+  registrationRequired?: boolean;
   capacity: number;
   taken: number;
   draft: boolean;
@@ -85,6 +86,7 @@ export function calendarEntries(data: Bootstrap, userId: string): CalendarEntry[
     starts_at: activity.starts_at, ends_at: activity.ends_at, source: "activity" as const,
     location: activity.room_name, description: activity.description,
     eventTitle: activity.event_title, activityId: activity.id, draft: false,
+    registrationRequired: activity.registration_required !== false,
     capacity: activity.capacity, taken: activity.taken,
   })));
   return entries.filter(entry => Number.isFinite(entry.starts_at) && Number.isFinite(entry.ends_at) && entry.ends_at > entry.starts_at)
