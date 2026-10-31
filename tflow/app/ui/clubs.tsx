@@ -354,41 +354,38 @@ export function Clubs({
             <div className="clubs-grid">
               {visible.map((item) => (
                 <article className="clubs-card" key={item.id}>
-                  <div className="clubs-card-heading">
-                    <button
-                      className="club-avatar-link"
-                      aria-label={`Открыть клуб ${item.name}`}
-                      onClick={() => onOpenClub(item.id)}
-                    >
-                      <Avatar profile={item} className="club-avatar" />
-                    </button>
+                  <button
+                    className="club-avatar-link"
+                    aria-label={`Открыть клуб ${item.name}`}
+                    onClick={() => onOpenClub(item.id)}
+                  >
+                    <Avatar profile={item} className="club-avatar" />
+                  </button>
+                  <div className="clubs-card-copy">
+                    <h2>
+                      <button onClick={() => onOpenClub(item.id)}>
+                        <span>{item.name}</span>
+                        <ArrowRight size={16} />
+                      </button>
+                    </h2>
                     <span className="clubs-topic">{item.topic}</span>
-                  </div>
-                  <h2>
-                    <button onClick={() => onOpenClub(item.id)}>
-                      {item.name}
-                    </button>
-                  </h2>
-                  <p>{item.description}</p>
-                  <span className="clubs-counts">
-                    Участников: {item.member_count} · Событий:{" "}
-                    {item.event_count}
-                  </span>
-                  {interests.includes(item.topic) && (
-                    <span className="clubs-match">
-                      <Heart size={14} />
-                      Совпадает с вашими интересами
+                    <p className="clubs-card-description">{item.description}</p>
+                    <span className="clubs-counts">
+                      Участников: {item.member_count} · Событий:{" "}
+                      {item.event_count}
                     </span>
-                  )}
-                  <div className="clubs-card-actions">
-                    <button
-                      className="button secondary"
-                      onClick={() => onOpenClub(item.id)}
-                    >
-                      Открыть клуб
-                      <ArrowRight size={16} />
-                    </button>
-                    {membership(item)}
+                    {Boolean(item.joined) && (
+                      <span className="clubs-member">
+                        <Check size={14} />
+                        Вы в клубе
+                      </span>
+                    )}
+                    {interests.includes(item.topic) && (
+                      <span className="clubs-match">
+                        <Heart size={14} />
+                        Совпадает с вашими интересами
+                      </span>
+                    )}
                   </div>
                 </article>
               ))}

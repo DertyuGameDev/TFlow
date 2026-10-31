@@ -43,6 +43,9 @@ class NotificationEmailTests(Scenario, TestCase):
         EventRegistration.objects.create(user=self.person, event=self.event)
         Registration.objects.create(user=self.person, activity=self.a)
         self.request(f"activities/{self.a.pk}", "patch", self.activity_body(self.a))
+        body_without_room = self.activity_body(self.a)
+        body_without_room.pop("room_id")
+        self.request(f"activities/{self.a.pk}", "patch", body_without_room)
         self.assertFalse(Notification.objects.exists())
         self.assertFalse(NotificationEmail.objects.exists())
 

@@ -48,7 +48,8 @@ import { csrfToken, signInPath } from "../lib/session";
 import { dateLabel, timeLabel } from "../lib/time";
 import { canEnterWebinar, hasWebinar } from "../lib/webinars";
 import { Modal } from "./ui/dialog";
-import { ActivityForm, FormError, RoomForm } from "./ui/forms";
+import { FormError, RoomForm } from "./ui/forms";
+import { ActivityForm } from "./ui/program-item-form";
 import { QuickEventForm } from "./ui/quick-event-form";
 import { QRScanner } from "./ui/qr-scanner";
 import { EventArt } from "./ui/event-card";
@@ -2105,7 +2106,11 @@ export function TFlow({ user }: { user: UserIdentity | null }) {
       )}
       {dialog?.type === "activity" && detail && (
         <Modal
-          title={dialog.activity ? "Изменить активность" : "Новая активность"}
+          title={
+            dialog.activity
+              ? "Изменить пункт программы"
+              : "Добавить пункт программы"
+          }
           wide
           onClose={() => setDialog(null)}
         >
@@ -2113,6 +2118,15 @@ export function TFlow({ user }: { user: UserIdentity | null }) {
             event={detail.event}
             rooms={detail.rooms}
             activity={dialog.activity}
+            initialStart={(() => {
+              const lastEnd = Math.max(
+                detail.event.starts_at,
+                ...detail.activities.map((item) => item.ends_at),
+              );
+              return lastEnd < detail.event.ends_at
+                ? lastEnd
+                : detail.event.starts_at;
+            })()}
             send={send}
             done={() => closeForm()}
           />
