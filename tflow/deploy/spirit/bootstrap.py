@@ -89,7 +89,7 @@ caddy = Path("/etc/caddy/Caddyfile")
 old = caddy.read_text() if caddy.exists() else ""
 if old and "Managed by TFlow" not in old and "/usr/share/caddy" not in old:
     raise SystemExit("Caddy already has a custom configuration; inspect it before changing the proxy")
-caddy.write_text(f"# Managed by TFlow\n{hostname} {{\n    encode zstd gzip\n    reverse_proxy 127.0.0.1:8000\n}}\n")
+caddy.write_text(f"# Managed by TFlow\n{hostname} {{\n    tls {{\n        issuer acme\n    }}\n    encode zstd gzip\n    reverse_proxy 127.0.0.1:8000\n}}\n")
 run("caddy", "validate", "--config", str(caddy))
 run("systemctl", "daemon-reload")
 run("systemctl", "enable", "tflow", "caddy")
