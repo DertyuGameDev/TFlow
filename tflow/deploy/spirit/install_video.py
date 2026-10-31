@@ -21,9 +21,7 @@ ARCHIVE_SHA = "1e9ee90ca301e1842b2887fc77cb122759756a9c8aeb4334ee91de3325ec43fb"
 def validate(values):
     if values.get("domain") != HOST or values.get("ip") != ADDRESS:
         raise ValueError("Media configuration must identify the owned vm1")
-    if not re.fullmatch(r"[0-9a-fA-F-]{36}", values.get("dns_token", "")):
-        raise ValueError("Missing DNS credential")
-    for key in ("api_key", "api_secret"):
+    for key in ("api_key", "api_secret", "relay_secret"):
         if not re.fullmatch(r"[A-Za-z0-9_-]{24,128}", values.get(key, "")):
             raise ValueError("Media credentials must be random URL-safe values")
     return values
@@ -43,7 +41,7 @@ def livekit_config(values):
 
 
 DNS_HOOK = r'''#!/usr/bin/python3
-import json, os, subprocess, sys, time, urllib.parse, urllib.request
+import hashlib, hmac, json, os, subprocess, sys, time, urllib.request
 from pathlib import Path
 values=json.loads(Path('/etc/tflow-video/dns.json').read_text())
 host=values['domain']
@@ -51,16 +49,19 @@ if os.environ.get('CERTBOT_DOMAIN') != host: raise SystemExit('Unexpected ACME h
 clear='cleanup' in sys.argv
 txt=os.environ.get('CERTBOT_VALIDATION','')
 if not txt: raise SystemExit('Missing ACME validation')
-params={'domains':host.removesuffix('.duckdns.org'),'token':values['dns_token'],'txt':txt}
-if clear: params['clear']='true'
+payload=json.dumps({'txt':txt,'clear':clear,'timestamp':int(time.time())},separators=(',',':')).encode()
+signature=hmac.new(values['relay_secret'].encode(),payload,hashlib.sha256).hexdigest()
+request=urllib.request.Request('https://tflow-one.vercel.app/api/internal/dns-challenge',data=payload,headers={'Content-Type':'application/json','X-TFlow-Hook-Signature':signature},method='POST')
 try:
-    with urllib.request.urlopen('https://www.duckdns.org/update?'+urllib.parse.urlencode(params),timeout=20) as response:
-        if not response.read().startswith(b'OK'): raise ValueError()
+    with urllib.request.urlopen(request,timeout=30) as response:
+        if json.load(response).get('ok') is not True: raise ValueError()
 except Exception: raise SystemExit('DNS update failed; credential output withheld')
 if not clear:
     for attempt in range(24):
         answers=[subprocess.run(['dig','+time=3','+tries=1','+short','@'+resolver,'TXT','_acme-challenge.'+host],capture_output=True,text=True).stdout for resolver in ['1.1.1.1','8.8.8.8']]
-        if all(txt in answer for answer in answers): break
+        if all(txt in answer for answer in answers):
+            time.sleep(20)
+            break
         time.sleep(5)
     else: raise SystemExit('ACME TXT has not propagated')
 '''
@@ -106,7 +107,12 @@ def run(*args):
     result = subprocess.run(list(map(str, args)), capture_output=True, text=True, timeout=480)
     if result.returncode:
         # Certbot and subprocess errors may contain provider URLs or credentials.
-        raise RuntimeError(f"{Path(str(args[0])).name} failed; private output withheld")
+        details = result.stdout + result.stderr
+        log = Path('/var/log/tflow-video-setup.log')
+        with log.open('a') as stream:
+            stream.write(f'\n{Path(str(args[0])).name}\n'+details)
+        log.chmod(0o600)
+        raise RuntimeError(f"{Path(str(args[0])).name} failed; inspect /var/log/tflow-video-setup.log on vm1")
     return result
 
 
@@ -132,7 +138,7 @@ def main(path):
     base = Path("/etc/tflow-video")
     base.mkdir(mode=0o750, exist_ok=True)
     shutil.chown(base, group="tflow-video")
-    private_write(Path("/etc/tflow-video/dns.json"), json.dumps({"domain":HOST,"dns_token":values["dns_token"]}))
+    private_write(Path("/etc/tflow-video/dns.json"), json.dumps({"domain":HOST,"relay_secret":values["relay_secret"]}))
     private_write(Path("/usr/local/lib/tflow/video-dns-hook"), DNS_HOOK, 0o700)
     private_write(Path("/usr/local/lib/tflow/video-renew-hook"), RENEW_HOOK, 0o700)
     Path("/usr/local/lib/tflow").chmod(0o755)

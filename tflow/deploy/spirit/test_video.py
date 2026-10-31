@@ -6,12 +6,12 @@ from install_video import ADDRESS, HOST, DNS_HOOK, RENEW_HOOK, livekit_config, v
 
 class OwnedVideoConfigTests(unittest.TestCase):
     def setUp(self):
-        self.values = {"domain":HOST,"ip":ADDRESS,"dns_token":"00000000-0000-4000-8000-000000000000",
+        self.values = {"domain":HOST,"ip":ADDRESS,"relay_secret":"test_only_relay_abcdefghijklmnopqrstuvwxyz",
                        "api_key":"test_only_key_abcdefghijklmnopqrstuvwxyz", "api_secret":"test_only_secret_abcdefghijklmnopqrstuvwxyz"}
 
     def test_other_hosts_and_config_injection_are_rejected(self):
         for changes in [{"domain":"unowned.example.test"},{"ip":"127.0.0.1"},
-                        {"api_key":"key\nadmin: true"},{"api_secret":"short"},{"dns_token":"missing"}]:
+                        {"api_key":"key\nadmin: true"},{"api_secret":"short"},{"relay_secret":"missing"}]:
             with self.subTest(changes=changes), self.assertRaises(ValueError):
                 validate({**self.values,**changes})
 
@@ -30,4 +30,6 @@ class OwnedVideoConfigTests(unittest.TestCase):
         compile(RENEW_HOOK,"renew-hook","exec")
         self.assertIn("'txt':txt",DNS_HOOK)
         self.assertNotIn("'ip':",DNS_HOOK)
-        self.assertIn("'clear']='true'",DNS_HOOK)
+        self.assertIn("'clear':clear",DNS_HOOK)
+        self.assertIn("X-TFlow-Hook-Signature",DNS_HOOK)
+        self.assertNotIn("values['dns_token']",DNS_HOOK)

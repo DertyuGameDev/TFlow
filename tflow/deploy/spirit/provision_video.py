@@ -12,7 +12,7 @@ from install_video import ADDRESS, HOST as VIDEO_HOST, validate
 
 def main():
     values = validate({"domain": VIDEO_HOST, "ip": ADDRESS,
-        "dns_token": os.environ.get("TFLOW_DUCKDNS_TOKEN", ""),
+        "relay_secret": os.environ.get("TFLOW_DNS_HOOK_SECRET", ""),
         "api_key": os.environ.get("TFLOW_VIDEO_KEY", ""),
         "api_secret": os.environ.get("TFLOW_VIDEO_SECRET", "")})
     os.umask(0o077)
