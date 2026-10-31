@@ -30,6 +30,7 @@ import { ParticipantDetails, RegistrationSettings } from "./profile-data";
 import { EventParticipants } from "./event-participants";
 import type { Send } from "./forms";
 import { ProgramTimeline } from "./program-timeline";
+import { OrganizerTutorial } from "./organizer-tutorial";
 import "../event-management.css";
 
 type Section = "event" | "program" | "participants";
@@ -41,6 +42,7 @@ type Props = {
   onScan: () => void;
   onMove: () => void;
   onSchedule: () => void;
+  onCreate: () => void;
   onEdit: () => void;
   onDelete: () => void;
   onPublish: () => void;
@@ -60,6 +62,7 @@ export function OrganizerManage({
   onScan,
   onMove,
   onSchedule,
+  onCreate,
   onEdit,
   onDelete,
   onPublish,
@@ -131,6 +134,21 @@ export function OrganizerManage({
             {dateLabel(e.starts_at)} · {timeLabel(e.starts_at)} МСК ·{" "}
             {e.format === "Онлайн" ? "Онлайн" : e.city}
           </p>
+          <OrganizerTutorial
+            userId={e.owner_id}
+            events={[e]}
+            compact
+            onAction={(action) => {
+              if (action === "create") onCreate();
+              else if (action === "schedule") onSchedule();
+              else if (action === "program") setSection("program");
+              else if (action === "participants") setSection("participants");
+              else if (action === "preview") onOpenPublic();
+              else if (action === "entry")
+                hasWebinar(e) ? onOpenWebinar() : onScan();
+              else setSection("event");
+            }}
+          />
         </div>
         <div className="management-actions">
           {e.status === "draft" ? (

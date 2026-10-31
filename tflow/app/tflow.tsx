@@ -67,6 +67,7 @@ import { EventRemovalDialog } from "./ui/event-removal-dialog";
 import { NotificationCenter } from "./ui/notification-center";
 import { Clubs } from "./ui/clubs";
 import { OrganizerManage } from "./ui/organizer-manage";
+import { OrganizerTutorial } from "./ui/organizer-tutorial";
 import { EventParticipants } from "./ui/event-participants";
 import { ThemeToggle } from "./ui/theme-toggle";
 const Webinar = lazy(() => import("./ui/webinar"));
@@ -655,7 +656,10 @@ export function TFlow({ user }: { user: UserIdentity | null }) {
                     : [],
                 )
               : Promise.resolve([]);
-        const [next, attendees] = await Promise.all([eventRequest, rowsRequest]);
+        const [next, attendees] = await Promise.all([
+          eventRequest,
+          rowsRequest,
+        ]);
         if (n === detailSequence.current) {
           setDetail(next);
           setRows(attendees);
@@ -699,10 +703,7 @@ export function TFlow({ user }: { user: UserIdentity | null }) {
     setRows([]);
     setDetailError("");
     if (route.id && ["event", "webinar", "manage", "scan"].includes(route.view))
-      void loadDetail(
-        route.id,
-        attendanceScope(route.view, organizer),
-      );
+      void loadDetail(route.id, attendanceScope(route.view, organizer));
   }, [route, organizer, loadDetail]);
   useEffect(() => {
     if (!toast) return;
@@ -1197,7 +1198,7 @@ export function TFlow({ user }: { user: UserIdentity | null }) {
                 )}
               </>
             )}
-            {route.view === "organizer" && organizer && (
+            {route.view === "organizer" && organizer && user && (
               <>
                 <Heading
                   title="Мои события"
@@ -1213,6 +1214,28 @@ export function TFlow({ user }: { user: UserIdentity | null }) {
                     </button>
                   )}
                 </Heading>
+                <OrganizerTutorial
+                  key={user.userId}
+                  userId={user.userId}
+                  events={own}
+                  onAction={(action, event) => {
+                    if (action === "create" || !event)
+                      setDialog({ type: "create" });
+                    else if (action === "schedule")
+                      setDialog({ type: "schedule", event });
+                    else if (action === "preview") go("event", event.id);
+                    else if (action === "entry")
+                      go(hasWebinar(event) ? "webinar" : "scan", event.id);
+                    else
+                      go(
+                        "manage",
+                        event.id,
+                        action === "program" || action === "participants"
+                          ? action
+                          : undefined,
+                      );
+                  }}
+                />
                 {own.length > 0 ? (
                   <>
                     <div className="metric-grid overview-metrics">
@@ -1276,7 +1299,11 @@ export function TFlow({ user }: { user: UserIdentity | null }) {
                   <OrganizerManage
                     key={detail.event.id}
                     initialSection={
-                      route.mode === "participants" ? "participants" : "event"
+                      route.mode === "participants"
+                        ? "participants"
+                        : route.mode === "program"
+                          ? "program"
+                          : "event"
                     }
                     detail={detail}
                     busy={pending}
@@ -1290,6 +1317,7 @@ export function TFlow({ user }: { user: UserIdentity | null }) {
                     onSchedule={() =>
                       setDialog({ type: "schedule", event: detail.event })
                     }
+                    onCreate={() => setDialog({ type: "create" })}
                     onEdit={() =>
                       setDialog({ type: "edit", event: detail.event })
                     }
@@ -1486,15 +1514,16 @@ export function TFlow({ user }: { user: UserIdentity | null }) {
                             </div>
                           </div>
                         </section>
-                        {organizer && detail.event.owner_id === user?.userId && (
-                          <EventParticipants
-                            key={detail.event.id}
-                            rows={rows}
-                            onShowAll={() =>
-                              go("manage", detail.event.id, "participants")
-                            }
-                          />
-                        )}
+                        {organizer &&
+                          detail.event.owner_id === user?.userId && (
+                            <EventParticipants
+                              key={detail.event.id}
+                              rows={rows}
+                              onShowAll={() =>
+                                go("manage", detail.event.id, "participants")
+                              }
+                            />
+                          )}
                         {detail.activities.length > 0 && (
                           <details className="guest-program" open>
                             <summary>
