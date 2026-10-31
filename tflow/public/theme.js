@@ -8,6 +8,13 @@
 
   function apply(theme) {
     document.documentElement.dataset.theme = theme;
+    let chrome = document.querySelector('meta[name="theme-color"]');
+    if (!chrome) {
+      chrome = document.createElement("meta");
+      chrome.name = "theme-color";
+      document.head.append(chrome);
+    }
+    chrome.content = theme === "dark" ? "#18191b" : "#ffffff";
     document.querySelectorAll("[data-auth-theme-toggle]").forEach(button => {
       button.setAttribute("aria-pressed", String(theme === "dark"));
       button.setAttribute("aria-label", theme === "dark" ? "Включить светлую тему" : "Включить тёмную тему");

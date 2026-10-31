@@ -48,7 +48,12 @@ class RegisterForm(UserCreationForm):
             ("organizer", "Организовывать"),
         ],
         initial="participant",
-        widget=OrganizerSwitch,
+        widget=OrganizerSwitch(
+            attrs={
+                "aria-label": "Организовывать",
+                "aria-describedby": "role-description",
+            }
+        ),
     )
     email = forms.EmailField(
         label="Электронная почта",
