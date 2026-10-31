@@ -1,4 +1,11 @@
-import { useId, useState, type KeyboardEvent } from "react";
+import {
+  useEffect,
+  useId,
+  useRef,
+  useState,
+  type KeyboardEvent,
+  type ReactNode,
+} from "react";
 import {
   ArrowRight,
   ArrowUpRight,
@@ -29,6 +36,8 @@ import { Modal } from "./dialog";
 import { ParticipantDetails, RegistrationSettings } from "./profile-data";
 import { EventParticipants } from "./event-participants";
 import type { Send } from "./forms";
+import { ActivityForm } from "./program-item-form";
+import { OrganizerProgramList } from "./organizer-program-list";
 import { ProgramTimeline } from "./program-timeline";
 import { ProgramSwap } from "./program-swap";
 import type { ProgramRange } from "../../lib/program-editing";
@@ -50,11 +59,45 @@ type Props = {
   onPublish: () => void;
   onRoom: (room?: Room) => void;
   onActivity: (activity?: Activity, range?: ProgramRange) => void;
+  activityEditor?: ReactNode;
+  activityEditorKey?: string;
+  onCloseActivity?: () => void;
   onOpenPublic: () => void;
   onOpenWebinar: () => void;
   send: Send;
   refresh: () => Promise<void>;
 };
+
+function NewProgramItemForm({
+  detail,
+  send,
+  done,
+}: Pick<Props, "detail" | "send"> & { done: () => Promise<void> }) {
+  const [start] = useState(() => {
+    const last = Math.max(
+      detail.event.starts_at,
+      ...detail.activities.map((item) => item.ends_at),
+    );
+    return last < detail.event.ends_at ? last : detail.event.starts_at;
+  });
+  return (
+    <ActivityForm
+      event={detail.event}
+      rooms={detail.rooms}
+      initialStart={start}
+      initialRoomId={
+        (detail.event.format === "Онлайн"
+          ? detail.rooms.find((room) => room.is_online)
+          : (detail.rooms.find((room) => !room.is_online) ?? detail.rooms[0])
+        )?.id
+      }
+      initialEnd={Math.min(start + 3600000, detail.event.ends_at)}
+      send={send}
+      done={done}
+      compact
+    />
+  );
+}
 
 export function OrganizerManage({
   initialSection = "event",
@@ -70,6 +113,9 @@ export function OrganizerManage({
   onPublish,
   onRoom,
   onActivity,
+  activityEditor,
+  activityEditorKey,
+  onCloseActivity,
   onOpenPublic,
   onOpenWebinar,
   send,
@@ -80,7 +126,18 @@ export function OrganizerManage({
   const [filter, setFilter] = useState("all");
   const [settingsOpen, setSettingsOpen] = useState(false);
   const [swapping, setSwapping] = useState<Activity | null>(null);
+  const [timelineOpen, setTimelineOpen] = useState(false);
+  const [programFormVersion, setProgramFormVersion] = useState(0);
+  const [programNotice, setProgramNotice] = useState("");
   const id = useId();
+  const editor = useRef<HTMLElement>(null);
+  useEffect(() => {
+    if (!activityEditorKey) return;
+    editor.current?.scrollIntoView({ block: "start" });
+    editor.current
+      ?.querySelector<HTMLInputElement>('input[name="title"]')
+      ?.focus({ preventScroll: true });
+  }, [activityEditorKey]);
   const e = detail.event;
   const tabs = [
     { id: "event" as const, label: "Событие", icon: CalendarDays },
@@ -364,51 +421,10 @@ export function OrganizerManage({
             </div>
           </dl>
         </section>
-        <header className="management-section-heading">
-          <div>
-            <h2>Пункты программы</h2>
-            <p>
-              Составьте расписание: укажите, что будет происходить и во сколько.
-            </p>
-          </div>
-          <button className="button primary" onClick={() => onActivity()}>
-            <Plus size={18} />
-            Добавить пункт программы
-          </button>
-        </header>
-        <ProgramTimeline
-          event={e}
-          activities={detail.activities}
-          rooms={detail.rooms}
-          onEdit={onActivity}
-          onSwap={setSwapping}
-          onCreate={(range) => onActivity(undefined, range)}
-          onReschedule={async (activity, range) => {
-            const current = detail.activities.find(
-              (item) => item.id === activity.id,
-            );
-            if (!current || current.updated_at !== activity.updated_at)
-              throw new Error(
-                "Этот пункт уже изменился. Проверьте его время и повторите действие.",
-              );
-            await send(`activities/${current.id}`, "PATCH", {
-              title: current.title,
-              description: current.description,
-              speaker: current.speaker,
-              room_id: current.room_id,
-              capacity: current.capacity,
-              starts_at: range.starts_at,
-              ends_at: range.ends_at,
-              expected_updated_at: current.updated_at,
-            });
-            await refresh();
-          }}
-        />
-        {swapping && <ProgramSwap activity={swapping} detail={detail} send={send} refresh={refresh} onClose={() => setSwapping(null)}/>}
         <section className="management-card management-rooms">
           <header className="management-section-heading">
             <div>
-              <h3>Аудитории</h3>
+              <h2>Аудитории</h2>
               <p>
                 Очные залы и несколько онлайн-потоков могут работать параллельно.
                 Для каждого одновременного эфира создайте свою онлайн-аудиторию.
@@ -446,7 +462,94 @@ export function OrganizerManage({
               </button>
             )}
         </section>
+        <header className="management-section-heading">
+          <div>
+            <h2>Пункты программы</h2>
+            <p>Расписание по порядку. Время указано по МСК.</p>
+          </div>
+          <button
+            type="button"
+            className="button primary"
+            onClick={() => {
+              onCloseActivity?.();
+              requestAnimationFrame(() => {
+                editor.current?.scrollIntoView({ block: "start" });
+                editor.current
+                  ?.querySelector<HTMLInputElement>('input[name="title"]')
+                  ?.focus({ preventScroll: true });
+              });
+            }}
+          >
+            <Plus size={18} />
+            Добавить пункт
+          </button>
+        </header>
+        <OrganizerProgramList
+          activities={detail.activities}
+          onSwap={setSwapping}
+          editingId={activityEditorKey}
+          onEdit={(activity) => {
+            setProgramNotice("");
+            onActivity(activity);
+          }}
+        />
+        <section
+          className="management-card management-program-editor"
+          ref={editor}
+          aria-labelledby={`${id}-activity-editor-title`}
+        >
+          <header className="management-section-heading">
+            <h3 id={`${id}-activity-editor-title`}>
+              {activityEditor
+                ? "Изменить пункт программы"
+                : "Добавить пункт программы"}
+            </h3>
+            {activityEditor && onCloseActivity && (
+              <button
+                type="button"
+                className="text-button"
+                onClick={onCloseActivity}
+              >
+                Отменить редактирование
+              </button>
+            )}
+          </header>
+          {programNotice && (
+            <p className="management-program-notice" role="status">
+              {programNotice}
+            </p>
+          )}
+          {activityEditor ?? (
+            <NewProgramItemForm
+              key={programFormVersion}
+              detail={detail}
+              send={send}
+              done={async () => {
+                await refresh();
+                setProgramFormVersion((version) => version + 1);
+                setProgramNotice("Пункт добавлен. Можно добавить следующий.");
+                requestAnimationFrame(() =>
+                  editor.current
+                    ?.querySelector<HTMLInputElement>('input[name="title"]')
+                    ?.focus({ preventScroll: true }),
+                );
+              }}
+            />
+          )}
+        </section>
+        <details className="management-card management-program-timeline" onToggle={(event) => setTimelineOpen(event.currentTarget.open)}>
+          <summary>Переместить на шкале</summary>
+          {timelineOpen && <ProgramTimeline event={e} activities={detail.activities} rooms={detail.rooms} onEdit={onActivity}
+            onCreate={(range) => onActivity(undefined, range)} onSwap={setSwapping}
+            onReschedule={async (activity, range) => {
+              const current = detail.activities.find((item) => item.id === activity.id);
+              if (!current || current.updated_at !== activity.updated_at) throw new Error("Этот пункт уже изменился. Обновите программу.");
+              await send(`activities/${current.id}`, "PATCH", {title: current.title, description: current.description, speaker: current.speaker, room_id: current.room_id, capacity: current.capacity, starts_at: range.starts_at, ends_at: range.ends_at, expected_updated_at: current.updated_at});
+              await refresh();
+            }}/>}
+        </details>
       </section>
+      {swapping && <ProgramSwap activity={swapping} detail={detail} send={send} refresh={refresh} onClose={() => setSwapping(null)}/>}
       <section
         role="tabpanel"
         id={`${id}-panel-participants`}

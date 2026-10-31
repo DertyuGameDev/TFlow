@@ -24,7 +24,7 @@ class EventSignupTests(Scenario, TestCase):
     def assert_participant_form(self, response):
         self.assertEqual(response.status_code, 200)
         self.assertTrue(response.context["form"]["role"].is_hidden)
-        self.assertNotContains(response, 'role="switch"')
+        self.assertNotContains(response, 'type="radio"')
         self.assertNotContains(response, "Выберите роль")
         self.assertNotContains(response, "Организовывать")
         self.assertContains(response, "Создайте аккаунт участника")
@@ -85,7 +85,7 @@ class EventSignupTests(Scenario, TestCase):
                     "/register/", {"next": target, "role": "organizer"}
                 )
                 self.assertFalse(response.context["form"]["role"].is_hidden)
-                self.assertContains(response, 'role="switch"')
+                self.assertContains(response, 'type="radio"', count=2)
                 self.assertEqual(response.context["form"]["role"].value(), "organizer")
 
     def test_signup_without_posted_role_returns_to_event_and_allows_enrollment(self):

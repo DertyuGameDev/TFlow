@@ -24,19 +24,11 @@ class LoginForm(AuthenticationForm):
         return self.cleaned_data["username"].strip().lower()
 
 
-class OrganizerSwitch(forms.CheckboxInput):
-    def __init__(self, attrs=None):
-        super().__init__(
-            attrs={"role": "switch", **(attrs or {})},
-            check_test=lambda value: value == "organizer",
-        )
-
-    def format_value(self, value):
-        return "organizer"
+class RegistrationRoleSelect(forms.RadioSelect):
+    template_name = "widgets/registration_role.html"
 
     def value_from_datadict(self, data, files, name):
-        # An unchecked HTML switch is omitted from POST. Keep role validation
-        # and existing explicit participant/organizer form submissions intact.
+        # Keep participant as the default for clients that omit the role.
         return data.get(name, "participant")
 
 
@@ -46,19 +38,14 @@ class InterestCategoriesWidget(forms.CheckboxSelectMultiple):
 
 class RegisterForm(UserCreationForm):
     role = forms.ChoiceField(
-        label="Организовывать",
+        label="Как вы хотите использовать ТФлоу?",
         required=False,
         choices=[
             ("participant", "Участвовать"),
             ("organizer", "Организовывать"),
         ],
         initial="participant",
-        widget=OrganizerSwitch(
-            attrs={
-                "aria-label": "Организовывать",
-                "aria-describedby": "role-description",
-            }
-        ),
+        widget=RegistrationRoleSelect(attrs={"aria-describedby": "role-note"}),
     )
     email = forms.EmailField(
         label="Электронная почта",
@@ -82,7 +69,7 @@ class RegisterForm(UserCreationForm):
         required=False,
         choices=INTEREST_CHOICES,
         widget=InterestCategoriesWidget,
-        help_text="Выберите несколько тегов или оставьте на потом.",
+        help_text="Начните вводить тему и выберите категорию из подсказок. Можно добавить несколько.",
     )
     password1 = forms.CharField(
         label="Пароль",

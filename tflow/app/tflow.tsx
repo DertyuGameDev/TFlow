@@ -77,6 +77,7 @@ import { matchesEventTime, type EventTimeFilter } from "../lib/event-filters";
 import { OrganizerTutorial } from "./ui/organizer-tutorial";
 import { ProfileUpcomingEvents } from "./ui/profile-upcoming-events";
 import { EventFlows } from "./ui/event-flows";
+import { CatalogActivities } from "./ui/catalog-activities";
 import { WebinarChannels } from "./ui/webinar-channels";
 import { ThemeToggle } from "./ui/theme-toggle";
 const Webinar = lazy(() => import("./ui/webinar"));
@@ -276,15 +277,18 @@ function EventMeta({ event }: { event: FlowEvent }) {
 }
 function DiscoveryCard({
   event,
+  activities,
   onSave,
   userId,
 }: {
   event: FlowEvent;
+  activities?: Activity[];
   onSave: () => void;
   userId?: string;
 }) {
+  const ended = matchesEventTime(event, "past");
   return (
-    <article className="discovery-card">
+    <article className={`discovery-card${ended ? " is-past" : ""}`}>
       <div className="discovery-cover">
         <button
           className="cover-open"
@@ -312,11 +316,13 @@ function DiscoveryCard({
         {event.enrolled > 0 && (
           <span className="registered-tag">
             <Check size={12} />
-            {event.checked_in ? "Вы вошли" : "Вы идёте"}
+            {ended
+              ? event.checked_in ? "Вы посетили" : "Вы были записаны"
+              : event.checked_in ? "Вы вошли" : "Вы идёте"}
           </span>
         )}
         {!event.enrolled && !!event.event_waitlisted && <span className="registered-tag event-waitlist-tag">
-          <Clock3 size={12} />В очереди · №{event.event_waitlist_position}
+          <Clock3 size={12} />{ended ? "Были в очереди" : "В очереди"} · №{event.event_waitlist_position}
         </span>}
       </div>
       <div className="discovery-copy">
@@ -331,7 +337,10 @@ function DiscoveryCard({
             ? "Онлайн"
             : `${event.city} · ${event.venue}`}
         </span>
-        <strong>Бесплатно</strong>
+        {ended ? (
+          <span className="event-ended-label"><Clock3 size={14} aria-hidden="true" />Завершено</span>
+        ) : <strong>Бесплатно</strong>}
+        {activities && <CatalogActivities activities={activities} />}
         {canEnterWebinar(event, userId) && (
           <button
             className="button secondary webinar-card-entry"
@@ -872,13 +881,56 @@ export function TFlow({ user }: { user: UserIdentity | null }) {
       error: false,
     });
   };
+  const activityEditorKey =
+    dialog?.type === "activity" ? dialog.activity?.id ?? "new" : undefined;
+  const activityEditor = dialog?.type === "activity" && detail ? (
+    <ActivityForm
+      key={activityEditorKey}
+      compact={route.view === "manage"}
+      event={detail.event}
+      rooms={detail.rooms}
+      activity={
+        dialog.activity
+          ? detail.activities.find((item) => item.id === dialog.activity?.id) ??
+            dialog.activity
+          : undefined
+      }
+      initialStart={
+        dialog.range?.starts_at ??
+        (() => {
+          const lastEnd = Math.max(
+            detail.event.starts_at,
+            ...detail.activities.map((item) => item.ends_at),
+          );
+          return lastEnd < detail.event.ends_at
+            ? lastEnd
+            : detail.event.starts_at;
+        })()
+      }
+      initialEnd={dialog.range?.ends_at}
+      initialRoomId={dialog.range?.room_id}
+      send={send}
+      done={async () => {
+        await refresh();
+        setDialog(null);
+        setToast({ text: "Сохранено", error: false });
+      }}
+    />
+  ) : null;
   const own = data.events.filter((e) => e.owner_id === user?.userId);
+  const catalogActivities = new Map<string, Activity[]>();
+  for (const activity of data.activities ?? []) {
+    const items = catalogActivities.get(activity.event_id) ?? [];
+    items.push(activity);
+    catalogActivities.set(activity.event_id, items);
+  }
   const ownSections = splitOrganizerEvents(own);
   const visibleOwn = ownSections[ownEventSection];
+  const catalogNow = eventTime === "now" ? feedNow : Date.now();
   const visible = data.events.filter(
     (e) =>
       e.status === "published" &&
-      matchesEventTime(e, eventTime, eventTime === "now" ? feedNow : Date.now()) &&
+      matchesEventTime(e, eventTime, catalogNow) &&
       (eventTime !== "visited" || !!user) &&
       (route.view !== "saved" || e.saved) &&
       (!query ||
@@ -897,7 +949,9 @@ export function TFlow({ user }: { user: UserIdentity | null }) {
       (!date ||
         new Date(e.starts_at + 3 * 3600000).toISOString().slice(0, 10) ===
           date),
-  ).sort((a, b) => eventTime === "visited" ? b.starts_at - a.starts_at : 0);
+  ).sort((a, b) => eventTime === "all"
+    ? Number(a.ends_at <= catalogNow) - Number(b.ends_at <= catalogNow)
+    : eventTime === "visited" ? b.starts_at - a.starts_at : 0);
   const hasFilters = !!(
     query.trim() ||
     city ||
@@ -1241,6 +1295,7 @@ export function TFlow({ user }: { user: UserIdentity | null }) {
                     {visible.map((e) => (
                       <DiscoveryCard
                         event={e}
+                        activities={user?.role === "participant" ? catalogActivities.get(e.id) ?? [] : undefined}
                         key={e.id}
                         onSave={() => save(e)}
                         userId={user?.userId}
@@ -1248,7 +1303,7 @@ export function TFlow({ user }: { user: UserIdentity | null }) {
                     ))}
                   </div>
                 ) : eventTime === "visited" ? (
-                  <Empty icon={CalendarDays} title="Пока нет подтверждённых посещений" text="После проверки QR на входе или подтверждённого подключения к вебинару мероприятие появится здесь." />
+                  <Empty icon={CalendarDays} title="Пока нет подтверждённых посещений" text="После проверки QR на входе мероприятие появится здесь." />
                 ) : eventTime === "now" ? (
                   <Empty icon={CalendarDays} title="Сейчас мероприятий нет" text="Здесь появятся события, когда наступит время их начала по расписанию." />
                 ) : hasFilters ? (
@@ -1476,9 +1531,26 @@ export function TFlow({ user }: { user: UserIdentity | null }) {
                       )
                     }
                     onRoom={(room) => setDialog({ type: "room", room })}
-                    onActivity={(activity, range) =>
-                      setDialog({ type: "activity", activity, range })
-                    }
+                    onActivity={(activity, range) => {
+                      const lastEnd = Math.max(
+                        detail.event.starts_at,
+                        ...detail.activities.map((item) => item.ends_at),
+                      );
+                      const start = lastEnd < detail.event.ends_at
+                        ? lastEnd
+                        : detail.event.starts_at;
+                      setDialog({
+                        type: "activity",
+                        activity,
+                        range: range ?? (activity ? undefined : {
+                          starts_at: start,
+                          ends_at: Math.min(start + 3600000, detail.event.ends_at),
+                        }),
+                      });
+                    }}
+                    activityEditor={activityEditor}
+                    activityEditorKey={activityEditorKey}
+                    onCloseActivity={() => setDialog(null)}
                     send={send}
                     refresh={refresh}
                   />
@@ -2263,7 +2335,7 @@ export function TFlow({ user }: { user: UserIdentity | null }) {
           />
         </Modal>
       )}
-      {dialog?.type === "activity" && detail && (
+      {dialog?.type === "activity" && detail && route.view !== "manage" && (
         <Modal
           title={
             dialog.activity
@@ -2273,27 +2345,7 @@ export function TFlow({ user }: { user: UserIdentity | null }) {
           wide
           onClose={() => setDialog(null)}
         >
-          <ActivityForm
-            event={detail.event}
-            rooms={detail.rooms}
-            activity={dialog.activity}
-            initialStart={
-              dialog.range?.starts_at ??
-              (() => {
-                const lastEnd = Math.max(
-                  detail.event.starts_at,
-                  ...detail.activities.map((item) => item.ends_at),
-                );
-                return lastEnd < detail.event.ends_at
-                  ? lastEnd
-                  : detail.event.starts_at;
-              })()
-            }
-            initialEnd={dialog.range?.ends_at}
-            initialRoomId={dialog.range?.room_id}
-            send={send}
-            done={() => closeForm()}
-          />
+          {activityEditor}
         </Modal>
       )}
       {dialog?.type === "filters" && (
