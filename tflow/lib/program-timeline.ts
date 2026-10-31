@@ -26,6 +26,177 @@ export type TimelineTrack = {
   segments: TimelineSegment[];
 };
 
+export type ProjectedSegment = {
+  segment: TimelineSegment;
+  roomName: string;
+  roomKey: string;
+  side: "above" | "below";
+  row: number;
+  left: number;
+  right: number;
+  labelLeft: number;
+  labelWidth: number;
+};
+
+/** Place ranges around one axis. At most two bands on each side keep the overview compact. */
+export function projectProgramTracks(
+  tracks: TimelineTrack[],
+  start: number,
+  end: number,
+  width: number,
+) {
+  const placed: ProjectedSegment[] = [];
+  const geometry = (segment: TimelineSegment) => {
+    const left = ((segment.start - start) * width) / (end - start);
+    const right = ((segment.end - start) * width) / (end - start);
+    const labelWidth = Math.min(
+      width,
+      Math.max(width < 500 ? 96 : 132, Math.min(220, right - left)),
+    );
+    const labelLeft = Math.max(
+      0,
+      Math.min(width - labelWidth, (left + right - labelWidth) / 2),
+    );
+    return { left, right, labelLeft, labelWidth };
+  };
+  const occupied = (node: ProjectedSegment) => ({
+    left: Math.min(node.left, node.labelLeft),
+    right: Math.max(node.right, node.labelLeft + node.labelWidth),
+  });
+  const collides = (a: ProjectedSegment, b: ProjectedSegment) => {
+    const x = occupied(a),
+      y = occupied(b);
+    return x.left < y.right + 10 && y.left < x.right + 10;
+  };
+  const candidates = tracks
+    .flatMap((track) =>
+      track.segments.map((segment) => ({
+        segment: { ...segment, items: [...segment.items] },
+        roomName: track.name,
+        roomKey: track.id,
+      })),
+    )
+    .sort(
+      (a, b) =>
+        a.segment.start - b.segment.start ||
+        a.segment.end - b.segment.end ||
+        a.segment.id.localeCompare(b.segment.id),
+    );
+  candidates.forEach((candidate, index) => {
+    const preferred = index % 2 === 0 ? "above" : "below";
+    const other = preferred === "above" ? "below" : "above";
+    const node: ProjectedSegment = {
+      ...candidate,
+      ...geometry(candidate.segment),
+      side: preferred,
+      row: 0,
+    };
+    for (const [side, row] of [
+      [preferred, 0],
+      [other, 0],
+      [preferred, 1],
+      [other, 1],
+    ] as const) {
+      if (
+        !placed.some(
+          (existing) =>
+            existing.side === side &&
+            existing.row === row &&
+            collides(node, existing),
+        )
+      ) {
+        node.side = side;
+        node.row = row;
+        placed.push(node);
+        return;
+      }
+    }
+    // More simultaneous ranges than the four bands can display: combine the nearest group.
+    const target = placed.reduce((best, current) =>
+      Math.abs(current.left + current.right - node.left - node.right) <
+      Math.abs(best.left + best.right - node.left - node.right)
+        ? current
+        : best,
+    );
+    const absorb = (source: ProjectedSegment) => {
+      for (const item of source.segment.items) target.segment.items.push(item);
+      target.segment.start = Math.min(
+        target.segment.start,
+        source.segment.start,
+      );
+      target.segment.end = Math.max(target.segment.end, source.segment.end);
+      Object.assign(target, geometry(target.segment));
+    };
+    absorb(node);
+    // A growing group may reach its next neighbour in the same band.
+    let neighbour: ProjectedSegment | undefined;
+    while (
+      (neighbour = placed.find(
+        (existing) =>
+          existing !== target &&
+          existing.side === target.side &&
+          existing.row === target.row &&
+          collides(target, existing),
+      ))
+    ) {
+      absorb(neighbour);
+      placed.splice(placed.indexOf(neighbour), 1);
+    }
+  });
+  for (const node of placed) {
+    node.segment.items.sort(
+      (a, b) => a.starts_at - b.starts_at || a.id.localeCompare(b.id),
+    );
+    const rooms = new Map(
+      node.segment.items.map((item) => [item.room_id, item.room_name]),
+    );
+    node.roomKey = rooms.size === 1 ? [...rooms.keys()][0] : "mixed";
+    node.roomName =
+      rooms.size === 1 ? [...rooms.values()][0] : "Несколько аудиторий";
+  }
+  return {
+    nodes: placed,
+    aboveRows: Math.max(
+      1,
+      ...placed
+        .filter((node) => node.side === "above")
+        .map((node) => node.row + 1),
+    ),
+    belowRows: Math.max(
+      1,
+      ...placed
+        .filter((node) => node.side === "below")
+        .map((node) => node.row + 1),
+    ),
+  };
+}
+
+export function programTimeTicks(start: number, end: number) {
+  const minute = 60000;
+  const moscowOffset = 180 * minute;
+  const span = (end - start) / minute;
+  const step =
+    [1, 5, 10, 15, 30, 60, 120, 180, 360, 720].find(
+      (value) => value >= span / 4,
+    ) ?? 1440;
+  const ticks = [start];
+  for (
+    let value =
+      Math.ceil((start + moscowOffset) / (step * minute)) * step * minute -
+      moscowOffset;
+    value < end;
+    value += step * minute
+  ) {
+    if (
+      value - start >= (end - start) * 0.1 &&
+      end - value >= (end - start) * 0.1
+    )
+      ticks.push(value);
+  }
+  ticks.push(end);
+  return ticks;
+}
+
 export function programDayRange(day: string, start: number, end: number) {
   const midnight = Date.parse(`${day}T00:00:00+03:00`);
   return {

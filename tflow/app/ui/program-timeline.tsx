@@ -1,4 +1,11 @@
-import { useEffect, useId, useMemo, useRef, useState } from "react";
+import {
+  useEffect,
+  useId,
+  useMemo,
+  useRef,
+  useState,
+  type CSSProperties,
+} from "react";
 import {
   ChevronLeft,
   ChevronRight,
@@ -17,6 +24,8 @@ import {
   programColorMap,
   programDayBounds,
   programDayRange,
+  programTimeTicks,
+  projectProgramTracks,
   segmentBackground,
   shiftProgramDay,
   type TimelineSegment,
@@ -69,9 +78,20 @@ export function ProgramTimeline({
     () => buildProgramTracks(items, start, end, canvasWidth),
     [items, start, end, canvasWidth],
   );
-  const dense = tracks.some((track) =>
-    track.segments.some((segment) => segment.items.length > 1),
+  const projection = useMemo(
+    () => projectProgramTracks(tracks, start, end, canvasWidth),
+    [tracks, start, end, canvasWidth],
   );
+  const projectedGroups = new Map<string, typeof projection.nodes>();
+  for (const node of projection.nodes) {
+    const group = projectedGroups.get(node.roomKey) ?? [];
+    group.push(node);
+    projectedGroups.set(node.roomKey, group);
+  }
+  const axisY = projection.aboveRows * 76 + 16;
+  const plotHeight = axisY + projection.belowRows * 76 + 24;
+  const ticks = programTimeTicks(start, end);
+  const dense = projection.nodes.some((node) => node.segment.items.length > 1);
   const selected = items.find((item) => item.id === selectedId) ?? items[0];
   const selectedIndex = items.findIndex((item) => item.id === selected?.id);
   const group = groupIds ? new Set(groupIds) : null;
@@ -250,60 +270,110 @@ export function ProgramTimeline({
         aria-label="Временная шкала программы"
         aria-describedby={`${id}-hint`}
       >
-        <div className="timeline-canvas" style={{ width: canvasWidth }}>
-          <div className="timeline-axis" aria-hidden="true">
-            {[0, 0.25, 0.5, 0.75, 1].map((fraction, index) => (
+        <div
+          className="timeline-canvas"
+          style={{ width: canvasWidth, height: plotHeight }}
+        >
+          <div
+            className="timeline-axis"
+            style={{ top: axisY }}
+            aria-hidden="true"
+          >
+            {ticks.map((tick, index) => (
               <span
-                key={fraction}
-                className={`timeline-tick timeline-tick-${index}`}
-                style={{ left: `${fraction * 100}%` }}
+                key={tick}
+                className={`timeline-tick ${index === 0 ? "timeline-tick-first" : index === ticks.length - 1 ? "timeline-tick-last" : "timeline-tick-interior"}`}
+                style={{ left: `${((tick - start) * 100) / (end - start)}%` }}
               >
-                {tickLabel(start + (end - start) * fraction)}
+                {tickLabel(tick)}
               </span>
             ))}
           </div>
-          {tracks.map((track) => (
-            <div className="timeline-track" key={track.id}>
-              <h4>{track.name}</h4>
-              <div
-                className="timeline-rail"
-                role="group"
-                aria-label={track.name}
-              >
-                {track.segments.map((segment) => {
-                  const multiple = segment.items.length > 1;
-                  const label = multiple
-                    ? `${segment.items.length} пунктов · ${timeLabel(segment.start)}–${tickLabel(segment.end)}`
-                    : `${segment.items[0].title} · ${timeLabel(segment.items[0].starts_at)}–${timeLabel(segment.items[0].ends_at)}`;
-                  return (
+          {[...projectedGroups].map(([key, nodes]) => (
+            <div
+              className="timeline-track"
+              role="group"
+              aria-label={nodes[0].roomName}
+              key={key}
+            >
+              {nodes.map((node) => {
+                const segment = node.segment;
+                const multiple = segment.items.length > 1;
+                const selectedNode = segment.items.some(
+                  (item) => item.id === selected?.id,
+                );
+                const label = multiple
+                  ? `${segment.items.length} пунктов · ${timeLabel(segment.start)}–${tickLabel(segment.end)}`
+                  : `${segment.items[0].title} · ${timeLabel(segment.items[0].starts_at)}–${timeLabel(segment.items[0].ends_at)}`;
+                const lineY =
+                  node.side === "above"
+                    ? axisY - 42 - node.row * 76
+                    : axisY + 44 + node.row * 76;
+                const color = colors.get(segment.items[0].id);
+                return (
+                  <div
+                    key={segment.id}
+                    className={`timeline-node timeline-node-${node.side} ${selectedNode ? "is-selected" : ""}`}
+                    data-row={node.row}
+                    style={
+                      {
+                        left: node.left,
+                        width: node.right - node.left,
+                        top: lineY,
+                        "--projection-color": color,
+                        "--projection-length": `${Math.abs(axisY - lineY)}px`,
+                      } as CSSProperties
+                    }
+                  >
+                    <i
+                      className="timeline-projection timeline-projection-start"
+                      aria-hidden="true"
+                    />
+                    <i
+                      className="timeline-projection timeline-projection-end"
+                      aria-hidden="true"
+                    />
                     <button
                       type="button"
-                      key={segment.id}
                       className={`timeline-segment ${multiple ? "timeline-cluster" : ""}`}
                       aria-label={label}
-                      aria-pressed={segment.items.some(
-                        (item) => item.id === selected?.id,
-                      )}
-                      title={`${label} · ${track.name}`}
-                      style={{
-                        left: `${((segment.start - start) * 100) / (end - start)}%`,
-                        width: `${((segment.end - segment.start) * 100) / (end - start)}%`,
-                        background: segmentBackground(segment, colors),
-                      }}
+                      aria-pressed={selectedNode}
+                      title={`${label} · ${node.roomName}`}
                       onClick={() => selectSegment(segment)}
                     >
-                      {multiple ? (
-                        <span>
-                          <Layers size={13} aria-hidden="true" />
-                          <b>{segment.items.length}</b>
-                        </span>
-                      ) : (
-                        <span>{segment.items[0].title}</span>
-                      )}
+                      <span
+                        className="timeline-node-label"
+                        style={{
+                          left: node.labelLeft - node.left,
+                          width: node.labelWidth,
+                        }}
+                      >
+                        <strong>
+                          {multiple ? (
+                            <>
+                              <Layers size={13} aria-hidden="true" />
+                              Группа · {segment.items.length}
+                            </>
+                          ) : (
+                            segment.items[0].title
+                          )}
+                        </strong>
+                        <small>
+                          {timeLabel(segment.start)}–{tickLabel(segment.end)}
+                          {rooms.length > 1 ? ` · ${node.roomName}` : ""}
+                        </small>
+                      </span>
+                      <i
+                        className="timeline-event-line"
+                        style={{
+                          background: segmentBackground(segment, colors),
+                        }}
+                        aria-hidden="true"
+                      />
                     </button>
-                  );
-                })}
-              </div>
+                  </div>
+                );
+              })}
             </div>
           ))}
           {tracks.length === 0 && (
