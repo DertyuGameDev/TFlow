@@ -22,13 +22,14 @@ import type {
   RequiredProfileField,
   Room,
 } from "../../lib/types";
-import { dateKey, dateLabel, timeLabel } from "../../lib/time";
+import { dateLabel, timeLabel } from "../../lib/time";
 import { hasWebinar } from "../../lib/webinars";
 import { REQUIREMENT_FIELDS } from "../../lib/profile-fields";
 import { Modal } from "./dialog";
 import { ParticipantDetails, RegistrationSettings } from "./profile-data";
 import { EventParticipants } from "./event-participants";
 import type { Send } from "./forms";
+import { ProgramTimeline } from "./program-timeline";
 import "../event-management.css";
 
 type Section = "event" | "program" | "participants";
@@ -100,16 +101,6 @@ export function OrganizerManage({
         .toLocaleLowerCase("ru")
         .includes(query.toLocaleLowerCase("ru")),
   );
-  const groups = new Map<string, Activity[]>();
-  [...detail.activities]
-    .sort(
-      (a, b) =>
-        a.starts_at - b.starts_at || a.title.localeCompare(b.title, "ru"),
-    )
-    .forEach((activity) => {
-      const date = dateKey(activity.starts_at);
-      groups.set(date, [...(groups.get(date) ?? []), activity]);
-    });
   const required = REQUIREMENT_FIELDS.filter((field) =>
     e.required_profile_fields?.includes(field.key as RequiredProfileField),
   ).map((field) => field.label);
@@ -374,66 +365,25 @@ export function OrganizerManage({
               их на странице события.
             </p>
             <small>
-              Для одной встречи можно оставить событие без отдельных
-              пунктов программы.
+              Для одной встречи можно оставить событие без отдельных пунктов
+              программы.
             </small>
           </div>
         ) : (
-          <div className="management-program">
-            {[...groups].map(([date, activities]) => (
-              <section key={date}>
-                <h3>
-                  {dateLabel(activities[0].starts_at, { year: "numeric" })}
-                </h3>
-                {activities.map((activity) => (
-                  <article className="management-activity" key={activity.id}>
-                    <div className="management-activity-time">
-                      <time
-                        dateTime={new Date(activity.starts_at).toISOString()}
-                      >
-                        {timeLabel(activity.starts_at)}–
-                        {timeLabel(activity.ends_at)}
-                      </time>
-                      {dateKey(activity.starts_at) !==
-                        dateKey(activity.ends_at) && (
-                        <small>до {dateLabel(activity.ends_at)}</small>
-                      )}
-                    </div>
-                    <div className="management-activity-copy">
-                      <h4>{activity.title}</h4>
-                      <p>
-                        {activity.room_name}
-                        {activity.speaker ? ` · ${activity.speaker}` : ""}
-                      </p>
-                      <small>
-                        {activity.taken} занято ·{" "}
-                        {Math.max(0, activity.capacity - activity.taken)}{" "}
-                        свободно
-                        {activity.waiting_count > 0
-                          ? ` · в очереди: ${activity.waiting_count}`
-                          : ""}
-                      </small>
-                    </div>
-                    <button
-                      className="button secondary small-button"
-                      onClick={() => onActivity(activity)}
-                      aria-label={`Изменить пункт программы ${activity.title}`}
-                    >
-                      <Pencil size={16} />
-                      <span>Изменить</span>
-                    </button>
-                  </article>
-                ))}
-              </section>
-            ))}
-          </div>
+          <ProgramTimeline
+            event={e}
+            activities={detail.activities}
+            onEdit={onActivity}
+          />
         )}
         {detail.rooms.length > 0 && (
           <section className="management-card management-rooms">
             <header className="management-section-heading">
               <div>
                 <h3>Аудитории</h3>
-                <p>Где проходят пункты программы и сколько человек помещается.</p>
+                <p>
+                  Где проходят пункты программы и сколько человек помещается.
+                </p>
               </div>
               <button className="text-button" onClick={() => onRoom()}>
                 <Plus size={17} />

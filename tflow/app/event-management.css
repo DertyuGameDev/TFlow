@@ -252,58 +252,6 @@
 .management-empty .button {
   margin-top: 4px;
 }
-.management-program > section + section {
-  margin-top: 24px;
-}
-.management-program > section > h3 {
-  font-size: 16px;
-  line-height: 1.5;
-  margin: 0 0 12px;
-}
-.management-activity {
-  display: grid;
-  grid-template-columns: 105px minmax(0, 1fr) auto;
-  gap: 18px;
-  align-items: start;
-  padding: 20px 0;
-  border-top: 1px solid var(--flow-border);
-  min-width: 0;
-}
-.management-activity-time {
-  font-size: 14px;
-  line-height: 1.7;
-  font-variant-numeric: tabular-nums;
-  padding-top: 2px;
-}
-.management-activity-time small {
-  display: block;
-  font-size: 12px;
-  color: var(--flow-muted);
-}
-.management-activity-time time {
-  white-space: nowrap;
-}
-.management-activity-copy {
-  min-width: 0;
-}
-.management-activity h4 {
-  font-size: 17px;
-  line-height: 1.5;
-  font-weight: 600;
-  margin: 0;
-  overflow-wrap: anywhere;
-}
-.management-activity p {
-  font-size: 14px;
-  line-height: 1.7;
-  color: var(--flow-muted);
-  margin: 6px 0;
-}
-.management-activity-copy > small {
-  font-size: 12px;
-  line-height: 1.6;
-  color: var(--flow-muted);
-}
 .management-room-list {
   display: flex;
   flex-wrap: wrap;
@@ -437,17 +385,6 @@
   .management-section-heading h2 {
     font-size: 20px;
   }
-  .management-activity {
-    grid-template-columns: 94px minmax(0, 1fr);
-    gap: 10px 14px;
-  }
-  .management-activity > .button {
-    grid-column: 2;
-    justify-self: start;
-  }
-  .management-activity h4 {
-    font-size: 16px;
-  }
   .management-registration {
     align-items: flex-start;
     flex-direction: column;
@@ -475,9 +412,6 @@
   }
   .management-other-actions > .button {
     width: 100%;
-  }
-  .management-activity {
-    grid-template-columns: 94px minmax(0, 1fr);
   }
 }
 @media (max-width: 350px) {
