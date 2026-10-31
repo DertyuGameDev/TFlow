@@ -157,6 +157,7 @@ provision-owned-video:
   rules:
     - if: '$CI_PIPELINE_SOURCE == "schedule" && $TFLOW_MEDIA_RENEWAL == "1"'
       when: on_success
+      allow_failure: false
     - if: '$CI_COMMIT_BRANCH == $CI_DEFAULT_BRANCH'
       when: manual
   script:
