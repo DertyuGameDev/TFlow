@@ -141,7 +141,7 @@ def await_deployment(api, commit, deadline):
 
 def main():
     source = os.environ.get("TFLOW_GITHUB_SOURCE_SHA", "")
-    token = os.environ.get("TFLOW_GITLAB_TOKEN", "")
+    token = os.environ.get("TFLOW_GITLAB_TOKEN", "").strip()
     if not re.fullmatch(r"[0-9a-f]{40}", source) or not token:
         raise SyncError("Set TFLOW_GITHUB_SOURCE_SHA and the TFLOW_GITLAB_TOKEN repository secret")
     repo = Path(__file__).resolve().parents[3]
@@ -155,7 +155,7 @@ def main():
         helper = Path(directory) / "askpass.py"
         helper.write_text("#!/usr/bin/env python3\nimport os,sys\nprint('oauth2' if 'username' in sys.argv[1].lower() else os.environ['TFLOW_GITLAB_TOKEN'])\n")
         helper.chmod(0o700)
-        env = {**os.environ, "GIT_ASKPASS": str(helper), "GIT_TERMINAL_PROMPT": "0",
+        env = {**os.environ, "TFLOW_GITLAB_TOKEN": token, "GIT_ASKPASS": str(helper), "GIT_TERMINAL_PROMPT": "0",
                "GIT_AUTHOR_NAME": "TFlow CI", "GIT_COMMITTER_NAME": "TFlow CI",
                "GIT_AUTHOR_EMAIL": "ci@tflow.invalid", "GIT_COMMITTER_EMAIL": "ci@tflow.invalid"}
         existing = git("remote", "get-url", "tflow-gitlab", cwd=repo, check=False)
