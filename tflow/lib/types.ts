@@ -21,7 +21,7 @@ export type Activity = {
   taken: number; registered: number; waiting_count: number; waitlisted: number; waitlist_position: number;
   event_title?: string; city?: string; venue?: string; event_cover?: string;
 };
-export type Community = { id: string; name: string; description: string; topic: string; color: string; member_count: number; joined: number; owner_id: string | null; event_count: number };
+export type Community = { id: string; name: string; description: string; topic: string; color: string; member_count: number; joined: number; owner_id: string | null; event_count: number; avatar_url: string | null };
 export type Notice = { id: string; event_id: string | null; kind: "info" | "event_cancelled"; message: string; created_at: number; read: number };
 export type NoticePage = { items: Notice[]; next_cursor: string | null };
 export type Bootstrap = { events: FlowEvent[]; tickets: FlowEvent[]; schedule: Activity[]; waitlist: Activity[]; communities: Community[]; notifications: Notice[]; unread_notification_count: number; profile: Profile | null };

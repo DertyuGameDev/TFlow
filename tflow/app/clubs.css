@@ -2,3 +2,22 @@
 @media(max-width:760px){.clubs-filters{grid-template-columns:1fr;gap:14px}.clubs-grid{grid-template-columns:1fr;gap:16px}.clubs-card{padding:20px}.clubs-card h2{font-size:21px}.clubs-card-actions{flex-direction:column}.clubs-card-actions .button{justify-content:space-between}.clubs-hero{padding:24px 20px}.clubs-hero h1{font-size:29px}.clubs-hero-actions{flex-direction:column}.clubs-event{padding:18px 14px;gap:12px}.clubs-event strong{font-size:17px}.clubs-event small{font-size:13px}.clubs-page .flow-heading{flex-wrap:wrap}}
 .clubs-search:focus-within{border-color:#a78a20;box-shadow:0 0 0 3px #ffdd2d24}
 .clubs-search input:focus-visible{outline:none}
+.clubs-grid{grid-template-columns:repeat(auto-fill,minmax(min(100%,260px),1fr))}
+.clubs-card-heading{flex-direction:column;gap:13px;align-items:center;margin-bottom:14px}
+.club-avatar-link,.club-avatar-edit{display:inline-flex;align-items:center;justify-content:center;flex-shrink:0;border:0;padding:0;border-radius:50%;background:none}
+.profile-avatar.club-avatar{width:88px;height:88px;border-radius:50%;font-size:34px;font-weight:600;box-shadow:0 0 0 1px var(--flow-border)}
+.profile-avatar.club-avatar-large{width:104px;height:104px;font-size:40px}
+.clubs-card h2,.clubs-card>p,.clubs-card>.clubs-counts{text-align:center}
+.clubs-card h2 button{width:100%;text-align:center}
+.clubs-card h2{min-height:2.6em}
+.clubs-card h2 button{display:-webkit-box;-webkit-box-orient:vertical;-webkit-line-clamp:2;overflow:hidden}
+.clubs-card>p{-webkit-line-clamp:2}
+.clubs-card>p{min-height:3.4em}
+.clubs-card .clubs-match{justify-content:center;text-align:center}
+.clubs-card-actions{justify-content:center;flex-direction:column;flex-wrap:nowrap}
+.clubs-card-actions>.button{flex:none;width:100%;min-width:0;justify-content:center}
+.club-photo-heading{display:flex;flex-direction:column;align-items:flex-start;gap:12px;margin-bottom:20px}
+.club-photo-heading>.text-button{font-size:14px;min-height:32px}
+.club-avatar-edit{position:relative}
+.club-avatar-camera{position:absolute;right:0;bottom:0;display:grid;place-items:center;width:31px;height:31px;border:3px solid var(--theme-warm,#fff9dc);border-radius:50%;background:#ffdd2d;color:#272514}
+@media(max-width:760px){.profile-avatar.club-avatar{width:80px;height:80px;font-size:31px}.profile-avatar.club-avatar-large{width:96px;height:96px;font-size:36px}}

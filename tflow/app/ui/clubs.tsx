@@ -3,6 +3,7 @@ import {
   ArrowLeft,
   ArrowRight,
   CalendarDays,
+  Camera,
   Check,
   Heart,
   Pencil,
@@ -21,6 +22,7 @@ import { dateLabel, timeLabel } from "../../lib/time";
 import { CategorySelect } from "./category-select";
 import { FormError, Submit, useSubmit, type Send } from "./forms";
 import { Modal } from "./dialog";
+import { Avatar, AvatarForm } from "./avatar";
 import "../clubs.css";
 
 function ClubForm({
@@ -95,6 +97,7 @@ export function Clubs({
     [topic, setTopic] = useState(""),
     [mode, setMode] = useState("all");
   const [editing, setEditing] = useState<Community | "new" | null>(null);
+  const [avatarEditing, setAvatarEditing] = useState<Community | null>(null);
   const [busy, setBusy] = useState(false),
     [error, setError] = useState(""),
     [showPast, setShowPast] = useState(false);
@@ -179,9 +182,38 @@ export function Clubs({
           ) : (
             <>
               <div className="clubs-hero">
-                <span className="clubs-symbol">
-                  <Users size={32} />
-                </span>
+                <div className="club-photo-heading">
+                  {club.owner_id === user?.userId ? (
+                    <>
+                      <button
+                        className="club-avatar-edit"
+                        aria-label="Изменить фото клуба"
+                        onClick={() => setAvatarEditing(club)}
+                      >
+                        <Avatar
+                          profile={club}
+                          className="club-avatar club-avatar-large"
+                        />
+                        <span className="club-avatar-camera">
+                          <Camera size={17} />
+                        </span>
+                      </button>
+                      <button
+                        className="text-button"
+                        onClick={() => setAvatarEditing(club)}
+                      >
+                        {club.avatar_url
+                          ? "Изменить фото"
+                          : "Добавить фото клуба"}
+                      </button>
+                    </>
+                  ) : (
+                    <Avatar
+                      profile={club}
+                      className="club-avatar club-avatar-large"
+                    />
+                  )}
+                </div>
                 <span className="clubs-topic">{club.topic}</span>
                 <h1>{club.name}</h1>
                 <p>{club.description}</p>
@@ -323,9 +355,13 @@ export function Clubs({
               {visible.map((item) => (
                 <article className="clubs-card" key={item.id}>
                   <div className="clubs-card-heading">
-                    <span className="clubs-symbol">
-                      <Users size={24} />
-                    </span>
+                    <button
+                      className="club-avatar-link"
+                      aria-label={`Открыть клуб ${item.name}`}
+                      onClick={() => onOpenClub(item.id)}
+                    >
+                      <Avatar profile={item} className="club-avatar" />
+                    </button>
                     <span className="clubs-topic">{item.topic}</span>
                   </div>
                   <h2>
@@ -390,6 +426,20 @@ export function Clubs({
         </>
       )}
       <FormError error={error} />
+      {avatarEditing && (
+        <Modal title="Фото клуба" onClose={() => setAvatarEditing(null)}>
+          <AvatarForm
+            profile={avatarEditing}
+            endpoint={`communities/${avatarEditing.id}/avatar`}
+            description="Фото появится в списке и на странице клуба. Изображение обрежется по центру в круг."
+            send={send}
+            done={async () => {
+              await onChange();
+              setAvatarEditing(null);
+            }}
+          />
+        </Modal>
+      )}
       {editing && (
         <Modal
           title={editing === "new" ? "Создать клуб" : "Изменить клуб"}
