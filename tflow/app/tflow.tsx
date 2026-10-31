@@ -152,10 +152,10 @@ const routeFromHash = (organizer: boolean): Route => {
     ? { view, id, mode }
     : { view: organizer ? "organizer" : "events" };
 };
-const loginLink = (view = "events", id?: string) =>
-  `/login/?next=${encodeURIComponent("/#" + view + (id ? "/" + id : ""))}`;
-const signupLink = (view = "events", id?: string) =>
-  `/register/?next=${encodeURIComponent("/#" + view + (id ? "/" + id : ""))}`;
+const loginLink = (view = "events", id?: string, mode?: string) =>
+  `/login/?next=${encodeURIComponent("/#" + [view, id, mode].filter(Boolean).join("/"))}`;
+const signupLink = (view = "events", id?: string, mode?: string) =>
+  `/register/?next=${encodeURIComponent("/#" + [view, id, mode].filter(Boolean).join("/"))}`;
 
 const plural = (n: number, forms: [string, string, string]) =>
   `${n} ${forms[n % 100 >= 11 && n % 100 <= 14 ? 2 : n % 10 === 1 ? 0 : n % 10 >= 2 && n % 10 <= 4 ? 1 : 2]}`;
@@ -785,7 +785,7 @@ export function TFlow({ user }: { user: UserIdentity | null }) {
   }, [toast]);
   async function action(fn: () => Promise<unknown>, message: string | ((result: unknown) => string)) {
     if (!user) {
-      location.assign(loginLink(route.view, route.id));
+      location.assign(loginLink(route.view, route.id, route.mode));
       return;
     }
     setPending(true);
@@ -1159,7 +1159,7 @@ export function TFlow({ user }: { user: UserIdentity | null }) {
             ) : (
               <a
                 className="button primary"
-                href={loginLink(route.view, route.id)}
+                href={loginLink(route.view, route.id, route.mode)}
               >
                 Войти
               </a>
@@ -1938,14 +1938,14 @@ export function TFlow({ user }: { user: UserIdentity | null }) {
                       >
                         <a
                           className="button primary"
-                          href={loginLink("webinar", detail.event.id)}
+                          href={loginLink("webinar", detail.event.id, route.mode)}
                         >
                           Войти в аккаунт
                           <ArrowRight size={18} />
                         </a>
                         <a
                           className="text-button"
-                          href={signupLink("webinar", detail.event.id)}
+                          href={signupLink("webinar", detail.event.id, route.mode)}
                         >
                           Создать аккаунт
                         </a>
