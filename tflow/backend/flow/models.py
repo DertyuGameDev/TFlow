@@ -414,18 +414,6 @@ class Notification(models.Model):
         ordering = ["-created_at", "id"]
 
 
-class NotificationEmail(models.Model):
-    notification = models.OneToOneField(
-        Notification, on_delete=models.CASCADE, related_name="email_delivery"
-    )
-    recipient = models.EmailField()
-    sent_at = models.DateTimeField(null=True, blank=True)
-    attempts = models.PositiveIntegerField(default=0)
-    next_attempt_at = models.DateTimeField(default=timezone.now, db_index=True)
-    locked_until = models.DateTimeField(null=True, blank=True)
-    last_error = models.CharField(max_length=80, blank=True)
-
-
 class ActivityAttendance(models.Model):
     user = models.ForeignKey(User, on_delete=models.CASCADE, related_name="activity_attendance")
     activity = models.ForeignKey(Activity, on_delete=models.CASCADE, related_name="attendance")

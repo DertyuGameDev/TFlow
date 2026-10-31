@@ -1,3 +1,4 @@
+from django.db import transaction
 from django.db.models import Q
 from .contracts import FlowError
 from .models import Notification
@@ -22,3 +23,11 @@ def notification_page(user, *, before=None, unread=False):
         "items": [notice_json(notice) for notice in page[:20]],
         "next_cursor": page[19].pk if len(page) > 20 else None,
     }
+
+
+def create_notifications(notices):
+    """Persist site notifications in the caller's business transaction."""
+    if not notices:
+        return []
+    with transaction.atomic():
+        return Notification.objects.bulk_create(notices)

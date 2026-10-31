@@ -1,6 +1,6 @@
 from datetime import timedelta
 from django.utils import timezone
-from .mailing import create_notifications
+from .notifications import create_notifications
 from .models import ActivityReminder, Notification, Registration
 from .schedule_feedback import stamp
 from .services import schedule_write

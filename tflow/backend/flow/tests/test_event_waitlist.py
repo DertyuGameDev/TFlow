@@ -6,11 +6,9 @@ import json
 
 from django.db import close_old_connections, connections
 from django.test import Client, TestCase, TransactionTestCase, override_settings
-from django.core import mail
 from django.utils import timezone
 from flow import services
-from flow.mailing import send_pending_emails
-from flow.models import EventRegistration, EventWaitlistEntry, Notification, NotificationEmail, User
+from flow.models import EventRegistration, EventWaitlistEntry, Notification, User
 from .test_api import FAST_HASHER, Scenario
 
 
@@ -29,7 +27,7 @@ class EventQueueScenario(Scenario):
         return user, client
 
 
-@override_settings(PASSWORD_HASHERS=FAST_HASHER, NOTIFICATION_EMAIL_ENABLED=False)
+@override_settings(PASSWORD_HASHERS=FAST_HASHER)
 class EventWaitlistTests(EventQueueScenario, TestCase):
     def test_join_is_idempotent_and_reports_private_position_without_a_ticket(self):
         for _ in range(2):
@@ -57,7 +55,6 @@ class EventWaitlistTests(EventQueueScenario, TestCase):
         self.request(f"events/{self.event.pk}/registration", "delete", client=self.participant)
         notice = Notification.objects.get(kind="event_waitlist")
         self.assertEqual(notice.user_id, self.other.pk)
-        self.assertEqual(NotificationEmail.objects.filter(notification=notice).count(), 1)
         self.assertEqual(self.request("bootstrap", client=self.stranger)["tickets"][0]["event_waitlisted"], 0)
 
     def test_leave_removes_only_own_entry_and_rejoining_goes_to_end(self):
@@ -165,17 +162,16 @@ class EventWaitlistTests(EventQueueScenario, TestCase):
         self.assertFalse(self.event.enrollments.filter(user=self.other).exists())
         self.assertTrue(EventWaitlistEntry.objects.filter(user=self.other).exists())
 
-    @override_settings(EMAIL_BACKEND='django.core.mail.backends.locmem.EmailBackend', NOTIFICATION_EMAIL_ENABLED=True, DEFAULT_FROM_EMAIL='notifications@example.test')
-    def test_promoted_person_gets_one_private_email_in_memory(self):
+    def test_promoted_person_gets_one_site_notification(self):
         self.request(self.path, 'post', client=self.stranger)
         self.request(f'events/{self.event.pk}/registration', 'delete', client=self.participant)
-        self.assertEqual(send_pending_emails()['sent'], 1)
-        self.assertEqual(mail.outbox[0].to, [self.other.email])
-        self.assertEqual(mail.outbox[0].subject, 'ТФлоу — место на мероприятии освободилось')
-        self.assertEqual(mail.outbox[0].cc + mail.outbox[0].bcc, [])
+        page = self.request('notifications', client=self.stranger)
+        self.assertEqual(len(page['items']), 1)
+        self.assertEqual(page['items'][0]['kind'], 'event_waitlist')
+        self.assertEqual(page['items'][0]['event_id'], self.event.pk)
 
 
-@override_settings(PASSWORD_HASHERS=FAST_HASHER, NOTIFICATION_EMAIL_ENABLED=False)
+@override_settings(PASSWORD_HASHERS=FAST_HASHER)
 class EventWaitlistConcurrencyTests(EventQueueScenario, TransactionTestCase):
     def race(self, calls):
         barrier = Barrier(len(calls))

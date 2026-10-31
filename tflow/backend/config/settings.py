@@ -147,22 +147,6 @@ HTTP_BROADCAST_ENABLED = os.environ.get("TFLOW_HTTP_BROADCAST", "0") == "1" and 
 HTTP_BROADCAST_ROOT = Path(os.environ.get("TFLOW_HTTP_BROADCAST_ROOT", str(DATA_DIR / "broadcasts")))
 HTTP_BROADCAST_MAX_STREAMS = 2
 HTTP_BROADCAST_FFMPEG = os.environ.get("TFLOW_FFMPEG", "ffmpeg")
-EMAIL_BACKEND = "django.core.mail.backends.smtp.EmailBackend"
-EMAIL_HOST = os.environ.get("EMAIL_HOST", "smtp.yandex.ru")
-EMAIL_PORT = int(os.environ.get("EMAIL_PORT", "465"))
-EMAIL_HOST_USER = os.environ.get("EMAIL_HOST_USER", "")
-EMAIL_HOST_PASSWORD = os.environ.get("EMAIL_HOST_PASSWORD", "")
-EMAIL_USE_SSL = os.environ.get("EMAIL_USE_SSL", "1") == "1"
-EMAIL_USE_TLS = os.environ.get("EMAIL_USE_TLS", "0") == "1"
-EMAIL_TIMEOUT = 10
-DEFAULT_FROM_EMAIL = os.environ.get("DEFAULT_FROM_EMAIL", EMAIL_HOST_USER)
-NOTIFICATION_EMAIL_ENABLED = (
-    os.environ.get(
-        "NOTIFICATION_EMAIL_ENABLED",
-        "1" if EMAIL_HOST_USER and EMAIL_HOST_PASSWORD else "0",
-    )
-    == "1"
-)
 PUBLIC_APP_URL = os.environ.get(
     "TFLOW_PUBLIC_URL",
     (

@@ -73,7 +73,7 @@ import { AccountMenu } from "./ui/account-menu";
 import { EventTimeFilterControl } from "./ui/event-time-filter";
 import { splitOrganizerEvents } from "../lib/organizer-events";
 import type { ProgramRange } from "../lib/program-editing";
-import { matchesEventTime, type EventTimeFilter } from "../lib/event-filters";
+import { isAttendedPastEvent, matchesEventTime, type EventTimeFilter } from "../lib/event-filters";
 import { OrganizerTutorial } from "./ui/organizer-tutorial";
 import { ProfileUpcomingEvents } from "./ui/profile-upcoming-events";
 import { EventFlows } from "./ui/event-flows";
@@ -289,9 +289,11 @@ function DiscoveryCard({
   onSave: () => void;
   userId?: string;
 }) {
-  const ended = matchesEventTime(event, "past");
+  const now = Date.now();
+  const ended = matchesEventTime(event, "past", now);
+  const visited = !!userId && isAttendedPastEvent(event, now);
   return (
-    <article className={`discovery-card${ended ? " is-past" : ""}`}>
+    <article className={`discovery-card${ended ? " is-past" : ""}${visited ? " is-visited" : ""}`}>
       <div className="discovery-cover">
         <button
           className="cover-open"
@@ -316,11 +318,11 @@ function DiscoveryCard({
         >
           <Heart size={20} fill={event.saved ? "currentColor" : "none"} />
         </button>
-        {event.enrolled > 0 && (
-          <span className="registered-tag">
+        {(event.enrolled > 0 || (!!userId && !!event.checked_in)) && (
+          <span className={`registered-tag${visited ? " event-visited-tag" : ""}`}>
             <Check size={12} />
             {ended
-              ? event.checked_in ? "Вы посетили" : "Вы были записаны"
+              ? visited ? "Вы посетили" : "Вы были записаны"
               : event.checked_in ? "Вы вошли" : "Вы идёте"}
           </span>
         )}
@@ -932,7 +934,6 @@ export function TFlow({ user }: { user: UserIdentity | null }) {
     (e) =>
       e.status === "published" &&
       matchesEventTime(e, eventTime, catalogNow) &&
-      (eventTime !== "visited" || !!user) &&
       (route.view !== "saved" || e.saved) &&
       (!query ||
         `${e.title} ${e.city} ${e.venue} ${e.topic}`
@@ -952,7 +953,7 @@ export function TFlow({ user }: { user: UserIdentity | null }) {
           date),
   ).sort((a, b) => eventTime === "all"
     ? Number(a.ends_at <= catalogNow) - Number(b.ends_at <= catalogNow)
-    : eventTime === "visited" ? b.starts_at - a.starts_at : 0);
+    : 0);
   const hasFilters = !!(
     query.trim() ||
     city ||
@@ -1292,11 +1293,7 @@ export function TFlow({ user }: { user: UserIdentity | null }) {
                     )}
                   </div>
                 )}
-                {eventTime === "visited" && !user ? (
-                  <Empty icon={CalendarDays} title="Ваша история посещений" text="Войдите, чтобы увидеть мероприятия с подтверждённым посещением.">
-                    <a className="button primary" href="/login/?next=%2F%23events">Войти</a>
-                  </Empty>
-                ) : visible.length ? (
+                {visible.length ? (
                   <div className="discovery-grid">
                     {visible.map((e) => (
                       <DiscoveryCard
@@ -1308,8 +1305,6 @@ export function TFlow({ user }: { user: UserIdentity | null }) {
                       />
                     ))}
                   </div>
-                ) : eventTime === "visited" ? (
-                  <Empty icon={CalendarDays} title="Пока нет подтверждённых посещений" text="После проверки QR на входе мероприятие появится здесь." />
                 ) : eventTime === "now" ? (
                   <Empty icon={CalendarDays} title="Сейчас мероприятий нет" text="Здесь появятся события, когда наступит время их начала по расписанию." />
                 ) : hasFilters ? (

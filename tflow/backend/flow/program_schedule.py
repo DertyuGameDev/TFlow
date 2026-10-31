@@ -4,7 +4,7 @@ from django.db import transaction
 from django.utils import timezone
 
 from .contracts import FlowError
-from .mailing import create_notifications
+from .notifications import create_notifications
 from .models import Activity, Event, Notification, User
 from .schedule_feedback import snapshot, change_message
 from .serializers import milliseconds

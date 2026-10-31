@@ -5,7 +5,7 @@ from django.utils import timezone
 from .contracts import FlowError, ProfileInput, validate
 from .profile_data import PROFILE_LABELS, participant_profile
 from .names import split_name
-from .mailing import create_notifications
+from .notifications import create_notifications
 from .models import (
     Activity,
     CheckIn,

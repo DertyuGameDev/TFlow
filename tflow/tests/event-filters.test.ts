@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { matchesEventTime } from "../lib/event-filters";
+import { isAttendedPastEvent, matchesEventTime } from "../lib/event-filters";
 import { event } from "./fixtures";
 
 describe("состояния мероприятий", () => {
@@ -12,9 +12,10 @@ describe("состояния мероприятий", () => {
   });
   it("не подменяет посещение регистрацией или окончанием события", () => {
     const registered = {...event, enrolled: 1};
-    expect(matchesEventTime(registered, "visited", event.ends_at + 1)).toBe(false);
-    expect(matchesEventTime({...event, checked_in: 1}, "visited", event.starts_at)).toBe(true);
-    expect(matchesEventTime({...event, checked_in: 1}, "visited", event.ends_at + 1)).toBe(true);
+    expect(isAttendedPastEvent(registered, event.ends_at + 1)).toBe(false);
+    expect(isAttendedPastEvent({...event, checked_in: 1}, event.starts_at)).toBe(false);
+    expect(isAttendedPastEvent({...event, checked_in: 1}, event.ends_at)).toBe(true);
+    expect(isAttendedPastEvent({...event, checked_in: 1, status:"draft"}, event.ends_at + 1)).toBe(false);
   });
   it("включает текущие и будущие опубликованные события в активные", () => {
     expect(matchesEventTime(event, "active", event.starts_at - 1)).toBe(true);

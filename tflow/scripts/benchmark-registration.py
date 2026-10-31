@@ -12,7 +12,7 @@ from io import StringIO
 project = Path(__file__).resolve().parents[1]
 with tempfile.TemporaryDirectory(prefix='tflow-load-') as directory:
     os.environ.update(DJANGO_SETTINGS_MODULE='config.settings', TFLOW_DATABASE_PATH=str(Path(directory)/'load.sqlite3'),
-                      NOTIFICATION_EMAIL_ENABLED='0', DJANGO_DEBUG='1', DJANGO_ALLOWED_HOSTS='testserver')
+                      DJANGO_DEBUG='1', DJANGO_ALLOWED_HOSTS='testserver')
     os.environ.pop('DATABASE_URL',None)
     sys.path.insert(0,str(project/'backend'))
     import django

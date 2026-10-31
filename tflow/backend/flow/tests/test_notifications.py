@@ -7,7 +7,6 @@ from flow.models import (
     Event,
     EventRegistration,
     Notification,
-    NotificationEmail,
     Registration,
     User,
     WaitlistEntry,
@@ -33,7 +32,6 @@ class NotificationTests(Scenario, TestCase):
         self.request(f"events/{self.event.pk}", "delete")
         notices = Notification.objects.filter(kind="event_cancelled")
         self.assertEqual(notices.count(), 62)
-        self.assertEqual(NotificationEmail.objects.count(), 62)
         self.assertEqual(
             set(notices.values_list("user_id", flat=True)),
             {person.pk for person in people} | {self.person.pk, self.other.pk},
