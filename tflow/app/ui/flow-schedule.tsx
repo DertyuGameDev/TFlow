@@ -435,20 +435,6 @@ export function FlowSchedule({
                       <h3 id={`${id}-${a.id}-title`}>{a.title}</h3>
                       <span className="flow-ribbon-room">{a.room_name}</span>
                       {live && <span className="flow-ribbon-live">Сейчас</span>}
-                      {!!a.registered && (
-                        <Check
-                          className="flow-ribbon-registered"
-                          size={16}
-                          aria-label="Вы записаны"
-                        />
-                      )}
-                      {!!a.waitlisted && (
-                        <Clock3
-                          className="flow-ribbon-registered"
-                          size={16}
-                          aria-label="Вы в очереди"
-                        />
-                      )}
                     </div>
                     <button
                       type="button"
@@ -460,14 +446,37 @@ export function FlowSchedule({
                       title={`${a.title}: ${timeLabel(a.starts_at)}–${timeLabel(a.ends_at)}, ${a.room_name}. Нажмите для действий.`}
                       onClick={() => setOpened(open ? "" : a.id)}
                     />
-                    {onEdit && !open && (
-                      <button
-                        className="flow-quick-edit"
-                        aria-label={`Изменить пункт программы ${a.title}`}
-                        onClick={() => onEdit(a)}
+                    {((onEdit && !open) ||
+                      !!a.registered ||
+                      !!a.waitlisted) && (
+                      <div
+                        className="flow-ribbon-actions"
+                        aria-hidden={open || undefined}
                       >
-                        <Pencil size={15} />
-                      </button>
+                        {onEdit && !open && (
+                          <button
+                            className="flow-quick-edit"
+                            aria-label={`Изменить пункт программы ${a.title}`}
+                            onClick={() => onEdit(a)}
+                          >
+                            <Pencil size={15} />
+                          </button>
+                        )}
+                        {!!a.registered && (
+                          <Check
+                            className="flow-ribbon-registered"
+                            size={16}
+                            aria-label="Вы записаны"
+                          />
+                        )}
+                        {!!a.waitlisted && (
+                          <Clock3
+                            className="flow-ribbon-registered"
+                            size={16}
+                            aria-label="Вы в очереди"
+                          />
+                        )}
+                      </div>
                     )}
                   </div>
                 </li>
