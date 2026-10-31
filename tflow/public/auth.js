@@ -97,6 +97,9 @@
       const result = await response.json();
       if (response.ok && result.valid) {
         showStep(true);
+      } else if ([429, 503].includes(response.status) && typeof result.error === 'string') {
+        summary.textContent = result.error;
+        summary.hidden = false;
       } else if (response.status === 400 && result.errors) {
         for (const [name, errors] of Object.entries(result.errors)) fieldError(name, errors.map(error => error.message));
         form.querySelector('[aria-invalid="true"]')?.focus();

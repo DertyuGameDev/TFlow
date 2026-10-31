@@ -1,0 +1,17 @@
+<div class="registration-role-options"{% if widget.attrs.id %} id="{{ widget.attrs.id }}"{% endif %}>
+{% for group, options, index in widget.optgroups %}{% for option in options %}
+  <label class="registration-role-option" for="{{ option.attrs.id }}">
+    {% include "django/forms/widgets/input.html" with widget=option %}
+    <span class="registration-role-card">
+      <span class="registration-role-top" aria-hidden="true">
+        <span class="registration-role-icon">
+          {% if option.value == 'participant' %}<svg width="21" height="21" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><circle cx="9" cy="8" r="3"/><path d="M3 20v-2a6 6 0 0 1 12 0v2m1-15a3 3 0 0 1 0 6m3 9v-2a6 6 0 0 0-2-4"/></svg>{% else %}<svg width="21" height="21" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="5" width="18" height="16" rx="3"/><path d="M7 3v4m10-4v4M3 11h18m-9 3v4m-2-2h4"/></svg>{% endif %}
+        </span>
+        <span class="registration-role-check">✓</span>
+      </span>
+      <strong>{{ option.label }}</strong>
+      <span class="registration-role-caption">{% if option.value == 'participant' %}Находить события и встречи{% else %}Создавать свои мероприятия{% endif %}</span>
+    </span>
+  </label>
+{% endfor %}{% endfor %}
+</div>

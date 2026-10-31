@@ -6,8 +6,10 @@
   <title>{% if mode == 'register' %}Регистрация{% else %}Вход{% endif %} — ТФлоу</title>
   <link rel="icon" href="{% static 'logo-mark.svg' %}?v=yellow-1">
   <script src="{% static 'theme.js' %}"></script>
-  <link rel="stylesheet" href="{% static 'auth.css' %}">
+  <link rel="stylesheet" href="{% static 'auth.css' %}?v=signup-cards-2">
   <link rel="stylesheet" href="{% static 'theme.css' %}">
+  <link rel="stylesheet" href="{% static 'interest-picker.css' %}">
+  <script type="module" src="{% static 'registration-interests.js' %}"></script>
   {% if mode == 'register' %}<script src="{% static 'auth.js' %}" defer></script>{% endif %}
 </head>
 <body>
@@ -52,15 +54,12 @@
             <div class="field-error" id="id_interests_error" role="alert"{% if not form.interests.errors %} hidden{% endif %}>{{ form.interests.errors }}</div>
           </fieldset>
           {% if participant_signup %}{{ form.role }}{% else %}
-          <div class="organizer-setting">
-            <div class="organizer-switch" role="group" aria-label="Роль аккаунта">
-              <button class="role-choice participant-label" type="button" data-role-choice="participant" aria-pressed="{% if form.role.value == 'organizer' %}false{% else %}true{% endif %}" disabled>Участвовать</button>
-              <span class="toggle-control">{{ form.role }}<span class="toggle-track" aria-hidden="true"></span></span>
-              <button class="role-choice organizer-label" type="button" data-role-choice="organizer" aria-pressed="{% if form.role.value == 'organizer' %}true{% else %}false{% endif %}" disabled>Организовывать</button>
-            </div>
-            <p class="role-description" id="role-description" aria-live="polite"><span class="participant-copy">Записывайтесь на мероприятия. Билеты и QR — в профиле.</span><span class="organizer-copy">Создавайте мероприятия и отмечайте вход по QR.</span> Роль нельзя изменить после регистрации.</p>
+          <fieldset class="registration-role">
+            <legend>{{ form.role.label }}</legend>
+            {{ form.role }}
+            <p class="registration-role-note" id="role-note">Роль нельзя изменить после регистрации.</p>
             {% if form.role.errors %}<div class="field-error" id="id_role_error" role="alert">{{ form.role.errors }}</div>{% endif %}
-          </div>
+          </fieldset>
           {% endif %}
           <button class="primary" type="submit">Зарегистрироваться<span aria-hidden="true">↗</span></button>
         </fieldset>

@@ -107,6 +107,40 @@ describe("действия на графике программы", () => {
     await user.click(screen.getByRole("button", {name:"Поменять местами"}));
     expect(onSwap).toHaveBeenCalledExactlyOnceWith(item(0));
   });
+  it("изменяет время по минуте без увеличения графика и при масштабе ×2", async () => {
+    const user = userEvent.setup(),
+      onReschedule = vi.fn().mockResolvedValue(undefined),
+      activity = item(0);
+    render(
+      <ProgramTimeline
+        event={event}
+        activities={[activity]}
+        onEdit={vi.fn()}
+        onReschedule={onReschedule}
+      />,
+    );
+    const handle = screen.getByRole("button", {
+      name: "Изменить окончание Лекция 0",
+    });
+    await user.click(handle);
+    await user.keyboard("{ArrowRight}");
+    await waitFor(() => expect(onReschedule).toHaveBeenCalledTimes(1));
+    expect(onReschedule).toHaveBeenLastCalledWith(activity, {
+      starts_at: activity.starts_at,
+      ends_at: activity.ends_at + 60000,
+    });
+    await user.click(
+      screen.getByRole("button", { name: "Увеличить масштаб расписания" }),
+    );
+    await user.click(handle);
+    await user.keyboard("{ArrowRight}");
+    await waitFor(() => expect(onReschedule).toHaveBeenCalledTimes(2));
+    expect(onReschedule).toHaveBeenLastCalledWith(activity, {
+      starts_at: activity.starts_at,
+      ends_at: activity.ends_at + 60000,
+    });
+  });
+
   it("создаёт пункт выделением интервала даже на пустом графике и передаёт выбранную аудиторию", () => {
     const onCreate = vi.fn();
     const { container } = render(

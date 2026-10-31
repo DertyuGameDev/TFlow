@@ -1,8 +1,25 @@
-<div{% if widget.attrs.id %} id="{{ widget.attrs.id }}"{% endif %} class="grouped-interests">
+<div class="interest-autocomplete" data-interest-picker>
+<div{% if widget.attrs.id %} id="{{ widget.attrs.id }}"{% endif %} class="grouped-interests" data-interest-source>
 {% for group, options, index in widget.optgroups %}
   <div class="interest-choice-group">
     <span class="interest-group-title">{{ group }}</span>
     <div class="interest-choice-items">{% for option in options %}<div>{% include option.template_name with widget=option %}</div>{% endfor %}</div>
   </div>
 {% endfor %}
+</div>
+<div data-interest-search hidden>
+  <div class="interest-search-anchor">
+    <div class="interest-control">
+      <svg aria-hidden="true" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><circle cx="10.5" cy="10.5" r="6.5"/><path d="m16 16 4 4"/></svg>
+      <input id="{{ widget.attrs.id }}_search" type="text" role="combobox" aria-label="Найти интерес" aria-autocomplete="list" aria-expanded="false" aria-controls="{{ widget.attrs.id }}_results" aria-describedby="id_interests_helptext {{ widget.attrs.id }}_status" autocomplete="off" placeholder="Например, музыка или дизайн">
+      <button type="button" class="interest-clear" aria-label="Очистить поиск интересов" hidden>×</button>
+    </div>
+    <div class="interest-dropdown" hidden>
+      <ul id="{{ widget.attrs.id }}_results" class="interest-results" role="listbox" aria-label="Категории интересов"></ul>
+      <p class="interest-empty" role="status" hidden>Нет новых категорий по этому запросу. Попробуйте другую тему.</p>
+    </div>
+  </div>
+  <ul class="interest-tags" aria-label="Выбранные интересы"></ul>
+  <p class="interest-status" id="{{ widget.attrs.id }}_status" role="status"></p>
+</div>
 </div>

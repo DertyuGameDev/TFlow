@@ -9,6 +9,13 @@ MAX_UPLOAD = 5 * 1024 * 1024
 MAX_PIXELS = 16_000_000
 
 
+def avatar_upload(request):
+    files = request.FILES
+    if getattr(request, "_tflow_upload_too_large", False):
+        raise FlowError("AVATAR_TOO_LARGE", "Размер фото — не больше 5 МБ", 400)
+    return files.get("avatar")
+
+
 def prepare_avatar(upload):
     if upload is None:
         raise FlowError("AVATAR_REQUIRED", "Выберите изображение", 400)

@@ -270,6 +270,13 @@ def bootstrap(user):
     notifications = user.notifications.all()[:50] if user.is_authenticated else []
     return {
         "events": [event_json(event) for event in visible_events(user)],
+        "activities": [
+            activity_json(activity, schedule=True)
+            for activity in (
+                activities_for(user).filter(event__status="published")
+                if participant else []
+            )
+        ],
         "schedule": [activity_json(activity, schedule=True) for activity in schedule],
         "waitlist": [activity_json(activity, schedule=True) for activity in waitlist],
         "communities": [

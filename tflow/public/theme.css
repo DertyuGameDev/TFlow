@@ -174,3 +174,5 @@
 :root[data-theme="dark"] #id_interests label:has(input:focus-visible){outline-color:#ffdd2d}
 :root[data-theme="dark"] #id_interests.grouped-interests{border-color:var(--theme-border)}
 :root[data-theme="dark"] .clubs-search:focus-within{border-color:#ffdd2d}
+
+:root[data-theme="dark"] .registration-role-option>input:focus-visible+.registration-role-card{outline-color:#ffdd2d}

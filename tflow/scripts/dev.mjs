@@ -39,7 +39,7 @@ if(!process.env.LIVEKIT_URL && !await videoReady()){
   }
   if(!ready){console.error('Сервер вебинаров не запустился на 127.0.0.1:7880.');stop(1);process.exit(1);}
 }
-const server=spawn(python,['manage.py','runserver','127.0.0.1:8000','--noreload'],{cwd:resolve('backend'),stdio:'inherit'});
+const server=spawn(python,['manage.py','runserver','127.0.0.1:8000'],{cwd:resolve('backend'),stdio:'inherit'});
 children.push(server);
 server.on('exit',code=>stop(code??1));
 let ready=false;

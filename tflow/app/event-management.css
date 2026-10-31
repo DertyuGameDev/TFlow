@@ -87,6 +87,15 @@
   gap: 24px;
   min-width: 0;
 }
+.management-program-editor {
+  scroll-margin-top: 100px;
+}
+.management-program-editor > .management-section-heading {
+  margin-bottom: 20px;
+}
+.management-program-editor .flow-form {
+  max-width: 800px;
+}
 .management-draft {
   display: flex;
   align-items: flex-start;

@@ -50,6 +50,7 @@ if not environment.exists():
         "DJANGO_ALLOWED_HOSTS": hostname + ",127.0.0.1,localhost",
         "DJANGO_CSRF_TRUSTED_ORIGINS": "https://" + hostname,
         "DJANGO_TRUST_PROXY": "1",
+        "DJANGO_TRUSTED_PROXY_IPS": "127.0.0.1/32,::1/128",
         "PYTHONDONTWRITEBYTECODE": "1",
         "PYTHONUNBUFFERED": "1",
     }

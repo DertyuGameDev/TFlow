@@ -1,8 +1,10 @@
 import json
+import logging
 import time
 import uuid
 from urllib.error import HTTPError, URLError
-from urllib.request import Request, urlopen
+from urllib.parse import urlsplit
+from urllib.request import HTTPRedirectHandler, Request, build_opener
 import jwt
 from django.conf import settings
 from django.utils import timezone
@@ -10,12 +12,41 @@ from .contracts import FlowError
 from .models import Activity, CheckIn, Event, Webinar
 
 
+class NoMediaRedirects(HTTPRedirectHandler):
+    def redirect_request(self, request, response, code, message, headers, new_url):
+        # A redirect must never forward an administrative bearer token elsewhere.
+        return None
+
+
+def urlopen(request, timeout):
+    return build_opener(NoMediaRedirects()).open(request, timeout=timeout)
+
+logger = logging.getLogger(__name__)
+
+
+def configuration_error():
+    if not all((settings.LIVEKIT_URL, settings.LIVEKIT_API_KEY, settings.LIVEKIT_API_SECRET)):
+        return "На сервере не настроены адрес и ключи LiveKit. Администратору нужно подключить видеосервер."
+    try:
+        public = urlsplit(settings.LIVEKIT_URL)
+        internal = urlsplit(settings.LIVEKIT_API_URL or settings.LIVEKIT_URL)
+        if public.scheme not in {"ws", "wss", "http", "https"} or not public.hostname or public.username is not None or public.query or public.fragment:
+            return "Публичный адрес LiveKit должен использовать WS, WSS, HTTP или HTTPS без ключей и параметров."
+        if internal.scheme not in {"http", "https", "ws", "wss"} or not internal.hostname or internal.username is not None or internal.query or internal.fragment:
+            return "Некорректный внутренний адрес LiveKit API."
+        # Accessing .port also rejects malformed/out-of-range ports early.
+        _ = public.port, internal.port
+        if not settings.DEBUG and (public.scheme not in {"wss", "https"} or public.hostname in {"localhost", "127.0.0.1", "::1"}):
+            return "Для опубликованного сайта нужен публичный WSS-адрес LiveKit. Адрес localhost доступен только самому серверу."
+    except ValueError:
+        return "Некорректный адрес видеосервера LiveKit."
+    if not settings.DEBUG and len(settings.LIVEKIT_API_SECRET.encode("utf-8")) < 32:
+        return "Секрет LiveKit должен содержать не менее 32 байт для опубликованного сайта."
+    return ""
+
+
 def configured():
-    return bool(
-        settings.LIVEKIT_URL
-        and settings.LIVEKIT_API_KEY
-        and settings.LIVEKIT_API_SECRET
-    )
+    return not configuration_error()
 
 
 def event_for_webinar(user, event_id, *, activity_id=None):
@@ -55,6 +86,7 @@ def status(user, event_id, *, activity_id=None):
     webinar = Webinar.objects.filter(event=event, activity=activity).first()
     return {
         "configured": configured(),
+        "configuration_error": configuration_error(),
         "host": owner,
         "active": bool(webinar and webinar.active),
         "session": str(webinar.room) if webinar else None,
@@ -65,6 +97,10 @@ def status(user, event_id, *, activity_id=None):
 
 
 def signed_token(identity, name, grants):
+    if not configured():
+        raise FlowError(
+            "VIDEO_NOT_CONFIGURED", "Сервер трансляций не настроен безопасно", 503
+        )
     now = int(time.time())
     return jwt.encode(
         {
@@ -90,10 +126,9 @@ def room_api(method, room, **values):
         .replace("ws://", "http://", 1)
         .rstrip("/")
     )
-    token = signed_token(
-        "tflow-server", "ТФлоу", {"roomCreate": True, "roomAdmin": True, "room": room}
-    )
-    body = {"name" if method == "CreateRoom" else "room": room, **values}
+    grants = {"roomList": True} if method == "ListRooms" else {"roomCreate": True, "roomAdmin": True, "room": room}
+    token = signed_token("tflow-server", "ТФлоу", grants)
+    body = {**values} if method == "ListRooms" else {"name" if method == "CreateRoom" else "room": room, **values}
     request = Request(
         f"{url}/twirp/livekit.RoomService/{method}",
         data=json.dumps(body).encode(),
@@ -111,12 +146,16 @@ def room_api(method, room, **values):
             raise FlowError("ATTENDANCE_UNCONFIRMED", "Подключение к эфиру ещё не подтверждено. Повторите проверку", 409) from error
         if error.code == 404 and method in {"DeleteRoom", "RemoveParticipant"}:
             return {}
+        logger.warning("LiveKit %s returned HTTP %s", method, error.code)
         raise FlowError(
             "VIDEO_UNAVAILABLE",
-            "Сервер трансляций временно недоступен. Повторите попытку",
+            "Ключи приложения не приняты видеосервером. Администратору нужно проверить настройку LiveKit."
+            if error.code in {401, 403}
+            else "Сервер трансляций временно недоступен. Повторите попытку",
             503,
         ) from error
     except (URLError, TimeoutError, ValueError, OSError) as error:
+        logger.warning("LiveKit %s failed: %s", method, type(error).__name__)
         raise FlowError(
             "VIDEO_UNAVAILABLE",
             "Не удалось подключиться к серверу трансляций. Повторите попытку",
@@ -165,7 +204,7 @@ def operate(user, event_id, operation, session=None, *, activity_id=None):
         if not configured():
             raise FlowError(
                 "VIDEO_NOT_CONFIGURED",
-                "Организатор ещё не подключил сервер трансляций",
+                configuration_error(),
                 503,
             )
         if operation == "end":
@@ -222,7 +261,7 @@ def operate(user, event_id, operation, session=None, *, activity_id=None):
             "canUpdateOwnMetadata": False,
         }
         return {
-            "url": settings.LIVEKIT_URL,
+            "url": settings.LIVEKIT_URL.replace("https://", "wss://", 1).replace("http://", "ws://", 1),
             "token": signed_token(str(user.pk), user.name, grants),
             "host": owner,
             "session": str(webinar.room),

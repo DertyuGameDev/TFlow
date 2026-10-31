@@ -28,12 +28,14 @@ import type { Activity, FlowEvent, UserIdentity } from "../../lib/types";
 import { webinarPath } from "../../lib/webinars";
 import { publishScreenShare, screenShareContext, screenShareError, screenShareUnavailable } from "../../lib/screen-share";
 import { microphoneError, microphoneSignal } from "../../lib/audio-level";
+import { webinarConnectionIssue } from "../../lib/webinars";
 import { FormError, type Send } from "./forms";
 import { Modal } from "./dialog";
 import "../webinar.css";
 
 type Status = {
   configured: boolean;
+  configuration_error?: string;
   host: boolean;
   active: boolean;
   session: string | null;
@@ -140,7 +142,8 @@ export default function Webinar({
     }
   }
   async function loadStatus() {
-    // A slow start/join may overlap polling on the VM. Ignore status until connected.
+    // A status read while start/join is in flight can describe the previous
+    // session and must not tear down a connection that is still opening.
     if (connecting.current) return;
     const sequence = ++statusSequence.current;
     try {
@@ -225,6 +228,8 @@ export default function Webinar({
         operation: host ? "start" : "join",
       })) as Access;
       if (!alive.current) { await room.disconnect(); return; }
+      const issue = webinarConnectionIssue(access.url, location);
+      if (issue) throw new Error(issue);
       roomRef.current = room;
       session.current = access.session;
       room
@@ -471,7 +476,8 @@ export default function Webinar({
           <Video size={35} />
           <h3>
             {!status
-              ? "Проверяем эфир…"
+              ? error ? "Не удалось проверить эфир" : "Проверяем эфир…"
+              : !status.configured ? "Видеосервер не настроен"
               : status.ended || (status.finished && !host)
                 ? "Эфир завершён"
                 : host
@@ -482,9 +488,9 @@ export default function Webinar({
           </h3>
           <p>
             {!status
-              ? "Подождите несколько секунд."
+              ? error ? "Повторите проверку соединения." : "Подождите несколько секунд."
               : !status.configured
-                ? "Сервис трансляций ещё не подключён. Организатор сможет начать эфир после его подключения."
+                ? status.configuration_error || "Сервис трансляций ещё не подключён. Организатор сможет начать эфир после его подключения."
                 : !status.published
                   ? "Сначала опубликуйте событие, затем начните эфир."
                   : status.ended
@@ -521,6 +527,11 @@ export default function Webinar({
                     : "Начать эфир"
                 : "Войти в вебинар"}
           </button>
+          {(!status || !status.configured || !!error) && <button
+            type="button" className="button secondary" disabled={busy}
+            onClick={() => { setError(""); void loadStatus(); }}>
+            Проверить подключение
+          </button>}
         </div>
       ) : (
         <div className="webinar-layout">

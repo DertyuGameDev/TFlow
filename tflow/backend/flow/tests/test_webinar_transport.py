@@ -1,12 +1,14 @@
 """Exercise the real webinar service, replacing only the HTTP transport."""
 import json
 from io import BytesIO
+from io import StringIO
 from urllib.error import HTTPError, URLError
 from unittest.mock import patch
 
 import jwt
 from django.test import SimpleTestCase, TestCase, override_settings
 from django.utils import timezone
+from django.core.management import call_command, CommandError
 
 from flow.contracts import FlowError
 from flow.models import Event, EventRegistration, Notification, Registration, Webinar
@@ -29,10 +31,39 @@ def response(body=b"{}"):
 class WebinarTransportTests(SimpleTestCase):
     @override_settings(LIVEKIT_API_URL="http://127.0.0.1:7880")
     @patch("flow.webinars.urlopen")
-    def test_owned_server_control_stays_on_loopback_while_browser_uses_public_wss(self, transport):
+    def test_vm_uses_private_api_without_exposing_it_to_browser(self, transport):
         transport.return_value = response()
-        room_api("GetParticipant", "room", identity="viewer")
-        self.assertEqual(transport.call_args.args[0].full_url, "http://127.0.0.1:7880/twirp/livekit.RoomService/GetParticipant")
+        room_api("CreateRoom", "vm-room")
+        self.assertEqual(transport.call_args.args[0].full_url, "http://127.0.0.1:7880/twirp/livekit.RoomService/CreateRoom")
+
+    @patch("flow.webinars.urlopen")
+    def test_diagnostic_checks_credentials_without_creating_rooms(self, transport):
+        transport.return_value = response(b'{"rooms":[]}')
+        output = StringIO()
+        call_command("check_webinars", stdout=output)
+        request = transport.call_args.args[0]
+        self.assertTrue(request.full_url.endswith("/ListRooms"))
+        self.assertEqual(json.loads(request.data), {})
+        claims = jwt.decode(request.get_header("Authorization").removeprefix("Bearer "), VIDEO_SECRET, algorithms=["HS256"])
+        self.assertTrue(claims["video"]["roomList"])
+        self.assertNotIn("roomAdmin", claims["video"])
+        self.assertIn("ключи приняты", output.getvalue())
+        self.assertNotIn(VIDEO_SECRET, output.getvalue())
+
+    @override_settings(LIVEKIT_API_KEY="")
+    @patch("flow.webinars.urlopen")
+    def test_diagnostic_explains_missing_configuration(self, transport):
+        with self.assertRaisesMessage(CommandError, "не настроены"):
+            call_command("check_webinars")
+        transport.assert_not_called()
+
+    @override_settings(DEBUG=False, LIVEKIT_URL="ws://127.0.0.1:7880")
+    @patch("flow.webinars.urlopen")
+    def test_production_cannot_advertise_local_development_url(self, transport):
+        with self.assertRaisesMessage(CommandError, "публичный WSS"):
+            call_command("check_webinars")
+        transport.assert_not_called()
+
     @patch("flow.webinars.urlopen")
     def test_create_room_sends_signed_server_grant_and_capacity(self, transport):
         transport.return_value = response(b'{"name":"test-room"}')
@@ -52,7 +83,7 @@ class WebinarTransportTests(SimpleTestCase):
         self.assertLessEqual(claims["exp"] - claims["nbf"], 305)
         self.assertEqual(transport.call_args.kwargs["timeout"], 5)
 
-    @override_settings(LIVEKIT_URL="ws://127.0.0.1:7880/")
+    @override_settings(DEBUG=True, LIVEKIT_URL="ws://127.0.0.1:7880/")
     @patch("flow.webinars.urlopen")
     def test_remove_participant_uses_http_room_and_identity(self, transport):
         transport.return_value = response()

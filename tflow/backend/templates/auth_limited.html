@@ -1,0 +1,7 @@
+{% load static %}<!doctype html>
+<html lang="ru"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>Повторите попытку позже — ТФлоу</title><link rel="stylesheet" href="{% static 'auth.css' %}"><link rel="stylesheet" href="{% static 'theme.css' %}"><script src="{% static 'theme.js' %}"></script></head>
+<body><main class="auth-shell"><section class="auth-card">
+<h1>{% if unavailable %}Вход временно недоступен{% else %}Слишком много попыток{% endif %}</h1>
+<p class="intro" role="alert">{% if unavailable %}Не удалось проверить запрос. Повторите попытку через несколько секунд.{% else %}Подождите примерно {{ minutes }} мин. и попробуйте снова.{% endif %}</p>
+<a class="back" href="{{ request.path }}">Вернуться к форме</a><p><a href="/">На главную</a></p>
+</section></main></body></html>
