@@ -48,6 +48,7 @@ INSTALLED_APPS = [
     "flow",
 ]
 MIDDLEWARE = [
+    "flow.observability.RequestTelemetryMiddleware",
     "django.middleware.security.SecurityMiddleware",
     "whitenoise.middleware.WhiteNoiseMiddleware",
     "flow.security.RequestLimitsMiddleware",
@@ -197,9 +198,27 @@ STORAGES = {
     "default": {"BACKEND": "django.core.files.storage.FileSystemStorage"},
     "staticfiles": {"BACKEND": "whitenoise.storage.CompressedStaticFilesStorage"},
 }
+MONITORING_TOKEN = os.environ.get("TFLOW_MONITORING_TOKEN", "")
 LOGGING = {
     "version": 1,
     "disable_existing_loggers": False,
-    "handlers": {"console": {"class": "logging.StreamHandler"}},
-    "loggers": {"flow": {"handlers": ["console"], "level": "INFO"}},
+    "formatters": {"json": {"()": "flow.observability.JsonFormatter"}},
+    "filters": {"error_metric": {"()": "flow.observability.ErrorMetricFilter"}},
+    "handlers": {"console": {"class": "logging.StreamHandler", "formatter": "json", "filters": ["error_metric"]}},
+    "root": {"handlers": ["console"], "level": "INFO"},
+    "loggers": {
+        "flow": {"handlers": ["console"], "level": "INFO", "propagate": False},
+        "django": {"handlers": ["console"], "level": "INFO", "propagate": False},
+        "django.server": {"handlers": ["console"], "level": "WARNING", "propagate": False},
+    },
 }
+
+if os.environ.get("TFLOW_LOG_FILE"):
+    LOGGING["handlers"]["file"] = {
+        "class": "logging.handlers.WatchedFileHandler",
+        "filename": os.environ["TFLOW_LOG_FILE"],
+        "formatter": "json", "encoding": "utf-8",
+    }
+    LOGGING["root"]["handlers"].append("file")
+    for logger_config in LOGGING["loggers"].values():
+        logger_config["handlers"].append("file")

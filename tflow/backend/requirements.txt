@@ -5,3 +5,4 @@ psycopg[binary]>=3.2,<4
 qrcode[pil]>=8,<9
 PyJWT>=2.10,<3
 drf-spectacular-sidecar==2026.10.1
+prometheus-client>=0.22,<1

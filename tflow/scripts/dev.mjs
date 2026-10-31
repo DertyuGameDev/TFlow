@@ -6,6 +6,7 @@ import { createRequire } from 'node:module';
 try { createRequire(import.meta.url).resolve('livekit-client'); }
 catch { console.error('Не установлены зависимости интерфейса. Выполните npm ci, затем npm run dev.'); process.exit(1); }
 
+if(existsSync(resolve('backend/.env.monitoring')))process.loadEnvFile(resolve('backend/.env.monitoring'));
 if(existsSync(resolve('backend/.env.mail')))process.loadEnvFile(resolve('backend/.env.mail'));
 if(existsSync(resolve('backend/.env.video')))process.loadEnvFile(resolve('backend/.env.video'));
 process.env.TFLOW_DEMO_MODE ??= '1';
