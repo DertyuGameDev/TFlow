@@ -5,6 +5,20 @@ import { ActivityForm } from "../../app/ui/program-item-form";
 import { event } from "../fixtures";
 
 describe("пункты программы", () => {
+  it("принимает короткое название и наследует вместимость без ограничения в 10000", async () => {
+    const user = userEvent.setup(), send = vi.fn().mockResolvedValue({ id: "large-item" });
+    render(<ActivityForm event={{ ...event, capacity: 500001 }} rooms={[]} send={send} done={vi.fn()} />);
+    const title = screen.getByLabelText("Название пункта программы");
+    expect(title).not.toHaveAttribute("minlength");
+    expect(title).not.toHaveAttribute("maxlength");
+    await user.type(title, "А");
+    expect(screen.getByLabelText("Лимит мест")).toHaveValue(500001);
+    await user.click(screen.getByRole("button", { name: "Добавить в программу" }));
+    await waitFor(() => expect(send).toHaveBeenCalledWith(`events/${event.id}/activities`, "POST", expect.objectContaining({
+      title: "А", capacity: 500001,
+    })));
+  });
+
   it("добавляет первый пункт одним запросом без предварительного создания аудитории", async () => {
     const user = userEvent.setup(),
       send = vi.fn().mockResolvedValue({ id: "item" }),

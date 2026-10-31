@@ -21,6 +21,28 @@
 
 Шаблон использует `smtp.yandex.ru`, SSL и порт 465. [Официальная инструкция Яндекса](https://www.yandex.ru/support/yandex-360/customers/mail/ru/mail-clients/others).
 
+## Gmail
+
+1. Создать аккаунт Gmail и убедиться, что выбранный адрес доступен. Регистрацию, пароль аккаунта и подтверждение телефона завершает владелец.
+2. В настройках Google включить двухэтапную аутентификацию и создать отдельный [пароль приложения](https://support.google.com/accounts/answer/185833?hl=ru) для ТФлоу.
+3. В локальном `backend/.env.mail` указать:
+
+```dotenv
+EMAIL_HOST=smtp.gmail.com
+EMAIL_PORT=587
+EMAIL_USE_SSL=0
+EMAIL_USE_TLS=1
+EMAIL_HOST_USER=your-address@gmail.com
+EMAIL_HOST_PASSWORD=
+DEFAULT_FROM_EMAIL=your-address@gmail.com
+NOTIFICATION_EMAIL_ENABLED=0
+TFLOW_PUBLIC_URL=http://127.0.0.1:5173
+```
+
+В `EMAIL_HOST_PASSWORD` нужно локально вписать пароль приложения, а не обычный пароль Google. Значения `EMAIL_HOST_USER` и `DEFAULT_FROM_EMAIL` должны содержать реальный адрес созданного ящика. До проверки доступа отправка остаётся выключенной; затем установить `NOTIFICATION_EMAIL_ENABLED=1` и перезапустить `npm run dev`.
+
+Пароль не передаётся в чат и не попадает в Git. На хостинге те же значения задаются через переменные окружения. Для внешнего сайта `TFLOW_PUBLIC_URL` заменяется его настоящим адресом. [Настройки сервера Gmail](https://developers.google.com/workspace/gmail/imap/imap-smtp).
+
 ## Хостинг
 
 Настройки из шаблона передаются через переменные окружения, включая `TFLOW_PUBLIC_URL` с публичным HTTPS-адресом сайта. На сервере отдельно запускается постоянный обработчик:

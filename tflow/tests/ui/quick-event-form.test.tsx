@@ -11,6 +11,26 @@ async function describeEvent(user: ReturnType<typeof userEvent.setup>) {
 }
 
 describe("создание и перенос события", () => {
+  it("принимает однобуквенные название и описание и вместимость больше прежнего максимума", async () => {
+    const user = userEvent.setup(), send = vi.fn().mockResolvedValue({ id: "simple-event" });
+    render(<QuickEventForm send={send} done={vi.fn()} initialStart={event.starts_at} />);
+    const title = screen.getByLabelText("Название события");
+    expect(title).not.toHaveAttribute("minlength");
+    expect(title).not.toHaveAttribute("maxlength");
+    await user.type(title, "А");
+    await user.selectOptions(screen.getByLabelText("Категория"), "Разработка");
+    await user.type(screen.getByRole("textbox", { name: /Коротко о событии/ }), "О");
+    await user.click(screen.getByRole("button", { name: /Далее: время и место/ }));
+    await user.click(screen.getByRole("radio", { name: "Онлайн" }));
+    const capacity = screen.getByRole("spinbutton");
+    expect(capacity).not.toHaveAttribute("max");
+    fireEvent.change(capacity, { target: { value: "500001" } });
+    await user.click(screen.getByRole("button", { name: "Создать черновик" }));
+    await waitFor(() => expect(send).toHaveBeenCalledWith("events", "POST", expect.objectContaining({
+      title: "А", description: "О", capacity: 500001,
+    })));
+  });
+
   it("не переходит к месту и не отправляет пустую форму", async () => {
     const user = userEvent.setup(), send = vi.fn();
     render(<QuickEventForm send={send} done={vi.fn()} initialStart={event.starts_at} />);

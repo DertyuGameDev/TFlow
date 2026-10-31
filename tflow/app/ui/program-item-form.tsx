@@ -30,7 +30,7 @@ export function ActivityForm({
   );
   const [roomId, setRoomId] = useState(activity?.room_id ?? rooms[0]?.id ?? "");
   const room = rooms.find((item) => item.id === roomId);
-  const limit = room?.capacity ?? Math.min(event.capacity, 10000);
+  const limit = room?.capacity ?? event.capacity;
   const [capacity, setCapacity] = useState(
     activity?.capacity ?? Math.min(event.capacity, limit),
   );
@@ -72,8 +72,6 @@ export function ActivityForm({
         <input
           name="title"
           required
-          minLength={3}
-          maxLength={160}
           defaultValue={activity?.title}
           placeholder="Например, Открытие или Лекция о дизайне"
         />
@@ -142,7 +140,6 @@ export function ActivityForm({
           Спикер · необязательно
           <input
             name="speaker"
-            maxLength={160}
             defaultValue={activity?.speaker}
             placeholder="Имя и фамилия"
           />
@@ -165,7 +162,6 @@ export function ActivityForm({
         <textarea
           name="description"
           rows={2}
-          maxLength={5000}
           defaultValue={activity?.description}
           placeholder="Что будет происходить на этом этапе?"
         />

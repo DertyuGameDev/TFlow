@@ -197,8 +197,6 @@ export function QuickEventForm({
               <input
                 name="title"
                 required
-                minLength={3}
-                maxLength={160}
                 placeholder="Например, вечер настольных игр"
                 defaultValue={event?.title}
               />
@@ -256,8 +254,6 @@ export function QuickEventForm({
               </span>
               <textarea
                 name="description"
-                minLength={10}
-                maxLength={5000}
                 rows={3}
                 defaultValue={event?.description}
                 placeholder="Для кого встреча и что будет происходить? Достаточно пары предложений."
@@ -356,8 +352,6 @@ export function QuickEventForm({
               <input
                 name="venue"
                 required
-                minLength={2}
-                maxLength={160}
                 value={physicalVenue}
                 onChange={(event) => setPhysicalVenue(event.target.value)}
                 placeholder="Название места, например библиотека или парк"
@@ -369,7 +363,6 @@ export function QuickEventForm({
               </span>
               <input
                 name="address"
-                maxLength={240}
                 value={physicalAddress}
                 onChange={(event) => setPhysicalAddress(event.target.value)}
                 placeholder="Улица и дом — можно добавить позже"
@@ -388,7 +381,6 @@ export function QuickEventForm({
               inputMode="numeric"
               required
               min={1}
-              max={100000}
               defaultValue={event?.capacity ?? 100}
             />
           </label>

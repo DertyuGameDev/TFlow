@@ -41,7 +41,6 @@ function DataField({
     onChange: (e: React.ChangeEvent<HTMLInputElement | HTMLTextAreaElement>) =>
       onChange(e.target.value),
     required,
-    maxLength: field.maxLength,
     placeholder: field.placeholder,
     autoComplete: field.autocomplete,
     "aria-invalid": errors.length > 0 ? true : undefined,
@@ -61,14 +60,10 @@ function DataField({
         <input
           {...attrs}
           type={field.type ?? "text"}
-          min={field.type === "date" ? "1900-01-01" : undefined}
           max={
             field.type === "date"
               ? new Date().toLocaleDateString("en-CA")
               : undefined
-          }
-          minLength={
-            field.key === "name" || field.key === "city" ? 2 : undefined
           }
         />
       )}{" "}
@@ -164,7 +159,7 @@ export function ExpandedProfileForm({
           {(
             [
               ["first_name", "Имя", "given-name"],
-              ["last_name", "Фамилия", "family-name"],
+              ["last_name", "Фамилия (необязательно)", "family-name"],
             ] as const
           ).map(([key, label, autocomplete]) => (
             <div className="form-field" key={key}>
@@ -172,9 +167,8 @@ export function ExpandedProfileForm({
               <input
                 id={`profile-${key}`}
                 name={key}
-                required
+                required={key === "first_name"}
                 autoComplete={autocomplete}
-                maxLength={80}
                 value={values[key]}
                 onChange={(e) =>
                   setValues({ ...values, [key]: e.target.value })

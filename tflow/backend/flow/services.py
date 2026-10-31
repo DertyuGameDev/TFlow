@@ -328,7 +328,7 @@ def save_activity(user, data, *, event_id=None, activity_id=None):
                             if activity.event.format == "Онлайн"
                             else "Основная площадка"
                         ),
-                        capacity=min(activity.event.capacity, 10000),
+                        capacity=activity.event.capacity,
                     )
                 )
                 data["room_id"] = room.pk

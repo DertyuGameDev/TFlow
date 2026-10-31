@@ -24,13 +24,14 @@ class NameTests(Scenario, TestCase):
         self.assertEqual(state["last_name"], "де Ла Крус")
         self.assertEqual(client.get("/api/auth/me").json()["user"]["displayName"], user.name)
 
-    def test_both_parts_required_on_signup(self):
-        for field in ["first_name", "last_name"]:
-            with self.subTest(field=field):
-                _, response = self.signup(**{field: " "})
-                self.assertEqual(response.status_code, 200)
-                self.assertIn(field, response.context["form"].errors)
-                self.assertFalse(User.objects.filter(email="separate-names@example.test").exists())
+    def test_first_name_required_but_surname_is_optional(self):
+        _, response = self.signup(first_name=" ")
+        self.assertEqual(response.status_code, 200)
+        self.assertIn("first_name", response.context["form"].errors)
+        self.assertFalse(User.objects.filter(email="separate-names@example.test").exists())
+        _, response = self.signup(first_name="Я", last_name="")
+        self.assertEqual(response.status_code, 302)
+        self.assertEqual(User.objects.get(email="separate-names@example.test").name, "Я")
 
     def test_profile_parts_update_full_name_and_are_isolated_to_current_user(self):
         body = {"first_name": " Софья ", "last_name": " Петрова-Соколова ", "city": "Мурманск", "about": "", "interests": "Дизайн"}
@@ -54,14 +55,17 @@ class NameTests(Scenario, TestCase):
         self.assertEqual(self.person.name, "Софья Иванова Петровна")
         self.assertEqual(self.person.first_name, "")
 
-    def test_profile_rejects_blank_surname_and_excessive_combined_length(self):
+    def test_profile_and_signup_accept_optional_surname_and_long_names(self):
         body = {"first_name": "Софья", "last_name": "", "city": "Мурманск", "about": "", "interests": ""}
-        self.request("profile", "patch", body, client=self.participant, status=400, code="VALIDATION")
-        self.request("profile", "patch", {**body, "first_name": "А"*50, "last_name": "Б"*50}, client=self.participant, status=400, code="VALIDATION")
-        _, response = self.signup(first_name="А"*50, last_name="Б"*50)
-        self.assertIn("last_name", response.context["form"].errors)
+        self.request("profile", "patch", body, client=self.participant)
         self.person.refresh_from_db()
-        self.assertEqual(self.person.name, "Участник")
+        self.assertEqual(self.person.name, "Софья")
+        self.request("profile", "patch", {**body, "first_name": "А"*500, "last_name": "Б"*500}, client=self.participant)
+        _, response = self.signup(first_name="А"*500, last_name="Б"*500)
+        self.assertEqual(response.status_code, 302)
+        self.person.refresh_from_db()
+        self.assertEqual(self.person.name, "А"*500 + " " + "Б"*500)
+        self.assertEqual(User.objects.get(email="separate-names@example.test").name, self.person.name)
 
     def test_legacy_profile_payload_keeps_name_parts_consistent(self):
         self.request("profile", "patch", {"name": "Софья Петрова", "city": "Мурманск", "about": "", "interests": ""}, client=self.participant)

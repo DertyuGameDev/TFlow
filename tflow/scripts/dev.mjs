@@ -8,6 +8,7 @@ catch { console.error('Не установлены зависимости инт
 
 if(existsSync(resolve('backend/.env.mail')))process.loadEnvFile(resolve('backend/.env.mail'));
 if(existsSync(resolve('backend/.env.video')))process.loadEnvFile(resolve('backend/.env.video'));
+process.env.TFLOW_DEMO_MODE ??= '1';
 
 const python=resolve(process.platform==='win32'?'.venv/Scripts/python.exe':'.venv/bin/python');
 if(!existsSync(python)){console.error('Run npm run setup first.');process.exit(1);}

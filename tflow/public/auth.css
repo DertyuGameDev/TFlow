@@ -63,3 +63,9 @@ footer{text-align:center;font-size:var(--font-size-min);color:#626b78;margin-top
 .interest-choice-items>div{min-width:0;max-width:100%}
 
 #id_interests.grouped-interests{padding:12px;border:1px solid #e5e7eb;border-radius:12px;background:#fafbfc;scrollbar-width:thin}
+
+.registration-interests{min-width:0;margin:8px 0 20px}
+.registration-interests>summary{cursor:pointer;font-size:14px;font-weight:500;padding:10px 0}
+.registration-interests>summary>span{font-size:12px;font-weight:400;opacity:.65;margin-left:7px}
+.registration-interests[open]>.interest-field{margin-top:10px}
+.registration-interests>summary:focus-visible{outline:2px solid #c3a500;outline-offset:4px;border-radius:4px}

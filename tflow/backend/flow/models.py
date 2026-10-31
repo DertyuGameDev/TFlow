@@ -1,6 +1,7 @@
 import uuid
 from django.contrib.auth.base_user import BaseUserManager
 from django.contrib.auth.models import AbstractUser
+from django.core.validators import URLValidator
 from django.db import models
 from django.db.models import F, Q
 from django.utils import timezone
@@ -36,17 +37,19 @@ class User(AbstractUser):
     )
     username = None
     email = models.EmailField(unique=True)
-    name = models.CharField(max_length=80)
-    city = models.CharField(max_length=80, blank=True, default="")
-    phone = models.CharField(max_length=32, blank=True)
+    first_name = models.TextField("имя", blank=True)
+    last_name = models.TextField("фамилия", blank=True)
+    name = models.TextField()
+    city = models.TextField(blank=True, default="")
+    phone = models.TextField(blank=True)
     birth_date = models.DateField(null=True, blank=True)
-    telegram = models.CharField(max_length=64, blank=True)
-    organization = models.CharField(max_length=160, blank=True)
-    job_title = models.CharField(max_length=160, blank=True)
-    education = models.CharField(max_length=240, blank=True)
-    website = models.URLField(max_length=300, blank=True)
-    about = models.TextField(blank=True, max_length=1000)
-    interests = models.CharField(blank=True, max_length=300)
+    telegram = models.TextField(blank=True)
+    organization = models.TextField(blank=True)
+    job_title = models.TextField(blank=True)
+    education = models.TextField(blank=True)
+    website = models.TextField(blank=True, validators=[URLValidator()])
+    about = models.TextField(blank=True)
+    interests = models.TextField(blank=True)
     role = models.CharField(
         max_length=16,
         choices=[("participant", "Участник"), ("organizer", "Организатор")],
@@ -83,9 +86,9 @@ class UserAvatar(models.Model):
 
 class Community(models.Model):
     id = models.CharField(primary_key=True, max_length=100, default=new_id)
-    name = models.CharField(max_length=160)
-    description = models.TextField(max_length=5000)
-    topic = models.CharField(max_length=80)
+    name = models.TextField()
+    description = models.TextField()
+    topic = models.TextField()
     color = models.CharField(max_length=30)
     owner = models.ForeignKey(
         User,
@@ -107,18 +110,18 @@ class CommunityAvatar(models.Model):
 class Event(models.Model):
     id = models.CharField(primary_key=True, max_length=100, default=new_id)
     owner = models.ForeignKey(User, on_delete=models.PROTECT, related_name="events")
-    title = models.CharField(max_length=160)
-    description = models.TextField(max_length=5000)
+    title = models.TextField()
+    description = models.TextField()
     starts_at = models.DateTimeField()
     ends_at = models.DateTimeField()
-    city = models.CharField(max_length=80)
-    venue = models.CharField(max_length=160)
-    address = models.CharField(max_length=240, blank=True)
+    city = models.TextField()
+    venue = models.TextField()
+    address = models.TextField(blank=True)
     format = models.CharField(
         max_length=10, choices=[(v, v) for v in ["Очно", "Онлайн", "Гибрид"]]
     )
-    topic = models.CharField(max_length=80)
-    kind = models.CharField(max_length=60)
+    topic = models.TextField()
+    kind = models.TextField()
     cover = models.CharField(max_length=20, default="yellow")
     status = models.CharField(
         max_length=10,
@@ -129,7 +132,7 @@ class Event(models.Model):
         Community, on_delete=models.SET_NULL, null=True, blank=True
     )
     updated_at = models.DateTimeField(default=timezone.now)
-    capacity = models.PositiveIntegerField(default=500)
+    capacity = models.PositiveBigIntegerField(default=500)
     required_profile_fields = models.JSONField(default=list, blank=True)
 
     class Meta:
@@ -139,7 +142,7 @@ class Event(models.Model):
                 condition=Q(ends_at__gt=F("starts_at")), name="event_positive_duration"
             ),
             models.CheckConstraint(
-                condition=Q(capacity__gte=1, capacity__lte=100000),
+                condition=Q(capacity__gte=1),
                 name="event_valid_capacity",
             ),
         ]
@@ -158,14 +161,14 @@ class Webinar(models.Model):
 class Room(models.Model):
     id = models.CharField(primary_key=True, max_length=100, default=new_id)
     event = models.ForeignKey(Event, on_delete=models.CASCADE, related_name="rooms")
-    name = models.CharField(max_length=120)
-    capacity = models.PositiveIntegerField()
+    name = models.TextField()
+    capacity = models.PositiveBigIntegerField()
 
     class Meta:
         ordering = ["name", "id"]
         constraints = [
             models.CheckConstraint(
-                condition=Q(capacity__gte=1, capacity__lte=10000),
+                condition=Q(capacity__gte=1),
                 name="room_valid_capacity",
             )
         ]
@@ -177,12 +180,12 @@ class Activity(models.Model):
         Event, on_delete=models.CASCADE, related_name="activities"
     )
     room = models.ForeignKey(Room, on_delete=models.PROTECT, related_name="activities")
-    title = models.CharField(max_length=160)
-    description = models.TextField(blank=True, max_length=5000)
-    speaker = models.CharField(max_length=160, blank=True)
+    title = models.TextField()
+    description = models.TextField(blank=True)
+    speaker = models.TextField(blank=True)
     starts_at = models.DateTimeField()
     ends_at = models.DateTimeField()
-    capacity = models.PositiveIntegerField()
+    capacity = models.PositiveBigIntegerField()
     updated_at = models.DateTimeField(default=timezone.now)
 
     class Meta:
@@ -194,7 +197,7 @@ class Activity(models.Model):
                 name="activity_positive_duration",
             ),
             models.CheckConstraint(
-                condition=Q(capacity__gte=1, capacity__lte=10000),
+                condition=Q(capacity__gte=1),
                 name="activity_valid_capacity",
             ),
         ]

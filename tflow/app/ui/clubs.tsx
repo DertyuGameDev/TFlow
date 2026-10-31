@@ -49,8 +49,6 @@ function ClubForm({
         <input
           name="name"
           required
-          minLength={3}
-          maxLength={160}
           defaultValue={club?.name}
           placeholder="Например, любители настольных игр"
         />
@@ -61,8 +59,6 @@ function ClubForm({
         <textarea
           name="description"
           required
-          minLength={10}
-          maxLength={1000}
           rows={4}
           defaultValue={club?.description}
           placeholder="Кого объединяет клуб и какие встречи вы планируете?"

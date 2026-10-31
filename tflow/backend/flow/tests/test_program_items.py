@@ -108,11 +108,11 @@ class ProgramItemTests(Scenario, TestCase):
         )
         self.assertFalse(self.event.rooms.exists())
 
-    def test_online_room_capacity_is_bounded(self):
+    def test_online_room_inherits_event_capacity_without_old_ceiling(self):
         self.event.format = "Онлайн"
         self.event.capacity = 50000
         self.event.save()
         created = self.request(self.path, "post", self.body, status=201)
         room = Activity.objects.get(pk=created["id"]).room
         self.assertEqual(room.name, "Онлайн-комната")
-        self.assertEqual(room.capacity, 10000)
+        self.assertEqual(room.capacity, 50000)
