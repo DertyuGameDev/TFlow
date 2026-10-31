@@ -16,6 +16,8 @@ export function ActivityForm({
   rooms,
   activity,
   initialStart,
+  initialEnd,
+  initialRoomId,
   send,
   done,
 }: {
@@ -23,27 +25,38 @@ export function ActivityForm({
   rooms: Room[];
   activity?: Activity;
   initialStart?: number;
+  initialEnd?: number;
+  initialRoomId?: string;
   send: Send;
   done: () => void;
 }) {
   const start = activity?.starts_at ?? initialStart ?? event.starts_at;
   const [startsAt, setStartsAt] = useState(localInput(start));
   const [endsAt, setEndsAt] = useState(
-    localInput(activity?.ends_at ?? Math.min(start + 3600000, event.ends_at)),
+    localInput(
+      activity?.ends_at ??
+        initialEnd ??
+        Math.min(start + 3600000, event.ends_at),
+    ),
   );
   const onlineRoom = rooms.find((item) => item.is_online);
   const [roomId, setRoomId] = useState(
     activity?.room_id ??
+      rooms.find((item) => item.id === initialRoomId)?.id ??
       (event.format === "Онлайн"
         ? (onlineRoom?.id ?? ONLINE_ROOM)
-        : (rooms.find((item) => !item.is_online)?.id ?? onlineRoom?.id ?? NEW_ROOM)),
+        : (rooms.find((item) => !item.is_online)?.id ??
+          onlineRoom?.id ??
+          NEW_ROOM)),
   );
   const [newRoomName, setNewRoomName] = useState("Основная площадка");
   const [newRoomCapacity, setNewRoomCapacity] = useState(event.capacity);
   const creatingRoom = roomId === NEW_ROOM;
   const room = rooms.find((item) => item.id === roomId);
   const online = roomId === ONLINE_ROOM || !!room?.is_online;
-  const limit = creatingRoom ? newRoomCapacity : room?.capacity ?? event.capacity;
+  const limit = creatingRoom
+    ? newRoomCapacity
+    : (room?.capacity ?? event.capacity);
   const [capacity, setCapacity] = useState(
     activity?.capacity ?? Math.min(event.capacity, limit),
   );
@@ -61,7 +74,9 @@ export function ActivityForm({
         speaker: data.get("speaker"),
         room_id: creatingRoom || roomId === ONLINE_ROOM ? "" : roomId,
         online_room: online,
-        ...(creatingRoom ? {new_room_name: newRoomName, new_room_capacity: newRoomCapacity} : {}),
+        ...(creatingRoom
+          ? { new_room_name: newRoomName, new_room_capacity: newRoomCapacity }
+          : {}),
         starts_at,
         ends_at,
         capacity,
@@ -123,40 +138,76 @@ export function ActivityForm({
         {timeLabel(event.ends_at)} МСК.
       </p>
       <label>
-          Аудитория
-          <select
-            name="room_id"
-            required
-            value={roomId}
-            onChange={(e) => {
-              setRoomId(e.target.value);
-              const next = rooms.find((item) => item.id === e.target.value);
-              const nextLimit = e.target.value === NEW_ROOM ? newRoomCapacity : next?.capacity ?? event.capacity;
-              setCapacity((current) => Math.min(current, nextLimit));
-            }}
-          >
-            {rooms.filter((item) => !item.is_online).map((item) => (
+        Аудитория
+        <select
+          name="room_id"
+          required
+          value={roomId}
+          onChange={(e) => {
+            setRoomId(e.target.value);
+            const next = rooms.find((item) => item.id === e.target.value);
+            const nextLimit =
+              e.target.value === NEW_ROOM
+                ? newRoomCapacity
+                : (next?.capacity ?? event.capacity);
+            setCapacity((current) => Math.min(current, nextLimit));
+          }}
+        >
+          {rooms
+            .filter((item) => !item.is_online)
+            .map((item) => (
               <option key={item.id} value={item.id}>
                 {item.name} · {item.capacity} мест
               </option>
             ))}
-            <option value={onlineRoom?.id ?? ONLINE_ROOM}>Онлайн · Вебинар внутри ТФлоу</option>
-            <option value={NEW_ROOM}>Создать новую аудиторию</option>
-          </select>
+          <option value={onlineRoom?.id ?? ONLINE_ROOM}>
+            Онлайн · Вебинар внутри ТФлоу
+          </option>
+          <option value={NEW_ROOM}>Создать новую аудиторию</option>
+        </select>
       </label>
-      {creatingRoom && <fieldset className="program-new-room">
-        <legend>Новая аудитория</legend>
-        <p className="event-field-hint">Сохраним аудиторию вместе с пунктом программы.</p>
-        <div className="form-row">
-          <label>Название аудитории<input name="new_room_name" required value={newRoomName} onChange={e=>setNewRoomName(e.target.value)} /></label>
-          <label>Вместимость аудитории<input name="new_room_capacity" type="number" required min={1} value={newRoomCapacity}
-            onChange={e=>{const value=Number(e.target.value);setNewRoomCapacity(value);setCapacity(current=>Math.min(current,value));}} /></label>
-        </div>
-      </fieldset>}
-      {online && <p className="event-field-hint">
-        Один онлайн-поток внутри ТФлоу. Может идти одновременно с занятиями в очных аудиториях.
-        {event.format === "Очно" && " Событие станет гибридным, очная площадка сохранится."}
-      </p>}
+      {creatingRoom && (
+        <fieldset className="program-new-room">
+          <legend>Новая аудитория</legend>
+          <p className="event-field-hint">
+            Сохраним аудиторию вместе с пунктом программы.
+          </p>
+          <div className="form-row">
+            <label>
+              Название аудитории
+              <input
+                name="new_room_name"
+                required
+                value={newRoomName}
+                onChange={(e) => setNewRoomName(e.target.value)}
+              />
+            </label>
+            <label>
+              Вместимость аудитории
+              <input
+                name="new_room_capacity"
+                type="number"
+                required
+                min={1}
+                value={newRoomCapacity}
+                onChange={(e) => {
+                  const value = Number(e.target.value);
+                  setNewRoomCapacity(value);
+                  setCapacity((current) => Math.min(current, value));
+                }}
+              />
+            </label>
+          </div>
+        </fieldset>
+      )}
+      {online && (
+        <p className="event-field-hint">
+          Один онлайн-поток внутри ТФлоу. Может идти одновременно с занятиями в
+          очных аудиториях.
+          {event.format === "Очно" &&
+            " Событие станет гибридным, очная площадка сохранится."}
+        </p>
+      )}
       <div className="form-row">
         <label>
           Спикер · необязательно

@@ -71,6 +71,7 @@ import { OrganizerManage } from "./ui/organizer-manage";
 import { AccountMenu } from "./ui/account-menu";
 import { EventTimeFilterControl } from "./ui/event-time-filter";
 import { splitOrganizerEvents } from "../lib/organizer-events";
+import type { ProgramRange } from "../lib/program-editing";
 import { matchesEventTime, type EventTimeFilter } from "../lib/event-filters";
 import { OrganizerTutorial } from "./ui/organizer-tutorial";
 import { ProfileUpcomingEvents } from "./ui/profile-upcoming-events";
@@ -107,7 +108,7 @@ type DialogState =
     }
   | { type: "filters" }
   | { type: "room"; room?: Room }
-  | { type: "activity"; activity?: Activity }
+  | { type: "activity"; activity?: Activity; range?: ProgramRange }
   | null;
 const empty: Bootstrap = {
   events: [],
@@ -1427,8 +1428,8 @@ export function TFlow({ user }: { user: UserIdentity | null }) {
                       )
                     }
                     onRoom={(room) => setDialog({ type: "room", room })}
-                    onActivity={(activity) =>
-                      setDialog({ type: "activity", activity })
+                    onActivity={(activity, range) =>
+                      setDialog({ type: "activity", activity, range })
                     }
                     send={send}
                     refresh={refresh}
@@ -2256,15 +2257,20 @@ export function TFlow({ user }: { user: UserIdentity | null }) {
             event={detail.event}
             rooms={detail.rooms}
             activity={dialog.activity}
-            initialStart={(() => {
-              const lastEnd = Math.max(
-                detail.event.starts_at,
-                ...detail.activities.map((item) => item.ends_at),
-              );
-              return lastEnd < detail.event.ends_at
-                ? lastEnd
-                : detail.event.starts_at;
-            })()}
+            initialStart={
+              dialog.range?.starts_at ??
+              (() => {
+                const lastEnd = Math.max(
+                  detail.event.starts_at,
+                  ...detail.activities.map((item) => item.ends_at),
+                );
+                return lastEnd < detail.event.ends_at
+                  ? lastEnd
+                  : detail.event.starts_at;
+              })()
+            }
+            initialEnd={dialog.range?.ends_at}
+            initialRoomId={dialog.range?.room_id}
             send={send}
             done={() => closeForm()}
           />
