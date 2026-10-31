@@ -97,6 +97,14 @@ deploy-spirit:
   script:
     - python tflow/deploy/spirit/deploy.py release/manifest.json release/tflow-release.tar.gz
 
+deploy-spirit-cu:
+  extends: deploy-spirit
+  environment:
+    name: temporary-cu
+    url: https://hack-mmk-25-vm1-162f2c.teleport.t-education.com
+  script:
+    - python tflow/deploy/spirit/deploy.py release/manifest.json release/tflow-release.tar.gz --gateway
+
 # Maintenance uses the existing tenant-scoped Spirit CI identity. No key or
 # token is printed or stored in artifacts; only the public CLI is retained.
 .spirit-control:
