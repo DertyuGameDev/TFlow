@@ -207,6 +207,18 @@
   gap: 12px;
   flex-wrap: wrap;
 }
+.management-schedule-facts {
+  grid-template-columns: repeat(2, minmax(0, 1fr)) minmax(0, 1.5fr);
+}
+.management-schedule-facts time {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+.management-schedule-facts time strong {
+  font-size: 24px;
+  font-weight: 600;
+}
 .management-empty {
   padding: 38px 24px;
   border: 1px dashed var(--flow-border);
@@ -415,6 +427,13 @@
     grid-template-columns: 1fr;
     gap: 20px;
   }
+  .management-schedule-facts {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    gap: 20px 14px;
+  }
+  .management-schedule-facts > div:last-child {
+    grid-column: 1 / -1;
+  }
   .management-section-heading h2 {
     font-size: 20px;
   }
@@ -462,6 +481,9 @@
   }
 }
 @media (max-width: 350px) {
+  .management-schedule-facts dt > svg {
+    display: none;
+  }
   .management-tabs small {
     display: none;
   }

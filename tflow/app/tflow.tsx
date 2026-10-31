@@ -79,7 +79,10 @@ import { REQUIREMENT_FIELDS } from "../lib/profile-fields";
 type Route = { view: string; id?: string; mode?: string };
 type DialogState =
   | { type: "create"; startsAt?: number; communityId?: string }
-  | { type: "edit" | "move" | "cancel" | "delete"; event: FlowEvent }
+  | {
+      type: "edit" | "move" | "schedule" | "cancel" | "delete";
+      event: FlowEvent;
+    }
   | { type: "profile" | "avatar" }
   | {
       type: "enroll";
@@ -769,9 +772,11 @@ export function TFlow({ user }: { user: UserIdentity | null }) {
       text:
         dialog?.type === "create"
           ? "Черновик создан. Проверьте данные и опубликуйте событие."
-          : dialog?.type === "move"
-            ? "Событие перенесено. Участники уведомлены."
-            : "Сохранено",
+          : dialog?.type === "schedule"
+            ? "Расписание обновлено. Участники уведомлены."
+            : dialog?.type === "move"
+              ? "Событие перенесено. Участники уведомлены."
+              : "Сохранено",
       error: false,
     });
   };
@@ -1263,6 +1268,9 @@ export function TFlow({ user }: { user: UserIdentity | null }) {
                     onScan={() => go("scan", detail.event.id)}
                     onMove={() =>
                       setDialog({ type: "move", event: detail.event })
+                    }
+                    onSchedule={() =>
+                      setDialog({ type: "schedule", event: detail.event })
                     }
                     onEdit={() =>
                       setDialog({ type: "edit", event: detail.event })
@@ -1978,43 +1986,51 @@ export function TFlow({ user }: { user: UserIdentity | null }) {
           </button>
         </div>
       )}
-      {dialog && ["create", "edit", "move"].includes(dialog.type) && (
-        <Modal
-          title={
-            dialog.type === "create"
-              ? "Создать событие"
-              : dialog.type === "move"
-                ? "Перенести событие"
-                : "Изменить событие"
-          }
-          onClose={() => setDialog(null)}
-        >
-          <QuickEventForm
-            initialStart={
-              dialog.type === "create" ? dialog.startsAt : undefined
+      {dialog &&
+        ["create", "edit", "move", "schedule"].includes(dialog.type) && (
+          <Modal
+            title={
+              dialog.type === "create"
+                ? "Создать событие"
+                : dialog.type === "schedule"
+                  ? "Настройки расписания"
+                  : dialog.type === "move"
+                    ? "Перенести событие"
+                    : "Изменить событие"
             }
-            event={
-              dialog.type === "edit" || dialog.type === "move"
-                ? dialog.event
-                : undefined
-            }
-            move={dialog.type === "move"}
-            city={data.profile?.city || "Москва"}
-            communities={data.communities.filter(
-              (club) =>
-                club.joined ||
-                club.owner_id === user?.userId ||
-                ((dialog.type === "edit" || dialog.type === "move") &&
-                  club.id === dialog.event.community_id),
-            )}
-            initialCommunityId={
-              dialog.type === "create" ? dialog.communityId : undefined
-            }
-            send={send}
-            done={closeForm}
-          />
-        </Modal>
-      )}
+            onClose={() => setDialog(null)}
+          >
+            <QuickEventForm
+              initialStart={
+                dialog.type === "create" ? dialog.startsAt : undefined
+              }
+              event={
+                dialog.type === "edit" ||
+                dialog.type === "move" ||
+                dialog.type === "schedule"
+                  ? dialog.event
+                  : undefined
+              }
+              move={dialog.type === "move" || dialog.type === "schedule"}
+              schedule={dialog.type === "schedule"}
+              city={data.profile?.city || "Москва"}
+              communities={data.communities.filter(
+                (club) =>
+                  club.joined ||
+                  club.owner_id === user?.userId ||
+                  ((dialog.type === "edit" ||
+                    dialog.type === "move" ||
+                    dialog.type === "schedule") &&
+                    club.id === dialog.event.community_id),
+              )}
+              initialCommunityId={
+                dialog.type === "create" ? dialog.communityId : undefined
+              }
+              send={send}
+              done={closeForm}
+            />
+          </Modal>
+        )}
       {dialog?.type === "avatar" && data.profile && (
         <Modal title="Фото профиля" onClose={() => setDialog(null)}>
           <AvatarForm

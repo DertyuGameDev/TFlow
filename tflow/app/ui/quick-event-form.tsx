@@ -27,6 +27,7 @@ const EVENT_KINDS = [
 export function QuickEventForm({
   event,
   move = false,
+  schedule = false,
   city = "Москва",
   initialStart,
   communities = [],
@@ -36,6 +37,7 @@ export function QuickEventForm({
 }: {
   event?: FlowEvent;
   move?: boolean;
+  schedule?: boolean;
   city?: string;
   initialStart?: number;
   communities?: Community[];
@@ -62,6 +64,15 @@ export function QuickEventForm({
   );
   const previousStart = useRef(start);
   const online = format === "Онлайн";
+  const scheduleUnchanged =
+    schedule &&
+    event &&
+    startValue === localInput(event.starts_at) &&
+    endValue === localInput(event.ends_at) &&
+    (online ||
+      (selectedCity === event.city &&
+        physicalVenue.trim() === event.venue &&
+        physicalAddress.trim() === (event.address ?? "")));
   function changeStart(value: string) {
     setStartValue(value);
     const next = fromLocalInput(value);
@@ -263,7 +274,13 @@ export function QuickEventForm({
         data-form-step="1"
         hidden={step !== 1}
       >
-        <legend>{move ? "Новые время и место" : "Запланируйте встречу"}</legend>
+        <legend>
+          {schedule
+            ? "Дата, время и место"
+            : move
+              ? "Новые время и место"
+              : "Запланируйте встречу"}
+        </legend>
         <div className="form-row">
           <label>
             Начало · МСК
@@ -379,8 +396,9 @@ export function QuickEventForm({
       </fieldset>
       {move && (
         <p className="event-field-hint">
-          Программа сдвинется вместе с событием. Участники получат уведомление.
-          Пересечения проверим перед сохранением.
+          При изменении начала все активности сдвинутся на то же время.
+          Программа должна помещаться между началом и окончанием события.
+          Проверим пересечения и уведомим участников об изменениях.
         </p>
       )}
       <FormError error={error} />
@@ -404,12 +422,15 @@ export function QuickEventForm({
         ) : (
           <Submit
             busy={busy}
+            disabled={Boolean(scheduleUnchanged)}
             label={
-              move
-                ? "Перенести событие"
-                : event
-                  ? "Сохранить изменения"
-                  : "Создать черновик"
+              schedule
+                ? "Сохранить расписание"
+                : move
+                  ? "Перенести событие"
+                  : event
+                    ? "Сохранить изменения"
+                    : "Создать черновик"
             }
           />
         )}

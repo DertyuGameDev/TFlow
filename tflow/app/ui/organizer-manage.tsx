@@ -22,7 +22,7 @@ import type {
   RequiredProfileField,
   Room,
 } from "../../lib/types";
-import { dateLabel, timeLabel } from "../../lib/time";
+import { dateKey, dateLabel, timeLabel } from "../../lib/time";
 import { hasWebinar } from "../../lib/webinars";
 import { REQUIREMENT_FIELDS } from "../../lib/profile-fields";
 import { Modal } from "./dialog";
@@ -37,6 +37,7 @@ type Props = {
   busy: boolean;
   onScan: () => void;
   onMove: () => void;
+  onSchedule: () => void;
   onEdit: () => void;
   onDelete: () => void;
   onPublish: () => void;
@@ -54,6 +55,7 @@ export function OrganizerManage({
   busy,
   onScan,
   onMove,
+  onSchedule,
   onEdit,
   onDelete,
   onPublish,
@@ -102,7 +104,7 @@ export function OrganizerManage({
         a.starts_at - b.starts_at || a.title.localeCompare(b.title, "ru"),
     )
     .forEach((activity) => {
-      const date = dateLabel(activity.starts_at);
+      const date = dateKey(activity.starts_at);
       groups.set(date, [...(groups.get(date) ?? []), activity]);
     });
   const required = REQUIREMENT_FIELDS.filter((field) =>
@@ -289,9 +291,58 @@ export function OrganizerManage({
         hidden={section !== "program"}
         className="management-panel"
       >
+        <section className="management-card management-schedule">
+          <header className="management-section-heading">
+            <div>
+              <h2>Расписание мероприятия</h2>
+              <p>Общее время и место встречи. Всё время указано по МСК.</p>
+            </div>
+            <button className="button secondary" onClick={onSchedule}>
+              <Settings2 size={17} />
+              Настроить расписание
+            </button>
+          </header>
+          <dl className="management-facts management-schedule-facts">
+            <div>
+              <dt>
+                <CalendarDays size={15} />
+                Начало
+              </dt>
+              <dd>
+                <time dateTime={new Date(e.starts_at).toISOString()}>
+                  {dateLabel(e.starts_at, { year: "numeric" })}
+                  <strong>{timeLabel(e.starts_at)}</strong>
+                </time>
+              </dd>
+            </div>
+            <div>
+              <dt>
+                <Clock3 size={15} />
+                Окончание
+              </dt>
+              <dd>
+                <time dateTime={new Date(e.ends_at).toISOString()}>
+                  {dateLabel(e.ends_at, { year: "numeric" })}
+                  <strong>{timeLabel(e.ends_at)}</strong>
+                </time>
+              </dd>
+            </div>
+            <div>
+              <dt>
+                <MapPin size={15} />
+                Место
+              </dt>
+              <dd>
+                {e.format === "Онлайн"
+                  ? "Вебинар внутри ТФлоу"
+                  : [e.city, e.venue, e.address].filter(Boolean).join(" · ")}
+              </dd>
+            </div>
+          </dl>
+        </section>
         <header className="management-section-heading">
           <div>
-            <h2>Программа события</h2>
+            <h2>Активности</h2>
             <p>
               Лекции, выступления и другие активности, на которые можно
               записаться.
@@ -335,7 +386,9 @@ export function OrganizerManage({
           <div className="management-program">
             {[...groups].map(([date, activities]) => (
               <section key={date}>
-                <h3>{date}</h3>
+                <h3>
+                  {dateLabel(activities[0].starts_at, { year: "numeric" })}
+                </h3>
                 {activities.map((activity) => (
                   <article className="management-activity" key={activity.id}>
                     <div className="management-activity-time">
@@ -345,8 +398,8 @@ export function OrganizerManage({
                         {timeLabel(activity.starts_at)}–
                         {timeLabel(activity.ends_at)}
                       </time>
-                      {dateLabel(activity.starts_at) !==
-                        dateLabel(activity.ends_at) && (
+                      {dateKey(activity.starts_at) !==
+                        dateKey(activity.ends_at) && (
                         <small>до {dateLabel(activity.ends_at)}</small>
                       )}
                     </div>
