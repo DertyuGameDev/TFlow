@@ -72,11 +72,13 @@ def main():
         media_command(["scp",*options,str(config),f"{target}:{remote}/video.json"], "configuration transfer")
         script = Path(__file__).with_name("install_video.py").read_text()
         prepare_assets(private, remote, target, options, script, media_command)
-        result = media_command(["ssh",*options,target,shlex.join(["sudo","-n","python3","-",remote+"/video.json"])], "installation", input=script)
-        print(result.stdout)
-        print("Spirit network metadata:", json.dumps(network_metadata(vm)))
-        diagnostic = media_command(["ssh",*options,target,"sudo -n python3 -"], "VM network diagnostics", input=VM_CHECK)
-        print(diagnostic.stdout)
+        try:
+            result = media_command(["ssh",*options,target,shlex.join(["sudo","-n","python3","-",remote+"/video.json"])], "installation", input=script)
+            print(result.stdout)
+        finally:
+            print("Spirit network metadata:", json.dumps(network_metadata(vm)))
+            diagnostic = media_command(["ssh",*options,target,"sudo -n python3 -"], "VM network diagnostics", input=VM_CHECK)
+            print(diagnostic.stdout)
         verify_public(json.loads(config.read_text()))
 
 

@@ -175,6 +175,13 @@ def private_write(path, text, mode=0o600):
     temp.replace(path)
 
 
+def prepare_tls_directory(path):
+    # mkdir permissions are filtered by umask(077); repair existing directories too.
+    path.mkdir(mode=0o750, exist_ok=True)
+    path.chmod(0o750)
+    shutil.chown(path, group="tflow-video")
+
+
 def asset_state(path):
     if os.geteuid() != 0:
         raise RuntimeError("Run as root on the owned vm1")
@@ -212,11 +219,10 @@ def main(path):
     if values.get("ci_managed_certificate"):
         source = values.get("certificate_directory")
         target = Path("/etc/tflow-video/tls")
+        prepare_tls_directory(target)
         if source:
             if source != "/home/ubuntu/tflow-video-ci/tls":
                 raise ValueError("Unexpected certificate staging directory")
-            target.mkdir(mode=0o750, exist_ok=True)
-            shutil.chown(target, group="tflow-video")
             for name in ("fullchain.pem", "privkey.pem"):
                 private_write(target / name, (Path(source) / name).read_text(), 0o640)
                 shutil.chown(target / name, group="tflow-video")
@@ -283,7 +289,8 @@ def main(path):
     lines = [line for line in original.splitlines() if line.split("=",1)[0] not in updates]
     private_write(env, "\n".join([*lines,*[key+"="+value for key,value in updates.items()]])+"\n")
     run("systemctl", "restart", "tflow")
-    run("systemctl", "is-active", "--quiet", "tflow", "tflow-video", "caddy")
+    for service in ("tflow", "tflow-video", "caddy"):
+        run("systemctl", "is-active", "--quiet", service)
     path.unlink()
     if values.get("certificate_directory"):
         shutil.rmtree("/home/ubuntu/tflow-video-ci/tls")
