@@ -1,4 +1,4 @@
-from django.db import IntegrityError, transaction
+from django.db import DataError, IntegrityError, transaction
 from django.test import Client, TestCase, override_settings
 
 from flow.models import EventRegistration, Registration, User, WaitlistEntry
@@ -108,7 +108,15 @@ class FixedRoleTests(Scenario, TestCase):
         self.assertEqual(self.request("auth/me")["user"]["role"], "organizer")
         self.assertEqual(self.request("auth/me", client=self.participant)["user"]["role"], "participant")
 
-    def test_database_rejects_third_or_combined_role(self):
-        for role in ["admin", "participant,organizer", "", "both"]:
+    def test_database_rejects_third_role(self):
+        for role in ["admin", "", "both"]:
             with self.subTest(role=role), self.assertRaises(IntegrityError), transaction.atomic():
                 User.objects.filter(pk=self.person.pk).update(role=role)
+
+    def test_database_rejects_combined_role(self):
+        # PostgreSQL rejects the oversized varchar before evaluating CHECK;
+        # SQLite applies CHECK directly. Both must reject the invalid role.
+        with self.assertRaises((DataError, IntegrityError)), transaction.atomic():
+            User.objects.filter(pk=self.person.pk).update(role="participant,organizer")
+        self.person.refresh_from_db()
+        self.assertEqual(self.person.role, "participant")
