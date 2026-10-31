@@ -87,6 +87,22 @@ def event_for_webinar(user, event_id, *, activity_id=None, access_key=None):
     return event, owner, activity
 
 
+def start_time(event, activity=None):
+    return max(event.starts_at, activity.starts_at if activity else event.starts_at)
+
+
+def start_schedule(event, activity=None):
+    starts_at = start_time(event, activity)
+    now = timezone.now()
+    return {"starts_at": starts_at.isoformat(), "scheduled": now < starts_at,
+            "can_start": event.status == "published" and starts_at <= now < min(event.ends_at, activity.ends_at if activity else event.ends_at)}
+
+
+def ensure_started(event, activity=None):
+    if timezone.now() < start_time(event, activity):
+        raise FlowError("WEBINAR_TOO_EARLY", "Начать трансляцию можно только в назначенное время", 409)
+
+
 def status(user, event_id, *, activity_id=None, access_key=None):
     if settings.HTTP_BROADCAST_ENABLED:
         from .broadcasts import status as http_status
@@ -94,6 +110,7 @@ def status(user, event_id, *, activity_id=None, access_key=None):
     event, owner, activity = event_for_webinar(user, event_id, activity_id=activity_id, access_key=access_key)
     webinar = Webinar.objects.filter(event=event, activity=activity).first()
     return {
+        **start_schedule(event, activity),
         "configured": configured(),
         "configuration_error": configuration_error(),
         "host": owner,
@@ -231,6 +248,8 @@ def operate(user, event_id, operation, session=None, *, activity_id=None, access
                 "Эфир доступен у опубликованного незавершённого события",
                 409,
             )
+        if operation == "start":
+            ensure_started(event, activity)
         webinar, _ = Webinar.objects.get_or_create(event=event, activity=activity)
         if operation == "start" and not webinar.active:
             webinar.room = uuid.uuid4()

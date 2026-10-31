@@ -64,11 +64,13 @@ export function ActivityProgram({
   activities,
   personal = false,
   vertical = false,
+  focusActivityId,
   ...actions
 }: Actions & {
   activities: Activity[];
   personal?: boolean;
   vertical?: boolean;
+  focusActivityId?: string;
 }) {
   const [query, setQuery] = useState(""),
     [room, setRoom] = useState(""),
@@ -153,6 +155,7 @@ export function ActivityProgram({
       {vertical ? (
         <FlowSchedule
           activities={visible}
+          initialActivityId={focusActivityId}
           now={now}
           renderActivity={(a) => (
             <ActivityCard

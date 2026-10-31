@@ -365,7 +365,7 @@ def build_schema():
             description="Нужна регистрация на событие и, когда предусмотрено, на активность. Ключ ведущего передаётся в X-TFlow-Access-Key, не в URL.")
         add(endpoint, "post", "Запустить или завершить HTTPS-эфир", "Вебинары",
             body=object_schema({"operation":{"type":"string","enum":["start","end"]},"mime":{"type":"string","enum":["video/webm","video/mp4"]},"session":{"type":"string","format":"uuid"}}, ["operation"]),
-            description="Только ведущий; CSRF обязателен. При start возвращается приватный publisher для заголовка X-TFlow-Publisher. end требует текущую session.")
+            description="Только ведущий; CSRF обязателен. Ранний start отклоняется с 409 WEBINAR_TOO_EARLY; GET возвращает starts_at, scheduled и can_start. При start возвращается приватный publisher для заголовка X-TFlow-Publisher. end требует текущую session.")
     add("/broadcasts/{session}/chunks/{sequence}", "post", "Передать очередной видеофрагмент", "Вебинары",
         body={"type":"string","format":"binary"}, content_type="application/octet-stream",
         description="Только активная студия ведущего: CSRF и X-TFlow-Publisher. До 2 MiB, строгий порядок с 0, точный повтор последнего фрагмента идемпотентен. 429 означает заполненный буфер.")

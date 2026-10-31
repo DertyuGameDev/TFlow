@@ -56,6 +56,7 @@ const SCALES = [3, 5, 8, 12, 20, 32];
 
 export function FlowSchedule({
   activities,
+  initialActivityId,
   now,
   renderActivity,
   selectedId,
@@ -63,6 +64,7 @@ export function FlowSchedule({
   label = "Флоу мероприятия",
 }: {
   activities: Activity[];
+  initialActivityId?: string;
   now: number;
   renderActivity: (activity: Activity) => ReactNode;
   selectedId?: string;
@@ -70,7 +72,8 @@ export function FlowSchedule({
   label?: string;
 }) {
   const [zoom, setZoom] = useState(0),
-    [opened, setOpened] = useState("");
+    [opened, setOpened] = useState(initialActivityId ?? "");
+  useEffect(() => { if (initialActivityId) setOpened(initialActivityId); }, [initialActivityId]);
   const [viewportWidth, setViewportWidth] = useState(0),
     [scrollX, setScrollX] = useState(0),
     [detailsHeight, setDetailsHeight] = useState(0);

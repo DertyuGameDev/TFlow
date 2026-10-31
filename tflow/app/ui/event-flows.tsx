@@ -39,7 +39,7 @@ export function EventFlows({ onManage, focusActivityId, ...program }: Props) {
               ? "Активности без отдельной записи доступны участникам мероприятия. Добавляйте их в расписание; на остальные бронируйте место."
               : "Запишитесь на понравившиеся активности. Проверим пересечения в расписании; если места закончились, можно встать в лист ожидания."}
           </p>}
-          <ActivityProgram {...program} vertical />
+          <ActivityProgram {...program} focusActivityId={focusActivityId} vertical />
         </>
       ) : (
         <div className="event-flows-empty">

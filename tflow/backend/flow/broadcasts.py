@@ -20,7 +20,7 @@ from django.views.decorators.cache import never_cache
 from .contracts import FlowError
 from .models import BroadcastMessage, HttpBroadcast, CheckIn, ActivityAttendance
 from .services import schedule_write
-from .webinars import event_for_webinar
+from .webinars import event_for_webinar, start_schedule, ensure_started
 
 MAX_CHUNK = 2 * 1024 * 1024
 MAX_QUEUED_CHUNKS = 12
@@ -62,7 +62,7 @@ def status(user, event_id, *, activity_id=None, access_key=None):
     ready = worker_ready()
     active = live(broadcast)
     playlist = stream_dir(broadcast.session) / "index.m3u8" if broadcast else None
-    return {"transport": "https", "configured": ready,
+    return {**start_schedule(event, activity), "transport": "https", "configured": ready,
             "configuration_error": "" if ready else "Трансляции временно недоступны. Попробуйте ещё раз чуть позже.",
             "host": owner, "active": active, "session": str(broadcast.session) if broadcast else None,
             "ready": bool(active and playlist.is_file()),
@@ -122,6 +122,10 @@ def control(request, resource, item_id):
     if operation not in {"start", "end"}:
         raise FlowError("VALIDATION", "Неизвестное действие", 400)
     with schedule_write():
+        # Re-read schedule and host rights under the same lock as the start.
+        event, owner, activity = scope(request.user, resource, item_id, access_key(request))
+        if not owner:
+            raise FlowError("FORBIDDEN", "Управлять эфиром может только ведущий", 403)
         broadcast, _ = HttpBroadcast.objects.get_or_create(event=event, activity=activity)
         if operation == "end":
             if data.get("session") != str(broadcast.session):
@@ -130,6 +134,7 @@ def control(request, resource, item_id):
             broadcast.save(update_fields=["active", "publisher_hash"])
             return JsonResponse({"active": False})
         ensure_open(event, activity)
+        ensure_started(event, activity)
         if not worker_ready():
             raise FlowError("VIDEO_NOT_CONFIGURED", "Сервис трансляции временно недоступен", 503)
         if live(broadcast):

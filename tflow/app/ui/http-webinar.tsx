@@ -3,12 +3,13 @@ import Hls from "hls.js";
 import { Mic, MicOff, MonitorUp, Video, VideoOff, Send as SendIcon, Square, Play, LogOut } from "lucide-react";
 import type { Activity, FlowEvent } from "../../lib/types";
 import { BroadcastCapture, BroadcastUpload, broadcastRequest, recordingMime } from "../../lib/http-broadcast";
+import { dateLabel, timeLabel } from "../../lib/time";
 import { FormError } from "./forms";
 import { Modal } from "./dialog";
 import "../http-webinar.css";
 
 export type HttpStatus = { host: boolean; active: boolean; configured: boolean; session: string | null; ready?: boolean;
-  playlist?: string | null; ended: boolean; published: boolean; failure?: string; configuration_error?: string };
+  starts_at?: string; scheduled?: boolean; can_start?: boolean; playlist?: string | null; ended: boolean; published: boolean; failure?: string; configuration_error?: string };
 type Message = { id: string; author: string; text: string; own: boolean };
 
 export default function HttpWebinar({ event, activity, initialStatus, accessKey }: {
@@ -24,6 +25,9 @@ export default function HttpWebinar({ event, activity, initialStatus, accessKey 
   const capture = useRef<BroadcastCapture | null>(null), upload = useRef<BroadcastUpload | null>(null);
   const ownSession = useRef<string | null>(null), alive = useRef(true), starting = useRef(false), pollBusy = useRef(false);
   const hls = useRef<Hls | null>(null);
+  const scheduled = status.scheduled === true;
+  const startAt = status.starts_at ? Date.parse(status.starts_at) : Math.max(event.starts_at, activity?.starts_at ?? event.starts_at);
+  const startLabel = `${dateLabel(startAt)} в ${timeLabel(startAt)} МСК`;
   const screenSupported = !!navigator.mediaDevices?.getDisplayMedia;
   const request = <T,>(path: string, options?: RequestInit) => broadcastRequest<T>(path, options, accessKey);
   const post = <T,>(path: string, data: object) => request<T>(path, { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(data) });
@@ -126,7 +130,7 @@ export default function HttpWebinar({ event, activity, initialStatus, accessKey 
     } finally { if (alive.current) setDeviceBusy(false); }
   }
   async function start() {
-    if (starting.current) return;
+    if (starting.current || scheduled || status.can_start === false) return;
     starting.current = true; setBusy(true); setError("");
     try {
       const current = getCapture(), mime = recordingMime().split(";")[0];
@@ -157,8 +161,9 @@ export default function HttpWebinar({ event, activity, initialStatus, accessKey 
   }
   return <section className="webinar-shell http-webinar" aria-label={status.host ? "Студия трансляции" : "Просмотр трансляции"}>
     <header className="http-webinar-heading"><div><h2>{activity?.title ?? "Прямой эфир"}</h2>
-      <p>{status.active ? (status.ready ? "В эфире" : "Готовим трансляцию…") : status.ended ? "Мероприятие завершено" : "Ведущий ещё не начал эфир"}</p></div>
+      <p>{status.active ? (status.ready ? "В эфире" : "Готовим трансляцию…") : status.ended ? "Мероприятие завершено" : scheduled ? `Начало ${startLabel}` : status.host ? "Подготовьте камеру и микрофон" : "Ведущий ещё не начал эфир"}</p></div>
       <span className="http-webinar-badge">{publishing ? "● Вы в эфире" : "Трансляция"}</span></header>
+    {scheduled && <p className="http-webinar-schedule" id="broadcast-schedule">Эфир начнётся {startLabel}. {status.host ? "До начала можно проверить камеру, микрофон и показ экрана. Кнопка запуска станет доступна автоматически." : "Когда ведущий начнёт трансляцию, появится возможность подключиться."}</p>}
     <p className="http-webinar-delay">Звук и видео идут с небольшой задержкой. Вопросы можно задавать в чате.</p>
     <FormError error={error}/>
     {!status.configured && <p role="status">{status.configuration_error}</p>}
@@ -176,7 +181,7 @@ export default function HttpWebinar({ event, activity, initialStatus, accessKey 
           <button className="button secondary" aria-pressed={devices.microphone} disabled={deviceBusy} onClick={() => void device("microphone")}>{devices.microphone ? <Mic/> : <MicOff/>}{devices.microphone ? "Выключить микрофон" : "Включить микрофон"}</button>
           <button className="button secondary" aria-pressed={devices.camera} disabled={deviceBusy} onClick={() => void device("camera")}>{devices.camera ? <Video/> : <VideoOff/>}{devices.camera ? "Выключить камеру" : "Включить камеру"}</button>
           <button className="button secondary" aria-pressed={devices.screen} disabled={deviceBusy || !screenSupported} onClick={() => void device("screen")}><MonitorUp/>{devices.screen ? "Остановить показ" : "Показать экран"}</button>
-          {!status.active ? <button className="button primary" disabled={busy || !status.configured || status.ended || !status.published} onClick={() => void start()}><Play/>{busy ? "Запускаем…" : "Начать эфир"}</button>
+          {!status.active ? <button className="button primary" aria-describedby={scheduled ? "broadcast-schedule" : undefined} disabled={busy || !status.configured || status.ended || !status.published || scheduled || status.can_start === false} onClick={() => void start()}><Play/>{busy ? "Запускаем…" : "Начать эфир"}</button>
             : <button className="button danger-outline" disabled={busy} onClick={() => setConfirmEnd(true)}><Square/>Завершить эфир</button>}
         </> : joined ? <button className="button secondary" onClick={() => { setJoined(false); setAudioHelp(false); }}><LogOut/>Выйти из просмотра</button>
           : <button className="button primary" disabled={!status.active || status.ended} onClick={() => { setError(""); setJoined(true); }}><Play/>Смотреть эфир</button>}

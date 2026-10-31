@@ -25,6 +25,7 @@ import {
   type Participant,
 } from "livekit-client";
 import type { Activity, FlowEvent, UserIdentity } from "../../lib/types";
+import { dateLabel, timeLabel } from "../../lib/time";
 import { webinarPath } from "../../lib/webinars";
 import { publishScreenShare, screenShareContext, screenShareError, screenShareUnavailable } from "../../lib/screen-share";
 import { microphoneError, microphoneSignal } from "../../lib/audio-level";
@@ -36,6 +37,9 @@ const HttpWebinar = lazy(() => import("./http-webinar"));
 
 type Status = {
   transport?: string;
+  scheduled?: boolean;
+  can_start?: boolean;
+  starts_at?: string;
   configured: boolean;
   configuration_error?: string;
   host: boolean;
@@ -511,6 +515,8 @@ export default function Webinar({
                   ? "Сначала опубликуйте событие, затем начните эфир."
                   : status.ended
                     ? "Событие завершилось."
+                    : status.scheduled
+                      ? `Начало ${dateLabel(Date.parse(status.starts_at!))} в ${timeLabel(Date.parse(status.starts_at!))} МСК. Запуск станет доступен в назначенное время.`
                     : status.finished
                       ? host
                         ? "Предыдущий эфир завершён. Вы можете начать новую трансляцию."
@@ -528,6 +534,7 @@ export default function Webinar({
               !status?.configured ||
               !status?.published ||
               status?.ended ||
+              (host && (status?.scheduled || status?.can_start === false)) ||
               (!host && !status?.active)
             }
             onClick={() => void connect()}

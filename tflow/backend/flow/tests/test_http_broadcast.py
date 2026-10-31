@@ -1,3 +1,4 @@
+from .webinar_clock import freeze_webinar_clock
 from datetime import timedelta
 import json
 from pathlib import Path
@@ -20,6 +21,7 @@ from .test_api import FAST_HASHER, Scenario
 class HttpBroadcastTests(Scenario, TransactionTestCase):
     def setUp(self):
         super().setUp()
+        self.webinar_clock = freeze_webinar_clock(self, self.start + timedelta(minutes=31))
         self.private = tempfile.TemporaryDirectory()
         self.override = override_settings(HTTP_BROADCAST_ROOT=Path(self.private.name))
         self.override.enable()
@@ -35,6 +37,31 @@ class HttpBroadcastTests(Scenario, TransactionTestCase):
     def upload(self, lease, seq=0, data=b"\x1aE\xdf\xa3test", client=None, publisher=None):
         return (client or self.client).post(f"/api/broadcasts/{lease['session']}/chunks/{seq}",
             data=data, content_type="application/octet-stream", HTTP_X_TFLOW_PUBLISHER=publisher if publisher is not None else lease["publisher"])
+
+    def test_start_is_rejected_until_exact_scheduled_instant_without_side_effects(self):
+        self.webinar_clock.now.return_value = self.start - timedelta(microseconds=1)
+        state = self.request(self.endpoint)
+        self.assertTrue(state["scheduled"])
+        self.assertFalse(state["can_start"])
+        self.assertEqual(state["starts_at"], self.start.isoformat())
+        self.request(self.endpoint, "post", {"operation": "start", "mime": "video/webm"}, status=409, code="WEBINAR_TOO_EARLY")
+        self.assertFalse(HttpBroadcast.objects.exists())
+        self.assertFalse(any(Path(self.private.name).glob("*/")))
+        self.webinar_clock.now.return_value = self.start
+        self.assertTrue(self.request(self.endpoint)["can_start"])
+        self.begin()
+
+    def test_activity_uses_its_own_start_and_rechecks_changed_schedule(self):
+        self.r2.is_online = True; self.r2.save()
+        path = f"activities/{self.b.pk}/broadcast"
+        self.webinar_clock.now.return_value = self.start
+        self.request(path, "post", {"operation": "start", "mime": "video/webm"}, status=409, code="WEBINAR_TOO_EARLY")
+        self.assertEqual(self.request(path)["starts_at"], self.b.starts_at.isoformat())
+        self.webinar_clock.now.return_value = self.b.starts_at
+        lease = self.request(path, "post", {"operation": "start", "mime": "video/webm"})
+        self.request(path, "post", {"operation": "end", "session": lease["session"]})
+        self.b.starts_at += timedelta(minutes=5); self.b.save(update_fields=["starts_at"])
+        self.request(path, "post", {"operation": "start", "mime": "video/webm"}, status=409, code="WEBINAR_TOO_EARLY")
 
     def test_private_status_and_publisher_rights(self):
         self.request(self.endpoint, client=Client(), status=401)

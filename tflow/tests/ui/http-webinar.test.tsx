@@ -29,3 +29,20 @@ it("requires an explicit viewer action and displays preparation instead of a bro
   expect(screen.getByRole("button", { name: "Выйти из просмотра" })).toBeVisible();
   expect(screen.queryByRole("button", { name: "Включить камеру" })).not.toBeInTheDocument();
 });
+
+it("blocks an early start and unlocks automatically only after the server allows it", async () => {
+  const scheduled = { ...waiting, host: true, scheduled: true, can_start: false, starts_at: "2026-11-01T12:00:00+03:00" };
+  let state = scheduled;
+  vi.stubGlobal("fetch", vi.fn(async () => ({ ok: true, json: async () => state })));
+  const view = render(<HttpWebinar event={event} initialStatus={scheduled}/>);
+  const start = screen.getByRole("button", { name: "Начать эфир" });
+  expect(start).toBeDisabled();
+  expect(screen.getByText(/До начала можно проверить камеру/)).toHaveTextContent("1 ноября в 12:00 МСК");
+  expect(screen.getByRole("button", { name: "Включить камеру" })).toBeEnabled();
+  await userEvent.click(start);
+  expect(vi.mocked(fetch).mock.calls.every(([, options]) => options?.method !== "POST")).toBe(true);
+  state = { ...scheduled, scheduled: false, can_start: true };
+  await waitFor(() => expect(start).toBeEnabled(), { timeout: 3500 });
+  expect(screen.queryByText(/До начала можно проверить камеру/)).not.toBeInTheDocument();
+  view.unmount();
+});

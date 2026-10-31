@@ -1683,13 +1683,14 @@ export function TFlow({ user }: { user: UserIdentity | null }) {
                       event={detail.event}
                       organizer={organizer}
                       signedIn={!!user}
-                      initialSection={route.mode}
+                      initialSection={detail.activities.some(a => a.id === route.mode) ? "program" : route.mode}
                       meta={<EventMeta event={detail.event} />}
                       personalCount={detail.activities.filter(
                         activity => activity.registered || activity.waitlisted,
                       ).length}
                       program={
                         <EventFlows
+                          focusActivityId={detail.activities.some(a => a.id === route.mode) ? route.mode : undefined}
                           key={detail.event.id}
                           activities={detail.activities}
                           {...programActions}
