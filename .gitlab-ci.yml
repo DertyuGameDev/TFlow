@@ -8,6 +8,7 @@ workflow:
   rules:
     - if: '$CI_COMMIT_BRANCH == "main" || $CI_COMMIT_BRANCH == $CI_DEFAULT_BRANCH'
     - if: '$CI_PIPELINE_SOURCE == "merge_request_event" && $CI_MERGE_REQUEST_SOURCE_BRANCH_NAME != "main"'
+    - if: '$CI_COMMIT_BRANCH == "Sviat" && $CI_PIPELINE_SOURCE == "api" && $TFLOW_VIDEO_NETWORK_CHECK == "1"'
 
 default:
   interruptible: true
@@ -164,6 +165,28 @@ spirit-readiness:
   artifacts:
     expire_in: 1 day
     paths: [.spirit-cli/dp]
+
+# Independent of application deployment. Adds at most UDP 8082 if explicitly
+# requested; never reapplies a template, restarts services or rebuilds the VM.
+spirit-video-ingress:
+  extends: .spirit-control
+  needs: []
+  rules:
+    - if: '$CI_COMMIT_BRANCH == "Sviat" && $CI_PIPELINE_SOURCE == "api" && $TFLOW_VIDEO_NETWORK_CHECK == "1"'
+      when: on_success
+      allow_failure: false
+    - if: '$CI_COMMIT_BRANCH == $CI_DEFAULT_BRANCH'
+      when: manual
+  before_script:
+    - apt-get update -qq
+    - apt-get install -y --no-install-recommends openssh-client ca-certificates
+  script:
+    - |
+      if [ "${TFLOW_VIDEO_ALLOW_UDP:-0}" = "1" ]; then
+        python tflow/deploy/spirit/video_ingress.py --allow-udp
+      else
+        python tflow/deploy/spirit/video_ingress.py
+      fi
 
 provision-owned-video:
   extends: .spirit-control
