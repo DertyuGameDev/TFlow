@@ -152,3 +152,4 @@
 :root[data-theme="dark"] .interest-option:has(input:focus-visible)>span,
 :root[data-theme="dark"] #id_interests label:has(input:focus-visible){outline-color:#ffdd2d}
 :root[data-theme="dark"] #id_interests.grouped-interests{border-color:var(--theme-border)}
+:root[data-theme="dark"] .clubs-search:focus-within{border-color:#ffdd2d}
