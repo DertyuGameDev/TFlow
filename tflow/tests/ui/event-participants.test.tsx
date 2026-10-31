@@ -27,7 +27,7 @@ const manageProps = {
   detail: { event: { ...event, participant_count: 7 }, rooms: [], activities: [] },
   rows: attendees,
   busy: false,
-  onScan: vi.fn(), onMove: vi.fn(), onSchedule: vi.fn(), onEdit: vi.fn(),
+  onScan: vi.fn(), onMove: vi.fn(), onSchedule: vi.fn(), onCreate: vi.fn(), onEdit: vi.fn(),
   onDelete: vi.fn(), onPublish: vi.fn(), onRoom: vi.fn(), onActivity: vi.fn(),
   onOpenPublic: vi.fn(), onOpenWebinar: vi.fn(), send: vi.fn(), refresh: vi.fn(),
 };
