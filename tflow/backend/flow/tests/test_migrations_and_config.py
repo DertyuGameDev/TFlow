@@ -3,6 +3,7 @@ import os
 from pathlib import Path
 import subprocess
 import sys
+import tomllib
 from datetime import timedelta
 
 from django.db import connection
@@ -77,6 +78,17 @@ class LegacyMigrationTests(TransactionTestCase):
 
 
 class ProductionConfigTests(SimpleTestCase):
+    def test_vercel_runtime_matches_the_verified_dependency_lock(self):
+        root = Path(__file__).resolve().parents[3]
+        project = tomllib.loads((root / "pyproject.toml").read_text())
+        vercel_dependencies = {value.casefold() for value in project["project"]["dependencies"]}
+        locked_dependencies = {
+            value.strip().casefold()
+            for value in (root / "backend" / "requirements.lock.txt").read_text().splitlines()
+            if value.strip() and not value.lstrip().startswith("#")
+        }
+        self.assertEqual(vercel_dependencies, locked_dependencies)
+
     def read_config(self, **changes):
         # A fresh process is needed: changing environment variables after Django
         # initializes would not exercise the actual deployment configuration.
