@@ -24,7 +24,8 @@ import {
   createLocalScreenTracks,
   type Participant,
 } from "livekit-client";
-import type { FlowEvent, UserIdentity } from "../../lib/types";
+import type { Activity, FlowEvent, UserIdentity } from "../../lib/types";
+import { webinarPath } from "../../lib/webinars";
 import { publishScreenShare, screenShareContext, screenShareError, screenShareUnavailable } from "../../lib/screen-share";
 import { microphoneError, microphoneSignal } from "../../lib/audio-level";
 import { FormError, type Send } from "./forms";
@@ -72,10 +73,12 @@ function Media({ track, muted = false }: { track: Track; muted?: boolean }) {
 
 export default function Webinar({
   event,
+  activity,
   user,
   send,
 }: {
   event: FlowEvent;
+  activity?: Activity;
   user: UserIdentity;
   send: Send;
 }) {
@@ -106,7 +109,8 @@ export default function Webinar({
   const [microphoneId, setMicrophoneId] = useState("default");
   const screenOperation = useRef<symbol | null>(null);
   const screenUnavailable = screenShareUnavailable(captureContext);
-  const roomUrl = `${location.origin}/#webinar/${encodeURIComponent(event.id)}`;
+  const roomUrl = `${location.origin}/${webinarPath(event.id, activity?.id)}`;
+  const endpoint = activity ? `activities/${activity.id}/webinar` : `events/${event.id}/webinar`;
   const host = user.role === "organizer" && event.owner_id === user.userId;
   function update() {
     if (alive.current) setTick((value) => value + 1);
@@ -114,7 +118,7 @@ export default function Webinar({
   async function confirmAttendance(current: Room, currentSession: string) {
     setAttendanceBusy(true);
     try {
-      await send(`events/${event.id}/webinar`, "POST", {operation: "confirm", session: currentSession});
+      await send(endpoint, "POST", {operation: "confirm", session: currentSession});
       if (alive.current && roomRef.current === current) setAttendanceError("");
     } catch {
       if (alive.current && roomRef.current === current) setAttendanceError("Вы в эфире. Посещение пока не подтверждено сервером.");
@@ -140,7 +144,7 @@ export default function Webinar({
     if (connecting.current) return;
     const sequence = ++statusSequence.current;
     try {
-      const next = (await send(`events/${event.id}/webinar`, "GET")) as Status;
+      const next = (await send(endpoint, "GET")) as Status;
       if (!alive.current || sequence !== statusSequence.current) return;
       setStatus(next);
       if (roomRef.current && (!next.active || session.current !== next.session))
@@ -169,7 +173,7 @@ export default function Webinar({
       void roomRef.current?.disconnect();
       roomRef.current = null;
     };
-  }, [event.id, send]);
+  }, [endpoint, send]);
   function receive(
     payload: Uint8Array,
     participant?: Participant,
@@ -217,7 +221,7 @@ export default function Webinar({
       // Unlock playback during the click, before token and connection requests.
       room = new Room({ adaptiveStream: true, dynacast: true });
       void room.startAudio().catch(() => {});
-      const access = (await send(`events/${event.id}/webinar`, "POST", {
+      const access = (await send(endpoint, "POST", {
         operation: host ? "start" : "join",
       })) as Access;
       if (!alive.current) { await room.disconnect(); return; }
@@ -362,7 +366,7 @@ export default function Webinar({
     setBusy(true);
     setError("");
     try {
-      await send(`events/${event.id}/webinar`, "POST", { operation: "end" });
+      await send(endpoint, "POST", { operation: "end" });
       await leave();
       setConfirmEnd(false);
       await loadStatus();
@@ -432,16 +436,17 @@ export default function Webinar({
   void tick;
   return (
     <section
-      id={`webinar-${event.id}`}
+      id={`webinar-${activity?.id ?? event.id}`}
       className="webinar-panel"
-      aria-label="Вебинар события"
+      aria-label={activity ? `Вебинар флоу: ${activity.title}` : "Вебинар события"}
     >
       <header className="webinar-heading">
         <div>
           <span className={`webinar-state ${status?.active ? "is-live" : ""}`}>
             {status?.active ? "● В эфире" : "Онлайн на ТФлоу"}
           </span>
-          <h2>{host ? "Ваш вебинар" : "Вебинар события"}</h2>
+          <h2>{activity ? activity.title : host ? "Ваш вебинар" : "Вебинар события"}</h2>
+          {activity && <p>Онлайн-аудитория: {activity.room_name} · {event.title}</p>}
           <p>
             {host
               ? "Вы ведёте эфир, участники смотрят и задают вопросы в чате."
@@ -736,13 +741,14 @@ export default function Webinar({
       )}
       {confirmEnd && (
         <Modal
-          title="Завершить эфир для всех?"
+          title={activity ? `Завершить эфир «${activity.title}»?` : "Завершить эфир для всех?"}
           dismissible={!busy}
           onClose={() => setConfirmEnd(false)}
         >
           <p className="confirmation-copy">
-            Трансляция остановится у всех зрителей. При необходимости вы сможете
-            начать новый эфир этого события.
+            {activity
+              ? "Остановится только этот флоу. Другие эфиры мероприятия продолжат работать. Вы сможете запустить этот флоу заново."
+              : "Трансляция остановится у всех зрителей. При необходимости вы сможете начать новый общий эфир этого события."}
           </p>
           <FormError error={error} />
           <div className="confirmation-actions">

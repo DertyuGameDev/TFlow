@@ -4,13 +4,28 @@ from urllib.error import HTTPError
 from django.test import TestCase, override_settings
 from django.utils import timezone
 
-from flow.models import CheckIn, EventRegistration, Webinar
+from flow.models import CheckIn, EventRegistration, Registration, Webinar
 from .test_api import FAST_HASHER, Scenario
 from .test_webinar_transport import VIDEO
 
 
 @override_settings(PASSWORD_HASHERS=FAST_HASHER, **VIDEO)
 class WebinarAttendanceTests(Scenario, TestCase):
+    @patch("flow.webinars.room_api")
+    def test_activity_room_confirmation_uses_its_session_and_requires_activity_registration(self, server):
+        self.r1.is_online = True
+        self.r1.save()
+        Registration.objects.create(user=self.person, activity=self.a)
+        room = Webinar.objects.create(event=self.event, activity=self.a, active=True, started_at=timezone.now())
+        server.return_value = {"identity": self.person.pk, "state": "ACTIVE"}
+        body = {"operation": "confirm", "session": str(room.room)}
+        self.request(f"activities/{self.a.pk}/webinar", "post", body, client=self.participant)
+        self.assertEqual(CheckIn.objects.get().event_id, self.event.pk)
+        self.assertEqual(server.call_args.args[1], "tflow-" + str(room.room))
+        EventRegistration.objects.create(user=self.other, event=self.event)
+        self.request(f"activities/{self.a.pk}/webinar", "post", body, client=self.stranger, status=403, code="NOT_REGISTERED")
+        self.assertEqual(server.call_count, 1)
+
     def setUp(self):
         super().setUp()
         self.event.format = "Онлайн"

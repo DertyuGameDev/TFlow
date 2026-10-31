@@ -7,7 +7,7 @@ import jwt
 from django.conf import settings
 from django.utils import timezone
 from .contracts import FlowError
-from .models import CheckIn, Event, Webinar
+from .models import Activity, CheckIn, Event, Webinar
 
 
 def configured():
@@ -18,10 +18,15 @@ def configured():
     )
 
 
-def event_for_webinar(user, event_id):
+def event_for_webinar(user, event_id, *, activity_id=None):
+    activity = None
     try:
-        event = Event.objects.select_related("webinar").get(pk=event_id)
-    except Event.DoesNotExist as error:
+        if activity_id:
+            activity = Activity.objects.select_related("event", "room").get(pk=activity_id)
+            event = activity.event
+        else:
+            event = Event.objects.get(pk=event_id)
+    except (Event.DoesNotExist, Activity.DoesNotExist) as error:
         raise FlowError("NOT_FOUND", "Мероприятие не найдено", 404) from error
     owner = event.owner_id == user.pk and user.role == "organizer"
     if event.status != "published" and not owner:
@@ -30,24 +35,30 @@ def event_for_webinar(user, event_id):
         raise FlowError(
             "NOT_WEBINAR", "Видеокомната доступна для онлайн- и гибридных событий", 400
         )
+    if activity and not activity.room.is_online:
+        raise FlowError("NOT_WEBINAR", "У этой активности очная аудитория", 400)
     if not owner and user.role != "participant":
-        raise FlowError("FORBIDDEN", "Организатору доступна только студия своего события", 403)
+        raise FlowError(
+            "FORBIDDEN", "Организатору доступна только студия своего события", 403
+        )
     if not owner and not event.enrollments.filter(user=user).exists():
         raise FlowError(
             "NOT_REGISTERED", "Сначала зарегистрируйтесь на это событие", 403
         )
-    return event, owner
+    if activity and not owner and not activity.registrations.filter(user=user).exists():
+        raise FlowError("NOT_REGISTERED", "Сначала запишитесь на эту онлайн-активность", 403)
+    return event, owner, activity
 
 
-def status(user, event_id):
-    event, owner = event_for_webinar(user, event_id)
-    webinar = getattr(event, "webinar", None)
+def status(user, event_id, *, activity_id=None):
+    event, owner, activity = event_for_webinar(user, event_id, activity_id=activity_id)
+    webinar = Webinar.objects.filter(event=event, activity=activity).first()
     return {
         "configured": configured(),
         "host": owner,
         "active": bool(webinar and webinar.active),
         "session": str(webinar.room) if webinar else None,
-        "ended": event.ends_at <= timezone.now(),
+        "ended": min(event.ends_at, activity.ends_at if activity else event.ends_at) <= timezone.now(),
         "published": event.status == "published",
         "finished": bool(webinar and webinar.ended_at),
     }
@@ -113,22 +124,25 @@ def room_api(method, room, **values):
         ) from error
 
 
-def stop_webinar(event):
-    webinar = Webinar.objects.filter(event=event, active=True).first()
-    if webinar:
+def stop_webinar(event, *, activity_id=None, all_rooms=False):
+    webinars = Webinar.objects.filter(event=event, active=True)
+    if not all_rooms:
+        webinars = webinars.filter(activity_id=activity_id)
+    for webinar in webinars:
         room_api("DeleteRoom", room_name(webinar))
         webinar.active = False
         webinar.ended_at = timezone.now()
         webinar.save(update_fields=["active", "ended_at"])
 
 
-def disconnect_viewer(user, event_id):
-    webinar = (
+def disconnect_viewer(user, event_id, *, activity_id=None):
+    webinars = (
         Webinar.objects.filter(event_id=event_id, active=True)
         .exclude(event__owner=user)
-        .first()
     )
-    if webinar:
+    if activity_id is not None:
+        webinars = webinars.filter(activity_id=activity_id)
+    for webinar in webinars:
         try:
             room_api("RemoveParticipant", room_name(webinar), identity=str(user.pk))
         except FlowError:
@@ -137,11 +151,11 @@ def disconnect_viewer(user, event_id):
             pass
 
 
-def operate(user, event_id, operation, session=None):
+def operate(user, event_id, operation, session=None, *, activity_id=None):
     from .services import schedule_write
 
     with schedule_write():
-        event, owner = event_for_webinar(user, event_id)
+        event, owner, activity = event_for_webinar(user, event_id, activity_id=activity_id)
         if operation not in {"start", "join", "end", "confirm"}:
             raise FlowError("VALIDATION", "Неизвестное действие с эфиром", 400)
         if operation in {"start", "end"} and not owner:
@@ -155,15 +169,16 @@ def operate(user, event_id, operation, session=None):
                 503,
             )
         if operation == "end":
-            stop_webinar(event)
+            stop_webinar(event, activity_id=activity_id)
             return {"active": False}
-        if event.status != "published" or event.ends_at <= timezone.now():
+        ends_at = min(event.ends_at, activity.ends_at if activity else event.ends_at)
+        if event.status != "published" or ends_at <= timezone.now():
             raise FlowError(
                 "WEBINAR_CLOSED",
                 "Эфир доступен у опубликованного незавершённого события",
                 409,
             )
-        webinar, _ = Webinar.objects.get_or_create(event=event)
+        webinar, _ = Webinar.objects.get_or_create(event=event, activity=activity)
         if operation == "start" and not webinar.active:
             webinar.room = uuid.uuid4()
             online_room = event.rooms.filter(is_online=True).first()
@@ -172,6 +187,8 @@ def operate(user, event_id, operation, session=None):
                 if online_room
                 else event.capacity
             )
+            if activity:
+                viewer_limit = min(event.capacity, activity.capacity, activity.room.capacity)
             room_api(
                 "CreateRoom",
                 room_name(webinar),

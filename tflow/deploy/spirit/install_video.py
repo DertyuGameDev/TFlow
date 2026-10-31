@@ -153,6 +153,10 @@ def main(path):
     private_write(Path("/usr/local/lib/tflow/video-dns-hook"), DNS_HOOK, 0o700)
     private_write(Path("/usr/local/lib/tflow/video-renew-hook"), RENEW_HOOK, 0o700)
     Path("/usr/local/lib/tflow").chmod(0o755)
+    if not Path(f"/etc/letsencrypt/live/{HOST}/fullchain.pem").exists():
+        # Do not consume a CA validation attempt while the signed relay is down.
+        print("Checking signed DNS relay before the first certificate request", flush=True)
+        run("env", "CERTBOT_DOMAIN="+HOST, "CERTBOT_VALIDATION="+"a"*43, "/usr/local/lib/tflow/video-dns-hook", "cleanup")
     print("DNS-01 certificate request started", flush=True)
     run("certbot", "certonly", "--manual", "--preferred-challenges", "dns", "--manual-auth-hook", "/usr/local/lib/tflow/video-dns-hook", "--manual-cleanup-hook", "/usr/local/lib/tflow/video-dns-hook cleanup", "--deploy-hook", "/usr/local/lib/tflow/video-renew-hook", "--non-interactive", "--agree-tos", "--email", "sidovidchenko@gmail.com", "--keep-until-expiring", "-d", HOST)
     run("/usr/local/lib/tflow/video-renew-hook")
