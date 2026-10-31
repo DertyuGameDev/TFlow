@@ -27,11 +27,13 @@ import { hasWebinar } from "../../lib/webinars";
 import { REQUIREMENT_FIELDS } from "../../lib/profile-fields";
 import { Modal } from "./dialog";
 import { ParticipantDetails, RegistrationSettings } from "./profile-data";
+import { EventParticipants } from "./event-participants";
 import type { Send } from "./forms";
 import "../event-management.css";
 
 type Section = "event" | "program" | "participants";
 type Props = {
+  initialSection?: Section;
   detail: EventDetail;
   rows: AttendanceRow[];
   busy: boolean;
@@ -50,6 +52,7 @@ type Props = {
 };
 
 export function OrganizerManage({
+  initialSection = "event",
   detail,
   rows,
   busy,
@@ -66,7 +69,7 @@ export function OrganizerManage({
   send,
   refresh,
 }: Props) {
-  const [section, setSection] = useState<Section>("event");
+  const [section, setSection] = useState<Section>(initialSection);
   const [query, setQuery] = useState("");
   const [filter, setFilter] = useState("all");
   const [settingsOpen, setSettingsOpen] = useState(false);
@@ -221,6 +224,15 @@ export function OrganizerManage({
             <dd>{Math.max(0, e.participant_count - e.checked_in_count)}</dd>
           </div>
         </dl>
+        <EventParticipants
+          rows={rows}
+          onShowAll={() => {
+            setQuery("");
+            setFilter("all");
+            setSection("participants");
+            document.getElementById(`${id}-tab-participants`)?.focus();
+          }}
+        />
         <article className="management-card">
           <header className="management-section-heading">
             <h2>О событии</h2>

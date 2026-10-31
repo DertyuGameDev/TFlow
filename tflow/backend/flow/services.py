@@ -308,6 +308,7 @@ def save_activity(user, data, *, event_id=None, activity_id=None):
             owned_event(activity.event_id, user)
         else:
             activity = Activity(event=owned_event(event_id, user))
+        changed = any(getattr(activity, key) != value for key, value in data.items())
         for key, value in data.items():
             setattr(activity, key, value)
         validate_activity(activity)
@@ -316,7 +317,7 @@ def save_activity(user, data, *, event_id=None, activity_id=None):
         Event.objects.filter(pk=activity.event_id).update(
             updated_at=activity.updated_at
         )
-        if activity_id:
+        if activity_id and changed:
             create_notifications(
                 [
                     Notification(
@@ -539,6 +540,8 @@ def cancel_event(user, event_id):
 def move_event(user, event_id, data):
     with schedule_write():
         event = owned_event(event_id, user)
+        if all(getattr(event, key) == value for key, value in data.items()):
+            return
         delta = data["starts_at"] - event.starts_at
         activities = list(event.activities.select_related("room"))
         ids = [activity.pk for activity in activities]

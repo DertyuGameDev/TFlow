@@ -167,3 +167,13 @@ class ProfileRequirementsTests(Scenario, TestCase):
         rows = self.request(f"events/{self.event.pk}/attendance")
         self.assertEqual(rows[0]["profile_data"]["name"], self.person.name)
 
+    def test_another_organizer_cannot_read_registered_participant_profiles(self):
+        self.request(self.path, "post", {"phone": "+7 999 111-22-33"}, client=self.participant)
+        self.other.role = "organizer"
+        self.other.save(update_fields=["role"])
+        self.request(f"events/{self.event.pk}/attendance", client=self.stranger, status=403)
+        detail = self.request(f"events/{self.event.pk}", client=self.stranger)
+        self.assertEqual(detail["event"]["participant_count"], 1)
+        self.assertNotIn("profile_data", str(detail))
+        self.assertNotIn("+7 999 111-22-33", str(detail))
+

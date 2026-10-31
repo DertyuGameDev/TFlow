@@ -66,6 +66,7 @@ import { EventRemovalDialog } from "./ui/event-removal-dialog";
 import { NotificationCenter } from "./ui/notification-center";
 import { Clubs } from "./ui/clubs";
 import { OrganizerManage } from "./ui/organizer-manage";
+import { EventParticipants } from "./ui/event-participants";
 import { ThemeToggle } from "./ui/theme-toggle";
 const Webinar = lazy(() => import("./ui/webinar"));
 import {
@@ -77,6 +78,11 @@ import { ApiError } from "../lib/api-error";
 import { REQUIREMENT_FIELDS } from "../lib/profile-fields";
 
 type Route = { view: string; id?: string; mode?: string };
+function attendanceScope(view: string, organizer: boolean) {
+  if (!organizer) return "none";
+  if (view === "event") return "owner";
+  return ["manage", "scan"].includes(view) ? "required" : "none";
+}
 type DialogState =
   | { type: "create"; startsAt?: number; communityId?: string }
   | {
@@ -105,8 +111,8 @@ const empty: Bootstrap = {
   unread_notification_count: 0,
   profile: null,
 };
-const go = (view: string, id?: string) => {
-  location.hash = id ? `${view}/${id}` : view;
+const go = (view: string, id?: string, mode?: string) => {
+  location.hash = [view, id, mode].filter(Boolean).join("/");
   window.scrollTo({ top: 0, behavior: "instant" });
 };
 const routeFromHash = (organizer: boolean): Route => {
@@ -634,13 +640,21 @@ export function TFlow({ user }: { user: UserIdentity | null }) {
     }
   }, [send]);
   const loadDetail = useCallback(
-    async (id: string, host = false) => {
+    async (id: string, attendance: "none" | "owner" | "required" = "none") => {
       const n = ++detailSequence.current;
       try {
-        const [next, attendees] = await Promise.all([
-          send(`events/${id}`),
-          host ? send(`events/${id}/attendance`) : Promise.resolve([]),
-        ]);
+        const eventRequest: Promise<EventDetail> = send(`events/${id}`);
+        const rowsRequest =
+          attendance === "required"
+            ? send(`events/${id}/attendance`)
+            : attendance === "owner"
+              ? eventRequest.then((next) =>
+                  next.event.owner_id === user?.userId
+                    ? send(`events/${id}/attendance`)
+                    : [],
+                )
+              : Promise.resolve([]);
+        const [next, attendees] = await Promise.all([eventRequest, rowsRequest]);
         if (n === detailSequence.current) {
           setDetail(next);
           setRows(attendees);
@@ -650,13 +664,13 @@ export function TFlow({ user }: { user: UserIdentity | null }) {
         if (n === detailSequence.current) setDetailError((e as Error).message);
       }
     },
-    [send],
+    [send, user?.userId],
   );
   const refresh = useCallback(async () => {
     await load();
     const r = latest.current;
     if (r.id && ["event", "webinar", "manage", "scan"].includes(r.view))
-      await loadDetail(r.id, organizer && ["manage", "scan"].includes(r.view));
+      await loadDetail(r.id, attendanceScope(r.view, organizer));
   }, [load, loadDetail, organizer]);
   useEffect(() => {
     const change = () => {
@@ -686,7 +700,7 @@ export function TFlow({ user }: { user: UserIdentity | null }) {
     if (route.id && ["event", "webinar", "manage", "scan"].includes(route.view))
       void loadDetail(
         route.id,
-        organizer && ["manage", "scan"].includes(route.view),
+        attendanceScope(route.view, organizer),
       );
   }, [route, organizer, loadDetail]);
   useEffect(() => {
@@ -1260,6 +1274,9 @@ export function TFlow({ user }: { user: UserIdentity | null }) {
                 ) : detail ? (
                   <OrganizerManage
                     key={detail.event.id}
+                    initialSection={
+                      route.mode === "participants" ? "participants" : "event"
+                    }
                     detail={detail}
                     busy={pending}
                     onOpenPublic={() => go("event", detail.event.id)}
@@ -1468,6 +1485,15 @@ export function TFlow({ user }: { user: UserIdentity | null }) {
                             </div>
                           </div>
                         </section>
+                        {organizer && detail.event.owner_id === user?.userId && (
+                          <EventParticipants
+                            key={detail.event.id}
+                            rows={rows}
+                            onShowAll={() =>
+                              go("manage", detail.event.id, "participants")
+                            }
+                          />
+                        )}
                         {detail.activities.length > 0 && (
                           <details className="guest-program" open>
                             <summary>
