@@ -27,6 +27,12 @@ def response(body=b"{}"):
 
 @override_settings(**VIDEO)
 class WebinarTransportTests(SimpleTestCase):
+    @override_settings(LIVEKIT_API_URL="http://127.0.0.1:7880")
+    @patch("flow.webinars.urlopen")
+    def test_owned_server_control_stays_on_loopback_while_browser_uses_public_wss(self, transport):
+        transport.return_value = response()
+        room_api("GetParticipant", "room", identity="viewer")
+        self.assertEqual(transport.call_args.args[0].full_url, "http://127.0.0.1:7880/twirp/livekit.RoomService/GetParticipant")
     @patch("flow.webinars.urlopen")
     def test_create_room_sends_signed_server_grant_and_capacity(self, transport):
         transport.return_value = response(b'{"name":"test-room"}')

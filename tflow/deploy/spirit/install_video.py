@@ -167,6 +167,7 @@ def main(path):
     run("caddy", "validate", "--config", caddy)
     run("systemctl", "daemon-reload")
     run("systemctl", "enable", "--now", "tflow-video")
+    run("systemctl", "restart", "tflow-video")
     if shutil.which("ufw") and "Status: active" in run("ufw", "status").stdout:
         for port in (8080, 8081, 8083):
             run("ufw", "allow", str(port)+"/tcp")
@@ -175,7 +176,7 @@ def main(path):
     env = Path("/etc/tflow/app.env")
     original = env.read_text()
     private_write(Path("/var/backups/tflow") / f"before-video-env-{time.time_ns()}.env", original)
-    updates = {"LIVEKIT_URL":f"wss://{HOST}:8080", "LIVEKIT_API_KEY":values["api_key"], "LIVEKIT_API_SECRET":values["api_secret"]}
+    updates = {"LIVEKIT_URL":f"wss://{HOST}:8080", "LIVEKIT_API_URL":"http://127.0.0.1:7880", "LIVEKIT_API_KEY":values["api_key"], "LIVEKIT_API_SECRET":values["api_secret"]}
     lines = [line for line in original.splitlines() if line.split("=",1)[0] not in updates]
     private_write(env, "\n".join([*lines,*[key+"="+value for key,value in updates.items()]])+"\n")
     run("systemctl", "restart", "tflow")

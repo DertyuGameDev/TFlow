@@ -75,7 +75,7 @@ def room_name(webinar):
 
 def room_api(method, room, **values):
     url = (
-        settings.LIVEKIT_URL.replace("wss://", "https://", 1)
+        (settings.LIVEKIT_API_URL or settings.LIVEKIT_URL).replace("wss://", "https://", 1)
         .replace("ws://", "http://", 1)
         .rstrip("/")
     )
