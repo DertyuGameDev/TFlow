@@ -103,7 +103,7 @@ export function ProgramTimeline({
   const ticks = programTimeTicks(start, end);
   const dense = projection.nodes.some((node) => node.segment.items.length > 1);
   const selectedItem = items.find((item) => item.id === selectedId) ?? items[0];
-  const step = (zoom >= 4 ? 1 : 5) * PROGRAM_MINUTE;
+  const step = PROGRAM_MINUTE;
   const editor = useTimelineEditor({
     event,
     activities,

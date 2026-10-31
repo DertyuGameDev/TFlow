@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import type { Activity, FlowEvent, Room } from "../../lib/types";
 import {
   dateLabel,
@@ -31,14 +31,10 @@ export function ActivityForm({
   done: () => void;
 }) {
   const start = activity?.starts_at ?? initialStart ?? event.starts_at;
+  const end =
+    activity?.ends_at ?? initialEnd ?? Math.min(start + 3600000, event.ends_at);
   const [startsAt, setStartsAt] = useState(localInput(start));
-  const [endsAt, setEndsAt] = useState(
-    localInput(
-      activity?.ends_at ??
-        initialEnd ??
-        Math.min(start + 3600000, event.ends_at),
-    ),
-  );
+  const [endsAt, setEndsAt] = useState(localInput(end));
   const onlineRoom = rooms.find((item) => item.is_online);
   const [roomId, setRoomId] = useState(
     activity?.room_id ??
@@ -60,6 +56,20 @@ export function ActivityForm({
   const [capacity, setCapacity] = useState(
     activity?.capacity ?? Math.min(event.capacity, limit),
   );
+  const presetRoom = rooms.find((item) => item.id === initialRoomId);
+  const presetRoomId = presetRoom?.id,
+    presetRoomCapacity = presetRoom?.capacity;
+  const editingExisting = Boolean(activity);
+  useEffect(() => {
+    setStartsAt(localInput(start));
+    setEndsAt(localInput(end));
+  }, [start, end]);
+  useEffect(() => {
+    if (editingExisting || !presetRoomId || presetRoomCapacity === undefined)
+      return;
+    setRoomId(presetRoomId);
+    setCapacity((current) => Math.min(current, presetRoomCapacity));
+  }, [editingExisting, presetRoomId, presetRoomCapacity]);
   const { submit, error, busy } = useSubmit(async (data) => {
     const starts_at = fromLocalInput(String(data.get("starts_at")));
     const ends_at = fromLocalInput(String(data.get("ends_at")));

@@ -869,6 +869,37 @@ export function TFlow({ user }: { user: UserIdentity | null }) {
       error: false,
     });
   };
+  const activityEditorKey =
+    dialog?.type === "activity" ? dialog.activity?.id ?? "new" : undefined;
+  const activityEditor = dialog?.type === "activity" && detail ? (
+    <ActivityForm
+      key={activityEditorKey}
+      event={detail.event}
+      rooms={detail.rooms}
+      activity={
+        dialog.activity
+          ? detail.activities.find((item) => item.id === dialog.activity?.id) ??
+            dialog.activity
+          : undefined
+      }
+      initialStart={
+        dialog.range?.starts_at ??
+        (() => {
+          const lastEnd = Math.max(
+            detail.event.starts_at,
+            ...detail.activities.map((item) => item.ends_at),
+          );
+          return lastEnd < detail.event.ends_at
+            ? lastEnd
+            : detail.event.starts_at;
+        })()
+      }
+      initialEnd={dialog.range?.ends_at}
+      initialRoomId={dialog.range?.room_id}
+      send={send}
+      done={() => closeForm()}
+    />
+  ) : null;
   const own = data.events.filter((e) => e.owner_id === user?.userId);
   const ownSections = splitOrganizerEvents(own);
   const visibleOwn = ownSections[ownEventSection];
@@ -1459,9 +1490,26 @@ export function TFlow({ user }: { user: UserIdentity | null }) {
                       )
                     }
                     onRoom={(room) => setDialog({ type: "room", room })}
-                    onActivity={(activity, range) =>
-                      setDialog({ type: "activity", activity, range })
-                    }
+                    onActivity={(activity, range) => {
+                      const lastEnd = Math.max(
+                        detail.event.starts_at,
+                        ...detail.activities.map((item) => item.ends_at),
+                      );
+                      const start = lastEnd < detail.event.ends_at
+                        ? lastEnd
+                        : detail.event.starts_at;
+                      setDialog({
+                        type: "activity",
+                        activity,
+                        range: range ?? (activity ? undefined : {
+                          starts_at: start,
+                          ends_at: Math.min(start + 3600000, detail.event.ends_at),
+                        }),
+                      });
+                    }}
+                    activityEditor={activityEditor}
+                    activityEditorKey={activityEditorKey}
+                    onCloseActivity={() => setDialog(null)}
                     send={send}
                     refresh={refresh}
                   />
@@ -2260,7 +2308,7 @@ export function TFlow({ user }: { user: UserIdentity | null }) {
           />
         </Modal>
       )}
-      {dialog?.type === "activity" && detail && (
+      {dialog?.type === "activity" && detail && route.view !== "manage" && (
         <Modal
           title={
             dialog.activity
@@ -2270,27 +2318,7 @@ export function TFlow({ user }: { user: UserIdentity | null }) {
           wide
           onClose={() => setDialog(null)}
         >
-          <ActivityForm
-            event={detail.event}
-            rooms={detail.rooms}
-            activity={dialog.activity}
-            initialStart={
-              dialog.range?.starts_at ??
-              (() => {
-                const lastEnd = Math.max(
-                  detail.event.starts_at,
-                  ...detail.activities.map((item) => item.ends_at),
-                );
-                return lastEnd < detail.event.ends_at
-                  ? lastEnd
-                  : detail.event.starts_at;
-              })()
-            }
-            initialEnd={dialog.range?.ends_at}
-            initialRoomId={dialog.range?.room_id}
-            send={send}
-            done={() => closeForm()}
-          />
+          {activityEditor}
         </Modal>
       )}
       {dialog?.type === "filters" && (

@@ -1,4 +1,11 @@
-import { useId, useState, type KeyboardEvent } from "react";
+import {
+  useEffect,
+  useId,
+  useRef,
+  useState,
+  type KeyboardEvent,
+  type ReactNode,
+} from "react";
 import {
   ArrowRight,
   ArrowUpRight,
@@ -14,6 +21,7 @@ import {
   Trash2,
   Users,
   Video,
+  X,
 } from "lucide-react";
 import type {
   Activity,
@@ -49,6 +57,9 @@ type Props = {
   onPublish: () => void;
   onRoom: (room?: Room) => void;
   onActivity: (activity?: Activity, range?: ProgramRange) => void;
+  activityEditor?: ReactNode;
+  activityEditorKey?: string;
+  onCloseActivity?: () => void;
   onOpenPublic: () => void;
   onOpenWebinar: () => void;
   send: Send;
@@ -69,6 +80,9 @@ export function OrganizerManage({
   onPublish,
   onRoom,
   onActivity,
+  activityEditor,
+  activityEditorKey,
+  onCloseActivity,
   onOpenPublic,
   onOpenWebinar,
   send,
@@ -79,6 +93,14 @@ export function OrganizerManage({
   const [filter, setFilter] = useState("all");
   const [settingsOpen, setSettingsOpen] = useState(false);
   const id = useId();
+  const editor = useRef<HTMLElement>(null);
+  useEffect(() => {
+    if (!activityEditorKey) return;
+    editor.current?.scrollIntoView({ block: "start" });
+    editor.current
+      ?.querySelector<HTMLInputElement>('input[name="title"]')
+      ?.focus({ preventScroll: true });
+  }, [activityEditorKey]);
   const e = detail.event;
   const tabs = [
     { id: "event" as const, label: "Событие", icon: CalendarDays },
@@ -374,6 +396,28 @@ export function OrganizerManage({
             Добавить пункт программы
           </button>
         </header>
+        {activityEditor && (
+          <section
+            className="management-card management-program-editor"
+            ref={editor}
+            aria-labelledby={`${id}-activity-editor-title`}
+          >
+            <header className="management-section-heading">
+              <h3 id={`${id}-activity-editor-title`}>Пункт программы</h3>
+              {onCloseActivity && (
+                <button
+                  type="button"
+                  className="icon-button"
+                  aria-label="Закрыть форму пункта программы"
+                  onClick={onCloseActivity}
+                >
+                  <X size={20} />
+                </button>
+              )}
+            </header>
+            {activityEditor}
+          </section>
+        )}
         <ProgramTimeline
           event={e}
           activities={detail.activities}
