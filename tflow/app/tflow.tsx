@@ -69,6 +69,7 @@ import { Clubs } from "./ui/clubs";
 import { OrganizerManage } from "./ui/organizer-manage";
 import { AccountMenu } from "./ui/account-menu";
 import { EventTimeFilterControl } from "./ui/event-time-filter";
+import { splitOrganizerEvents } from "../lib/organizer-events";
 import { matchesEventTime, type EventTimeFilter } from "../lib/event-filters";
 import { OrganizerTutorial } from "./ui/organizer-tutorial";
 import { ProfileUpcomingEvents } from "./ui/profile-upcoming-events";
@@ -593,7 +594,9 @@ export function TFlow({ user }: { user: UserIdentity | null }) {
     [format, setFormat] = useState(""),
     [date, setDate] = useState("");
   const [eventTime, setEventTime] = useState<EventTimeFilter>("all");
-  const [ownEventTime, setOwnEventTime] = useState<EventTimeFilter>("all");
+  const [ownEventSection, setOwnEventSection] = useState<
+    "upcoming" | "archive"
+  >("upcoming");
   const latest = useRef(route),
     loadSequence = useRef(0),
     detailSequence = useRef(0);
@@ -800,7 +803,8 @@ export function TFlow({ user }: { user: UserIdentity | null }) {
     });
   };
   const own = data.events.filter((e) => e.owner_id === user?.userId);
-  const visibleOwn = own.filter((e) => matchesEventTime(e, ownEventTime));
+  const ownSections = splitOrganizerEvents(own);
+  const visibleOwn = ownSections[ownEventSection];
   const visible = data.events.filter(
     (e) =>
       e.status === "published" &&
@@ -1261,10 +1265,30 @@ export function TFlow({ user }: { user: UserIdentity | null }) {
                         </strong>
                       </div>
                     </div>
-                    <EventTimeFilterControl
-                      value={ownEventTime}
-                      onChange={setOwnEventTime}
-                    />
+                    <div
+                      className="segmented event-time-filter"
+                      role="group"
+                      aria-label="Разделы моих событий"
+                    >
+                      {(
+                        [
+                          ["upcoming", "Предстоящие"],
+                          ["archive", "Архив"],
+                        ] as const
+                      ).map(([section, label]) => (
+                        <button
+                          type="button"
+                          key={section}
+                          className={
+                            ownEventSection === section ? "selected" : ""
+                          }
+                          aria-pressed={ownEventSection === section}
+                          onClick={() => setOwnEventSection(section)}
+                        >
+                          {label} · {ownSections[section].length}
+                        </button>
+                      ))}
+                    </div>
                     <div className="host-events">
                       {visibleOwn.map((e) => (
                         <OrganizerEvent
@@ -1278,14 +1302,28 @@ export function TFlow({ user }: { user: UserIdentity | null }) {
                       ))}
                       {visibleOwn.length === 0 && (
                         <Empty
-                          title="Таких событий пока нет"
-                          text="Выберите другое состояние мероприятий."
+                          title={
+                            ownEventSection === "archive"
+                              ? "Архив пока пуст"
+                              : "Нет предстоящих событий"
+                          }
+                          text={
+                            ownEventSection === "archive"
+                              ? "После завершения мероприятия появятся здесь автоматически."
+                              : "Прошедшие встречи находятся в архиве. Создайте новое событие, чтобы пригласить участников."
+                          }
                         >
                           <button
                             className="button secondary"
-                            onClick={() => setOwnEventTime("all")}
+                            onClick={() =>
+                              ownEventSection === "archive"
+                                ? setOwnEventSection("upcoming")
+                                : setDialog({ type: "create" })
+                            }
                           >
-                            Показать все
+                            {ownEventSection === "archive"
+                              ? "К предстоящим событиям"
+                              : "Создать событие"}
                           </button>
                         </Empty>
                       )}
