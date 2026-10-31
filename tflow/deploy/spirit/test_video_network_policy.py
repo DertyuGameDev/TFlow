@@ -10,6 +10,15 @@ from control import BASE, VM_PATH, ControlError
 
 class VideoNetworkPolicyTests(unittest.TestCase):
     @patch("check_video_network_policy.urlopen")
+    def test_plain_security_group_response_is_supported_and_missing_rules_rejected(self, upstream):
+        api = SimpleNamespace(token="test-token", vm=Mock())
+        upstream.return_value = io.BytesIO(b'{"rules":[{"protocol":"udp","port_from":8082,"port_to":8082}]}')
+        self.assertEqual(inspect_security_group(api)["rules"][0]["protocol"], "udp")
+        upstream.return_value = io.BytesIO(b'{"unexpected":true}')
+        with self.assertRaisesRegex(ControlError, "unrecognized rules schema"):
+            inspect_security_group(api)
+
+    @patch("check_video_network_policy.urlopen")
     def test_actual_security_group_is_read_without_returning_private_fields(self, upstream):
         attributes = {"rules": [{"direction": "ingress", "protocol": "tcp", "port_from": 8000,
             "port_to": 8100, "cidr_v4": "0.0.0.0/0", "description": "private-note"},

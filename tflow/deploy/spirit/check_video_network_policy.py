@@ -30,9 +30,12 @@ def inspect_security_group(api):
     request = Request(BASE + path, headers={"Authorization": "Bearer " + api.token, "Accept": "application/json"})
     try:
         with urlopen(request, timeout=20) as response:
-            attributes = json.load(response).get("attributes", {})
+            payload = json.load(response)
     except HTTPError as error:
         raise ControlError("VM security group returned HTTP " + str(error.code)) from None
+    attributes = payload.get("attributes", payload)
+    if not isinstance(attributes, dict) or not isinstance(attributes.get("rules"), list):
+        raise ControlError("VM security group returned an unrecognized rules schema")
     rules = []
     for rule in attributes.get("rules", []):
         rules.append({
