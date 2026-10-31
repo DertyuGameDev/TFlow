@@ -568,6 +568,7 @@ def build_schema():
         "Участники",
         body="Scan",
         result={"type": "object"},
+        description="Одноразовый вход на событие. Повторное предъявление QR после успешного входа возвращает 409 ALREADY_CHECKED_IN. На другом событии требуется отдельная регистрация; личный QR сохраняется.",
     )
     add(
         "/schedule/calendar",

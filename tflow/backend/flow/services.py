@@ -861,4 +861,9 @@ def check_in(user, event_id, raw):
         entry, created = CheckIn.objects.get_or_create(
             user=person, event=event, defaults={"checked_by": user}
         )
-        return person, entry, not created
+        if not created:
+            raise FlowError(
+                "ALREADY_CHECKED_IN",
+                "QR-код уже использован для входа на это мероприятие. Повторный вход запрещён",
+            )
+        return person, entry, False
