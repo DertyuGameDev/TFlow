@@ -43,8 +43,8 @@ beforeEach(() => {
 });
 afterEach(() => history.replaceState({}, "", "/"));
 
-function server() {
-  let activities = [{ ...first }];
+function server(initial: Activity[] = [first]) {
+  let activities = initial.map((item) => ({ ...item }));
   const writes: { path: string; body: Record<string, unknown> }[] = [];
   vi.stubGlobal(
     "fetch",
@@ -104,11 +104,18 @@ function server() {
   return writes;
 }
 
+async function mountTimeline() {
+  render(<TFlow user={host} />);
+  await userEvent
+    .setup()
+    .click(await screen.findByRole("button", { name: "Шкала времени" }));
+}
+
 describe("редактирование прямо на графике", () => {
   it("показывает аудитории над графиком, не создаёт отдельную форму и добавляет пункт по Enter", async () => {
     const writes = server(),
       user = userEvent.setup();
-    render(<TFlow user={host} />);
+    await mountTimeline();
     const graph = await screen.findByRole("region", {
       name: "Графическое расписание",
     });
@@ -164,7 +171,7 @@ describe("редактирование прямо на графике", () => {
   it("открывает существующий пункт на графике и сохраняет название и минутное время вместе", async () => {
     const writes = server(),
       user = userEvent.setup();
-    render(<TFlow user={host} />);
+    await mountTimeline();
     await user.click(
       await screen.findByRole("button", { name: "Лекция · 10:00–10:30" }),
     );
@@ -211,7 +218,7 @@ describe("редактирование прямо на графике", () => {
   it("сохраняет перенос целого пункта вместе с названием после подтверждения", async () => {
     const writes = server(),
       user = userEvent.setup();
-    render(<TFlow user={host} />);
+    await mountTimeline();
     await user.click(
       await screen.findByRole("button", { name: "Лекция · 10:00–10:30" }),
     );
@@ -221,9 +228,7 @@ describe("редактирование прямо на графике", () => {
     });
     await user.clear(title);
     await user.type(title, "Передвинутая лекция");
-    screen
-      .getByRole("button", { name: "Переместить Лекция" })
-      .focus();
+    screen.getByRole("button", { name: "Переместить Лекция" }).focus();
     await user.keyboard("{Alt>}{ArrowRight}{/Alt}");
     await waitFor(() =>
       expect(
@@ -249,7 +254,7 @@ describe("редактирование прямо на графике", () => {
   it("отменяет новую запись без запроса к серверу", async () => {
     const writes = server(),
       user = userEvent.setup();
-    render(<TFlow user={host} />);
+    await mountTimeline();
     await user.click(
       await screen.findByRole("button", { name: "Добавить пункт" }),
     );
@@ -270,7 +275,7 @@ describe("редактирование прямо на графике", () => {
   it("дополнительные параметры не дублируют название и время", async () => {
     server();
     const user = userEvent.setup();
-    render(<TFlow user={host} />);
+    await mountTimeline();
     await user.click(
       await screen.findByRole("button", { name: "Лекция · 10:00–10:30" }),
     );
@@ -290,6 +295,72 @@ describe("редактирование прямо на графике", () => {
     expect(within(dialog).getByLabelText("Лимит мест")).toBeVisible();
     expect(
       within(dialog).getByLabelText("Спикер · необязательно"),
+    ).toBeVisible();
+  });
+});
+
+describe("вертикальный флоу организатора", () => {
+  it("редактирует внутри блока и не теряет название при изменении порядка пунктов", async () => {
+    const writes = server([
+      first,
+      {
+        ...first,
+        id: "other",
+        title: "Другой пункт",
+        starts_at: first.starts_at + 15 * 60000,
+        ends_at: first.ends_at + 15 * 60000,
+        room_id: "second",
+      },
+    ]);
+    const user = userEvent.setup();
+    render(<TFlow user={host} />);
+    const flow = await screen.findByRole("region", {
+      name: "Флоу организатора",
+    });
+    expect(
+      within(flow).getByRole("list", { name: "Флоу мероприятия" }),
+    ).toBeVisible();
+    expect(
+      screen.queryByRole("region", { name: "Графическое расписание" }),
+    ).not.toBeInTheDocument();
+    await user.click(
+      within(flow).getByRole("button", {
+        name: "Изменить пункт программы Лекция",
+      }),
+    );
+    const editor = within(flow).getByRole("form", { name: "Пункт на графике" });
+    const title = within(editor).getByRole("textbox", {
+      name: "Название пункта на графике",
+    });
+    await user.clear(title);
+    await user.type(title, "Название остаётся");
+    fireEvent.change(
+      within(editor).getByLabelText("Начало пункта на графике"),
+      { target: { value: "10:50" } },
+    );
+    fireEvent.change(
+      within(editor).getByLabelText("Окончание пункта на графике"),
+      { target: { value: "11:10" } },
+    );
+    expect(title).toHaveValue("Название остаётся");
+    expect(within(flow).getByRole("form", { name: "Пункт на графике" })).toBe(
+      editor,
+    );
+    await user.click(title);
+    await user.keyboard("{Enter}");
+    await waitFor(() => expect(writes).toHaveLength(1));
+    expect(writes[0].body).toMatchObject({
+      title: "Название остаётся",
+      starts_at: first.starts_at + 50 * 60000,
+      ends_at: first.starts_at + 70 * 60000,
+    });
+    expect(
+      await within(flow).findByRole("heading", { name: "Название остаётся" }),
+    ).toBeVisible();
+    expect(
+      within(flow).getByRole("button", {
+        name: "Поменять местами Название остаётся",
+      }),
     ).toBeVisible();
   });
 });

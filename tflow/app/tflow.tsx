@@ -77,6 +77,7 @@ import { matchesEventTime, type EventTimeFilter } from "../lib/event-filters";
 import { OrganizerTutorial } from "./ui/organizer-tutorial";
 import { ProfileUpcomingEvents } from "./ui/profile-upcoming-events";
 import { EventFlows } from "./ui/event-flows";
+import { EventPage } from "./ui/event-page";
 import { CatalogActivities } from "./ui/catalog-activities";
 import { WebinarChannels } from "./ui/webinar-channels";
 import { ThemeToggle } from "./ui/theme-toggle";
@@ -1686,17 +1687,42 @@ export function TFlow({ user }: { user: UserIdentity | null }) {
                   <div className="loading-state">Загружаем событие…</div>
                 ) : (
                   <>
+                    <EventPage
+                      key={detail.event.id}
+                      event={detail.event}
+                      organizer={organizer}
+                      signedIn={!!user}
+                      initialSection={route.mode}
+                      meta={<EventMeta event={detail.event} />}
+                      personalCount={detail.activities.filter(
+                        activity => activity.registered || activity.waitlisted,
+                      ).length}
+                      program={
+                        <EventFlows
+                          key={detail.event.id}
+                          activities={detail.activities}
+                          {...programActions}
+                          onManage={
+                            organizer && detail.event.owner_id === user?.userId
+                              ? () => go("manage", detail.event.id, "program")
+                              : undefined
+                          }
+                        />
+                      }
+                      personal={
+                        <ActivityProgram
+                          activities={detail.activities.filter(
+                            activity => activity.registered || activity.waitlisted,
+                          )}
+                          {...programActions}
+                          vertical
+                        />
+                      }
+                    >
                     <div className="guest-event-layout">
                       <div className="guest-event-content">
                         <div className="guest-cover">
                           <EventArt cover={detail.event.cover} />
-                        </div>
-                        <div className="guest-event-title">
-                          <span>
-                            {detail.event.kind} · {detail.event.topic}
-                          </span>
-                          <h1>{detail.event.title}</h1>
-                          <EventMeta event={detail.event} />
                         </div>
                         <section className="event-about">
                           <h2>О событии</h2>
@@ -1734,14 +1760,7 @@ export function TFlow({ user }: { user: UserIdentity | null }) {
                             </div>
                           </div>
                         </section>
-                        <EventFlows
-                          key={detail.event.id}
-                          activities={detail.activities}
-                          {...programActions}
-                          onManage={organizer && detail.event.owner_id === user?.userId
-                            ? () => go("manage", detail.event.id, "program")
-                            : undefined}
-                        />
+
                       </div>
                       <aside className="registration-card">
                         {user?.role === "participant" && !!detail.event.checked_in && (
@@ -1873,6 +1892,7 @@ export function TFlow({ user }: { user: UserIdentity | null }) {
                         </div>
                       </aside>
                     </div>
+                    </EventPage>
                   </>
                 )}
               </>

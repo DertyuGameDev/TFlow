@@ -43,7 +43,7 @@ describe("расписание активностей в карточке мер
     const title = await screen.findByRole("heading", { name: event.title });
     const card = title.closest("article")!;
     const schedule = within(card).getByRole("region", { name: "Расписание активностей" });
-    expect(within(schedule).getByRole("link", { name: lecture.title })).toHaveAttribute("href", `#event/${event.id}`);
+    expect(within(schedule).getByRole("link", { name: lecture.title })).toHaveAttribute("href", `#event/${event.id}/program`);
     expect(within(schedule).getByText(/10:00–10:30 · МСК/)).toBeVisible();
     expect(within(schedule).getByText(lecture.room_name)).toBeVisible();
     expect(within(schedule).getByText(lecture.speaker)).toBeVisible();

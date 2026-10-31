@@ -38,7 +38,8 @@ afterEach(() => history.replaceState({}, "", "/"));
 describe("доступ к анкетам из управления событием", () => {
   it("показывает флоу на странице события, а анкеты загружает в кабинете владельца", async () => {
     const user = userEvent.setup(), fetch = mount(owner);
-    await user.click(await screen.findByRole("button", { name: "Управлять флоу" }));
+    await user.click(await screen.findByRole("tab", { name: /^Программа/ }));
+    await user.click(screen.getByRole("button", { name: "Управлять флоу" }));
     await waitFor(() => expect(screen.getByRole("tab", { name: /^Программа/ })).toHaveAttribute("aria-selected", "true"));
     expect(location.hash).toBe(`#manage/${event.id}/program`);
     await user.click(screen.getByRole("tab", { name: "Событие" }));

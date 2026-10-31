@@ -1,0 +1,303 @@
+.vertical-flow {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  min-width: 0;
+}
+.flow-date {
+  font-size: 14px;
+  font-weight: 600;
+  text-transform: capitalize;
+  margin: 22px 0 16px;
+  line-height: 1.6;
+  color: var(--theme-text, #222329);
+}
+.flow-step-row {
+  display: grid;
+  grid-template-columns: 64px 22px minmax(0, 1fr);
+  min-width: 0;
+  align-items: stretch;
+}
+.flow-axis-time {
+  padding-top: 21px;
+  font-size: 14px;
+  font-weight: 600;
+  font-variant-numeric: tabular-nums;
+  color: var(--flow-muted);
+}
+.flow-stem {
+  position: relative;
+  display: block;
+  margin-right: 16px;
+}
+.flow-stem::before {
+  content: "";
+  position: absolute;
+  top: 0;
+  bottom: 0;
+  left: 4px;
+  width: 2px;
+  background: var(--flow-border);
+}
+.flow-step:first-child .flow-stem::before {
+  top: 28px;
+}
+.flow-step:last-child .flow-stem::before {
+  bottom: 28px;
+}
+.flow-stem > i {
+  position: absolute;
+  top: 26px;
+  left: 0;
+  width: 10px;
+  height: 10px;
+  border-radius: 50%;
+  background: var(--flow-color);
+  box-shadow: 0 0 0 4px var(--theme-bg, #fff);
+}
+.flow-block {
+  position: relative;
+  min-width: 0;
+  overflow: hidden;
+  margin-bottom: 16px;
+  border: 1px solid var(--flow-border);
+  border-left: 3px solid var(--flow-color);
+  border-radius: 14px;
+  background: var(--theme-panel, #fff);
+  color: var(--theme-text, #222329);
+}
+.flow-block.is-selected {
+  outline: 2px solid var(--flow-color);
+  outline-offset: 2px;
+}
+.flow-step.is-live .flow-block {
+  border-color: var(--theme-accent, #e2b700);
+  background: var(--theme-warm, #fffbea);
+  box-shadow: 0 0 0 1px #f0c40020;
+}
+.flow-step.is-live .flow-axis-time {
+  color: var(--theme-text, #222329);
+}
+.flow-step.is-live .flow-stem > i {
+  background: #ffdd2d;
+  box-shadow:
+    0 0 0 4px var(--theme-bg, #fff),
+    0 0 0 6px #d7b91f70;
+}
+.flow-step.is-past .flow-axis-time {
+  font-weight: 400;
+}
+.flow-step.is-past .flow-stem > i {
+  background: var(--flow-muted);
+}
+.flow-live-label {
+  display: flex;
+  align-items: center;
+  gap: 7px;
+  padding: 13px 18px 0;
+  font-size: 13px;
+  font-weight: 600;
+  color: var(--theme-warm-text, #846a13);
+}
+.flow-live-label > i {
+  width: 7px;
+  height: 7px;
+  border-radius: 50%;
+  background: currentColor;
+}
+.flow-live-progress {
+  height: 3px;
+  background: #d4b72a20;
+}
+.flow-live-progress > i {
+  display: block;
+  height: 100%;
+  background: #e2bd17;
+}
+.vertical-flow .program-card {
+  grid-template-columns: minmax(0, 1fr) auto;
+  border: 0;
+  padding: 18px;
+  gap: 12px 20px;
+  min-width: 0;
+}
+.vertical-flow .program-time {
+  grid-column: 1/-1;
+  display: flex;
+  align-items: center;
+  gap: 9px;
+}
+.vertical-flow .program-time strong,
+.vertical-flow .program-time span {
+  font-size: 14px;
+  color: var(--flow-muted);
+  font-weight: 400;
+}
+.vertical-flow .program-time span::before {
+  content: "—";
+  margin-right: 9px;
+}
+.vertical-flow .program-copy {
+  min-width: 0;
+}
+.vertical-flow .program-copy h3 {
+  font-size: 18px;
+  line-height: 1.4;
+  overflow-wrap: anywhere;
+}
+.vertical-flow .program-copy p {
+  overflow-wrap: anywhere;
+}
+.vertical-flow .program-card > .button {
+  align-self: center;
+  max-width: 100%;
+}
+.vertical-flow .program-graph-editor {
+  border: 0;
+  border-radius: 0;
+  box-shadow: none;
+  padding: 18px;
+  background: transparent;
+}
+.vertical-flow .program-graph-editor > input {
+  font-size: 18px;
+}
+.flow-organizer-card {
+  padding: 18px;
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  gap: 15px;
+  align-items: start;
+}
+.flow-organizer-copy {
+  min-width: 0;
+}
+.flow-organizer-copy h4 {
+  font-size: 18px;
+  line-height: 1.4;
+  overflow-wrap: anywhere;
+  margin: 0 0 9px;
+}
+.flow-organizer-copy p,
+.flow-organizer-copy small {
+  font-size: 14px;
+  color: var(--flow-muted);
+  line-height: 1.7;
+  overflow-wrap: anywhere;
+}
+.flow-organizer-copy > p {
+  margin-top: 8px;
+}
+.flow-organizer-copy small {
+  display: block;
+  margin-top: 9px;
+}
+.flow-organizer-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  justify-content: flex-end;
+  max-width: 330px;
+}
+.flow-organizer-tools {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: end;
+  gap: 12px;
+}
+.flow-organizer-tools .small-search {
+  flex: 1;
+  min-width: 160px;
+  margin: 0;
+}
+.flow-view-toggle {
+  display: flex;
+  gap: 4px;
+  padding: 4px;
+  border-radius: 10px;
+  background: var(--theme-raised, #f3f4f6);
+  align-self: center;
+}
+.flow-view-toggle button {
+  padding: 8px 12px;
+  min-height: 36px;
+  border: 0;
+  border-radius: 7px;
+  background: transparent;
+  color: var(--flow-muted);
+  font: inherit;
+  font-size: 14px;
+}
+.flow-view-toggle button[aria-pressed="true"] {
+  color: var(--theme-text, #222329);
+  background: var(--theme-panel, #fff);
+  box-shadow: 0 1px 4px #00000010;
+}
+@media (max-width: 760px) {
+  .flow-step-row {
+    grid-template-columns: 44px 17px minmax(0, 1fr);
+  }
+  .flow-axis-time {
+    font-size: 12px;
+    padding-top: 21px;
+  }
+  .flow-stem {
+    margin-right: 11px;
+  }
+  .flow-stem > i {
+    width: 8px;
+    height: 8px;
+    left: 1px;
+  }
+  .vertical-flow .program-card {
+    grid-template-columns: minmax(0, 1fr);
+    padding: 15px;
+    gap: 12px;
+  }
+  .vertical-flow .program-card > .button {
+    grid-column: 1;
+    width: 100%;
+    justify-self: stretch;
+  }
+  .flow-organizer-card {
+    padding: 15px;
+    grid-template-columns: minmax(0, 1fr);
+  }
+  .flow-organizer-actions {
+    justify-content: flex-start;
+    max-width: none;
+  }
+  .flow-organizer-actions .button {
+    padding: 9px 12px;
+    min-height: 40px;
+  }
+  .flow-live-label {
+    padding-inline: 15px;
+  }
+  .vertical-flow .program-copy h3,
+  .flow-organizer-copy h4 {
+    font-size: 17px;
+  }
+  .vertical-flow .program-graph-editor {
+    padding: 10px;
+  }
+  .vertical-flow .program-graph-time {
+    grid-template-columns: minmax(0, 1fr) 8px minmax(0, 1fr);
+  }
+  .vertical-flow .program-graph-time > .icon-button {
+    grid-row: 2;
+  }
+  .vertical-flow .program-graph-time > .program-graph-save {
+    grid-column: 1;
+    justify-self: end;
+    width: 40px;
+  }
+  .vertical-flow .program-graph-time > .icon-button:last-child {
+    grid-column: 3;
+    justify-self: start;
+    width: 40px;
+  }
+  .vertical-flow .program-graph-time.is-multiday > .icon-button {
+    grid-row: 3;
+  }
+}

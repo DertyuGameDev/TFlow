@@ -38,6 +38,7 @@ import { EventParticipants } from "./event-participants";
 import type { Send } from "./forms";
 import { ProgramTimeline } from "./program-timeline";
 import { ProgramGraphEditor } from "./program-graph-editor";
+import { OrganizerFlow } from "./organizer-flow";
 import { OrganizerProgramList } from "./organizer-program-list";
 import { ProgramSwap } from "./program-swap";
 import type { ProgramRange } from "../../lib/program-editing";
@@ -96,6 +97,7 @@ export function OrganizerManage({
   const [settingsOpen, setSettingsOpen] = useState(false);
   const [swapping, setSwapping] = useState<Activity | null>(null);
   const [programNotice, setProgramNotice] = useState("");
+  const [programView, setProgramView] = useState<"flow" | "timeline">("flow");
   const [selectedProgramId, setSelectedProgramId] = useState("");
   const [graphDraft, setGraphDraft] = useState<{
     activityId?: string;
@@ -178,6 +180,37 @@ export function OrganizerManage({
     setSelectedProgramId(activity?.id ?? "__new-program-item");
     setProgramNotice("");
   }
+  const programEditor =
+    graphDraft && graphItem
+      ? {
+          item: graphItem,
+          content: (
+            <ProgramGraphEditor
+              key={graphDraft.key}
+              event={e}
+              rooms={detail.rooms}
+              activity={graphActivity}
+              range={graphDraft.range}
+              send={send}
+              refresh={refresh}
+              onPreview={(range) =>
+                setGraphDraft((current) =>
+                  current ? { ...current, range } : current,
+                )
+              }
+              onDone={(itemId) => {
+                setGraphDraft(null);
+                setSelectedProgramId(itemId);
+                setProgramNotice("Сохранено");
+              }}
+              onCancel={() => setGraphDraft(null)}
+              onDetails={
+                graphActivity ? () => onActivity(graphActivity) : undefined
+              }
+            />
+          ),
+        }
+      : undefined;
   const tabs = [
     { id: "event" as const, label: "Событие", icon: CalendarDays },
     {
@@ -465,8 +498,9 @@ export function OrganizerManage({
             <div>
               <h2>Аудитории</h2>
               <p>
-                Очные залы и несколько онлайн-потоков могут работать параллельно.
-                Для каждого одновременного эфира создайте свою онлайн-аудиторию.
+                Очные залы и несколько онлайн-потоков могут работать
+                параллельно. Для каждого одновременного эфира создайте свою
+                онлайн-аудиторию.
               </p>
             </div>
             <button className="text-button" onClick={() => onRoom()}>
@@ -505,6 +539,28 @@ export function OrganizerManage({
           <div>
             <h2>Пункты программы</h2>
           </div>
+          <div
+            className="flow-view-toggle"
+            role="group"
+            aria-label="Вид программы"
+          >
+            <button
+              type="button"
+              aria-pressed={programView === "flow"}
+              disabled={!!graphDraft && programView !== "flow"}
+              onClick={() => setProgramView("flow")}
+            >
+              Флоу
+            </button>
+            <button
+              type="button"
+              aria-pressed={programView === "timeline"}
+              disabled={!!graphDraft && programView !== "timeline"}
+              onClick={() => setProgramView("timeline")}
+            >
+              Шкала времени
+            </button>
+          </div>
           <button
             type="button"
             className="button primary"
@@ -519,78 +575,62 @@ export function OrganizerManage({
             {programNotice}
           </p>
         )}
-        <ProgramTimeline
-          event={e}
-          activities={detail.activities}
-          rooms={detail.rooms}
-          onEdit={(activity) => openProgramItem(activity)}
-          onSelect={(activity) => openProgramItem(activity)}
-          selectedActivityId={selectedProgramId}
-          onCreate={(range) => openProgramItem(undefined, range)}
-          onReschedule={async (activity, range) => {
-            const currentActivity = detail.activities.find(
-              (item) => item.id === activity.id,
-            );
-            if (
-              currentActivity &&
-              currentActivity.updated_at !== activity.updated_at
-            )
-              throw new Error("Этот пункт уже изменился. Обновите программу.");
-            if (
-              graphDraft &&
-              (graphDraft.activityId ?? "__new-program-item") === activity.id
-            ) {
-              setGraphDraft((current) =>
-                current
-                  ? { ...current, range: { ...current.range, ...range } }
-                  : current,
-              );
-            } else openProgramItem(activity, range);
-          }}
-          inlineEditor={
-            graphDraft && graphItem
-              ? {
-                  item: graphItem,
-                  content: (
-                    <ProgramGraphEditor
-                      key={graphDraft.key}
-                      event={e}
-                      rooms={detail.rooms}
-                      activity={graphActivity}
-                      range={graphDraft.range}
-                      send={send}
-                      refresh={refresh}
-                      onPreview={(range) =>
-                        setGraphDraft((current) =>
-                          current ? { ...current, range } : current,
-                        )
-                      }
-                      onDone={(itemId) => {
-                        setGraphDraft(null);
-                        setSelectedProgramId(itemId);
-                        setProgramNotice("Сохранено");
-                      }}
-                      onCancel={() => setGraphDraft(null)}
-                      onDetails={
-                        graphActivity
-                          ? () => onActivity(graphActivity)
-                          : undefined
-                      }
-                    />
-                  ),
-                }
-              : undefined
-          }
-        />
-        <OrganizerProgramList
-          activities={detail.activities}
-          onSwap={(activity) => {
-            setGraphDraft(null);
-            setSwapping(activity);
-          }}
-          editingId={selectedProgramId}
-          onEdit={(activity) => openProgramItem(activity)}
-        />
+        {programView === "flow" ? (
+          <OrganizerFlow
+            activities={detail.activities}
+            editor={programEditor}
+            onEdit={(activity) => openProgramItem(activity)}
+            onSwap={(activity) => {
+              setGraphDraft(null);
+              setSwapping(activity);
+            }}
+          />
+        ) : (
+          <>
+            <ProgramTimeline
+              event={e}
+              activities={detail.activities}
+              rooms={detail.rooms}
+              onEdit={(activity) => openProgramItem(activity)}
+              onSelect={(activity) => openProgramItem(activity)}
+              selectedActivityId={selectedProgramId}
+              onCreate={(range) => openProgramItem(undefined, range)}
+              onReschedule={async (activity, range) => {
+                const currentActivity = detail.activities.find(
+                  (item) => item.id === activity.id,
+                );
+                if (
+                  currentActivity &&
+                  currentActivity.updated_at !== activity.updated_at
+                )
+                  throw new Error(
+                    "Этот пункт уже изменился. Обновите программу.",
+                  );
+                if (
+                  graphDraft &&
+                  (graphDraft.activityId ?? "__new-program-item") ===
+                    activity.id
+                ) {
+                  setGraphDraft((current) =>
+                    current
+                      ? { ...current, range: { ...current.range, ...range } }
+                      : current,
+                  );
+                } else openProgramItem(activity, range);
+              }}
+              inlineEditor={programEditor}
+            />
+            <OrganizerProgramList
+              activities={detail.activities}
+              onSwap={(activity) => {
+                setGraphDraft(null);
+                setSwapping(activity);
+              }}
+              editingId={selectedProgramId}
+              onEdit={(activity) => openProgramItem(activity)}
+            />
+          </>
+        )}
         {activityEditor && (
           <Modal
             key={activityEditorKey}
@@ -601,7 +641,15 @@ export function OrganizerManage({
           </Modal>
         )}
       </section>
-      {swapping && <ProgramSwap activity={swapping} detail={detail} send={send} refresh={refresh} onClose={() => setSwapping(null)}/>}
+      {swapping && (
+        <ProgramSwap
+          activity={swapping}
+          detail={detail}
+          send={send}
+          refresh={refresh}
+          onClose={() => setSwapping(null)}
+        />
+      )}
       <section
         role="tabpanel"
         id={`${id}-panel-participants`}

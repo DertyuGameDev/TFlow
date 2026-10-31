@@ -22,7 +22,7 @@ export function CatalogActivities({ activities }: { activities: Activity[] }) {
       <ul id={listId}>
         {visible.map((activity) => (
           <li key={activity.id}>
-            <a href={`#event/${activity.event_id}`}>{activity.title}</a>
+            <a href={`#event/${activity.event_id}/program`}>{activity.title}</a>
             <span className="catalog-activity-time">
               <Clock3 size={13} aria-hidden="true" />
               {dateLabel(activity.starts_at)} · {timeLabel(activity.starts_at)}–{timeLabel(activity.ends_at)} · МСК
