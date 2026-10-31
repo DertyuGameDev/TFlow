@@ -752,8 +752,7 @@ export function Calendar({
             <p>
               <Users size={19} />
               <span>
-                Свободно {Math.max(0, selected.capacity - selected.taken)} из{" "}
-                {selected.capacity} мест
+                {selected.registrationRequired === false ? "Без отдельной регистрации · добавлено в ваше расписание" : <>Свободно {Math.max(0, selected.capacity - selected.taken)} из {selected.capacity} мест</>}
               </span>
             </p>
             {selected.activityId && (
@@ -761,8 +760,7 @@ export function Calendar({
                 {confirmCancel ? (
                   <>
                     <p>
-                      Отменить запись на эту активность? Место станет доступно
-                      другим участникам. Регистрация на мероприятие сохранится.
+                      {selected.registrationRequired === false ? "Убрать активность из личного расписания? Билет и доступ к ней сохранятся." : "Отменить запись на эту активность? Место станет доступно другим участникам. Регистрация на мероприятие сохранится."}
                     </p>
                     <div>
                       <button
@@ -770,7 +768,7 @@ export function Calendar({
                         disabled={cancelBusy}
                         onClick={() => setConfirmCancel(false)}
                       >
-                        Оставить запись
+                        {selected.registrationRequired === false ? "Оставить в расписании" : "Оставить запись"}
                       </button>
                       <button
                         className="button danger-button"
@@ -787,7 +785,7 @@ export function Calendar({
                     disabled={cancelBusy}
                     onClick={() => setConfirmCancel(true)}
                   >
-                    Отменить запись на активность
+                    {selected.registrationRequired === false ? "Убрать из расписания" : "Отменить запись на активность"}
                   </button>
                 )}
                 <FormError error={cancelError} />
