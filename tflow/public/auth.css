@@ -29,8 +29,9 @@ h1{font-size:28px;line-height:1.2;letter-spacing:-.8px;margin:0 0 8px}
 .field input:focus{background:#fff}
 .organizer-setting{margin-bottom:18px;padding:12px 14px 14px;border:1px solid #dfe3e9;border-radius:14px;background:#f6f7f8}
 .organizer-setting:has(input:checked){background:#fff8d8;border-color:#d8b72b}
-.organizer-switch{display:flex;align-items:center;justify-content:space-between;gap:8px;min-height:44px;cursor:pointer;user-select:none}
-.role-choice{font-size:13px;font-weight:600;line-height:1.4;min-width:0;overflow-wrap:anywhere;color:#626b78}
+.organizer-switch{display:flex;align-items:center;justify-content:space-between;gap:8px;min-height:44px;user-select:none}
+.role-choice{appearance:none;border:0;background:transparent;padding:0;min-height:44px;font-size:13px;font-weight:600;line-height:1.4;min-width:0;text-align:left;white-space:nowrap;color:#626b78}
+.role-choice:disabled{cursor:default}
 .organizer-label{text-align:right}
 .organizer-setting:not(:has(input:checked)) .participant-label,.organizer-setting:has(input:checked) .organizer-label{color:#24272d;text-decoration:underline;text-decoration-thickness:2px;text-underline-offset:5px}
 .role-description{margin:5px 0 0;min-height:3.1em;font-size:13px;line-height:1.55;color:#626b78}
