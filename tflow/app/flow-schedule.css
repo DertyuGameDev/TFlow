@@ -403,9 +403,123 @@
   ) {
   display: none;
 }
-.flow-event.is-tiny .flow-ribbon-summary {
-  opacity: 0;
+.flow-event.has-short-marker
+  :is(.flow-ribbon-summary, .flow-select, .flow-quick-edit) {
+  display: none;
 }
+.flow-event.has-short-marker .flow-ribbon {
+  inset: 0;
+  border-radius: 2px;
+  background: var(--flow-color);
+  box-shadow: none;
+  opacity: 0.65;
+}
+.flow-short-marker {
+  position: absolute;
+  height: 32px;
+  z-index: 3;
+  list-style: none;
+}
+.flow-short-marker::before {
+  content: "";
+  position: absolute;
+  inset: 15px 0 auto;
+  height: 2px;
+  background: var(--flow-color);
+  pointer-events: none;
+}
+.flow-short-chip {
+  position: relative;
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  width: fit-content;
+  max-width: min(360px, 100%);
+  min-width: min(180px, 100%);
+  height: 32px;
+  padding: 0 10px;
+  border-radius: 7px;
+  background: color-mix(in srgb, var(--flow-color) 24%, var(--theme-bg, #fff));
+  box-shadow: inset 0 0 0 1px var(--flow-color);
+  color: var(--theme-text, #222329);
+}
+.flow-short-chip::before {
+  content: "";
+  flex-shrink: 0;
+  width: 6px;
+  height: 6px;
+  border-radius: 50%;
+  background: var(--flow-color);
+}
+.flow-short-title {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  font-size: 14px;
+  font-weight: 600;
+  line-height: 20px;
+}
+.flow-short-duration {
+  flex-shrink: 0;
+  margin-left: auto;
+  font-size: 12px;
+  font-weight: 600;
+  white-space: nowrap;
+  line-height: 20px;
+}
+.flow-short-marker.is-live .flow-short-chip {
+  background: color-mix(in srgb, #ffdd2d 25%, var(--theme-bg, #fff));
+  box-shadow: inset 0 0 0 1px #ffdd2d;
+}
+.flow-short-marker.is-open .flow-short-chip {
+  box-shadow: inset 0 0 0 2px var(--flow-color);
+}
+.flow-short-options {
+  display: grid;
+  gap: 4px;
+  margin: 0;
+  padding: 8px;
+  list-style: none;
+}
+.flow-short-options button {
+  display: grid;
+  gap: 4px;
+  width: 100%;
+  padding: 10px;
+  text-align: left;
+  border: 0;
+  border-radius: 7px;
+  background: transparent;
+  color: inherit;
+  cursor: pointer;
+}
+.flow-short-options button:hover {
+  background: var(--theme-raised, #f2f3f5);
+}
+.flow-short-options button:focus-visible {
+  outline: 2px solid var(--flow-color);
+  outline-offset: -2px;
+}
+.flow-short-options strong {
+  font-size: 14px;
+  line-height: 1.4;
+  overflow-wrap: anywhere;
+}
+.flow-short-options span {
+  font-size: 12px;
+  line-height: 1.5;
+  color: var(--flow-muted);
+  overflow-wrap: anywhere;
+}
+.flow-short-back {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  font-size: 12px;
+  white-space: nowrap;
+}
+
 .flow-details {
   position: absolute;
   top: 0;

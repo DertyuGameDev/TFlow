@@ -8,7 +8,8 @@ import {
   type CSSProperties,
   type ReactNode,
 } from "react";
-import { Check, Clock3, Minus, Pencil, Plus, X } from "lucide-react";
+import { ArrowLeft, Check, Clock3, Minus, Pencil, Plus, X } from "lucide-react";
+import { flowMarkers } from "../../lib/flow-markers";
 import {
   FLOW_DAY_HEADING,
   flowDuration,
@@ -82,10 +83,19 @@ export function FlowSchedule({
     () => layoutFlow(activities, SCALES[zoom]),
     [activities, zoom],
   );
+  const markers = useMemo(() => flowMarkers(layout.placements), [layout]);
+  const markerByActivity = new Map(
+    markers.flatMap((marker) =>
+      marker.items.map((item) => [item.activity.id, marker] as const),
+    ),
+  );
   const openId = selectedId || opened;
   const openItem = layout.placements.find(
     (item) => item.activity.id === openId,
   );
+  const openMarker = markers.find((marker) => marker.id === openId);
+  const detailsAnchor =
+    openItem ?? (openMarker && { ...openMarker.items[0], top: openMarker.top });
   const nowDay = layout.days.find((day) => day.start <= now && now < day.end);
   const nowY = nowDay
     ? nowDay.top +
@@ -96,7 +106,7 @@ export function FlowSchedule({
     layout.maximumLanes > 2 ? 64 + layout.maximumLanes * 160 : undefined;
   const height = Math.max(
     layout.height,
-    openItem ? openItem.top + detailsHeight + 8 : 0,
+    detailsAnchor ? detailsAnchor.top + detailsHeight + 8 : 0,
   );
   useLayoutEffect(() => {
     const element = details.current;
@@ -107,7 +117,7 @@ export function FlowSchedule({
     const observer = new ResizeObserver(measure);
     observer.observe(element);
     return () => observer.disconnect();
-  }, [openItem?.activity.id]);
+  }, [openId]);
   useEffect(() => {
     const element = viewport.current;
     if (!element) return;
@@ -128,10 +138,20 @@ export function FlowSchedule({
         ?.scrollIntoView({ block: "nearest", inline: "nearest" });
   }, [openId]);
   useEffect(() => {
+    if (openMarker)
+      details.current
+        ?.querySelector<HTMLButtonElement>(".flow-short-options button")
+        ?.focus({ preventScroll: true });
+  }, [openMarker?.id]);
+  useEffect(() => {
     if (!opened || selectedId) return;
     function outside(event: PointerEvent) {
       const target = event.target as Element;
-      if (!target.closest?.(".flow-event.is-open, .flow-details"))
+      if (
+        !target.closest?.(
+          ".flow-event.is-open, .flow-short-marker, .flow-details",
+        )
+      )
         setOpened("");
     }
     document.addEventListener("pointerdown", outside);
@@ -141,8 +161,9 @@ export function FlowSchedule({
     setOpened("");
     const buttons =
       viewport.current?.querySelectorAll<HTMLButtonElement>(".flow-select");
+    const focusId = markerByActivity.get(openId)?.id ?? openId;
     [...(buttons ?? [])]
-      .find((button) => button.dataset.selectId === openId)
+      .find((button) => button.dataset.selectId === focusId)
       ?.focus({ preventScroll: true });
   }
   function changeZoom(next: number) {
@@ -300,6 +321,7 @@ export function FlowSchedule({
                 live = a.starts_at <= now && now < a.ends_at,
                 past = a.ends_at <= now,
                 open = a.id === openId;
+              const marked = markerByActivity.has(a.id);
               const color = live ? "#e0bb27" : colorFor(a.room_id),
                 duration = flowDuration(a.ends_at - a.starts_at);
               const progress = live
@@ -314,8 +336,9 @@ export function FlowSchedule({
               return (
                 <li
                   key={a.id}
-                  className={`flow-event ${live ? "is-live" : ""} ${past ? "is-past" : ""} ${open ? "is-open" : ""} ${placement.height < 68 ? "is-brief" : placement.height < 112 ? "is-medium" : ""} ${placement.height < 14 ? "is-tiny" : ""} ${placement.lanes > 1 ? "is-parallel" : ""} ${onEdit ? "is-editable" : ""} ${a.registered || a.waitlisted ? "has-status" : ""}`}
-                  aria-current={live ? "step" : undefined}
+                  className={`flow-event ${live ? "is-live" : ""} ${past ? "is-past" : ""} ${open ? "is-open" : ""} ${marked ? "has-short-marker" : ""} ${placement.height < 68 ? "is-brief" : placement.height < 112 ? "is-medium" : ""} ${placement.lanes > 1 ? "is-parallel" : ""} ${onEdit ? "is-editable" : ""} ${a.registered || a.waitlisted ? "has-status" : ""}`}
+                  aria-current={live && !marked ? "step" : undefined}
+                  aria-hidden={marked || undefined}
                   data-activity-id={a.id}
                   data-duration-minutes={(a.ends_at - a.starts_at) / 60000}
                   style={
@@ -384,8 +407,69 @@ export function FlowSchedule({
                 </li>
               );
             })}
+            {markers.map((marker) => {
+              const single =
+                marker.items.length === 1 ? marker.items[0].activity : null;
+              const live = marker.items.some(
+                ({ activity: a }) => a.starts_at <= now && now < a.ends_at,
+              );
+              const open =
+                marker.id === openId ||
+                marker.items.some(({ activity }) => activity.id === openId);
+              const color = live
+                ? "#e0bb27"
+                : colorFor(marker.items[0].activity.room_id);
+              const name = single ? single.title : "Короткие активности";
+              const duration = single
+                ? flowDuration(single.ends_at - single.starts_at)
+                : "";
+              return (
+                <li
+                  key={marker.id}
+                  className={`flow-short-marker ${live ? "is-live" : ""} ${open ? "is-open" : ""}`}
+                  aria-current={live ? "step" : undefined}
+                  style={
+                    {
+                      top: marker.top,
+                      left: `calc(var(--flow-gutter) + (100% - var(--flow-gutter)) * ${marker.left} + 4px)`,
+                      width: `calc((100% - var(--flow-gutter)) * ${marker.right - marker.left} - 8px)`,
+                      "--flow-color": color,
+                    } as CSSProperties
+                  }
+                >
+                  <div className="flow-short-chip">
+                    <span className="flow-short-title">{name}</span>
+                    <span className="flow-short-duration">
+                      {single ? duration : marker.items.length}
+                    </span>
+                    <button
+                      type="button"
+                      className="flow-select"
+                      data-select-id={marker.id}
+                      aria-label={
+                        single
+                          ? `${name} ${duration}`
+                          : `${name}: ${marker.items.length}`
+                      }
+                      aria-expanded={open}
+                      aria-controls={
+                        open ? `${id}-details-${openId}` : undefined
+                      }
+                      title={
+                        single
+                          ? `${name}: ${timeLabel(single.starts_at)}–${timeLabel(single.ends_at)}, ${duration}`
+                          : name
+                      }
+                      onClick={() =>
+                        setOpened(open ? "" : (single?.id ?? marker.id))
+                      }
+                    />
+                  </div>
+                </li>
+              );
+            })}
           </ol>
-          {openItem && (
+          {detailsAnchor && (
             <div
               ref={details}
               className="flow-details"
@@ -395,22 +479,38 @@ export function FlowSchedule({
                   ? "Редактирование активности"
                   : "Сведения об активности"
               }
-              id={`${id}-details-${openItem.activity.id}`}
+              id={`${id}-details-${openId}`}
               style={
                 {
-                  top: openItem.top,
-                  left: `clamp(calc(var(--flow-gutter) + 4px), calc(var(--flow-gutter) + (100% - var(--flow-gutter)) * ${openItem.lane / openItem.lanes} - ${scrollX}px + 4px), calc(var(--flow-viewport-width, 100%) - var(--flow-details-width) - 4px))`,
+                  top: detailsAnchor.top,
+                  left: `clamp(calc(var(--flow-gutter) + 4px), calc(var(--flow-gutter) + (100% - var(--flow-gutter)) * ${detailsAnchor.lane / detailsAnchor.lanes} - ${scrollX}px + 4px), calc(var(--flow-viewport-width, 100%) - var(--flow-details-width) - 4px))`,
                   transform: `translateX(${scrollX}px)`,
-                  "--flow-color": colorFor(openItem.activity.room_id),
+                  "--flow-color": colorFor(detailsAnchor.activity.room_id),
                 } as CSSProperties
               }
             >
               <div className="flow-details-top">
-                <span>
-                  {flowDuration(
-                    openItem.activity.ends_at - openItem.activity.starts_at,
+                {openItem &&
+                  !selectedId &&
+                  (markerByActivity.get(openId)?.items.length ?? 0) > 1 && (
+                    <button
+                      className="text-button flow-short-back"
+                      aria-label="Назад к коротким активностям"
+                      onClick={() =>
+                        setOpened(markerByActivity.get(openId)!.id)
+                      }
+                    >
+                      <ArrowLeft size={16} />К списку
+                    </button>
                   )}
-                  {openItem.activity.starts_at <= now &&
+                <span>
+                  {openItem
+                    ? flowDuration(
+                        openItem.activity.ends_at - openItem.activity.starts_at,
+                      )
+                    : `Короткие активности · ${openMarker?.items.length}`}
+                  {openItem &&
+                  openItem.activity.starts_at <= now &&
                   now < openItem.activity.ends_at
                     ? " · Сейчас"
                     : ""}
@@ -425,7 +525,24 @@ export function FlowSchedule({
                   </button>
                 )}
               </div>
-              {renderActivity(openItem.activity)}
+              {openItem ? (
+                renderActivity(openItem.activity)
+              ) : (
+                <ul className="flow-short-options">
+                  {openMarker?.items.map(({ activity: a }) => (
+                    <li key={a.id}>
+                      <button type="button" onClick={() => setOpened(a.id)}>
+                        <strong>{a.title}</strong>
+                        <span>
+                          {timeLabel(a.starts_at)}–{timeLabel(a.ends_at)} ·{" "}
+                          {flowDuration(a.ends_at - a.starts_at)}
+                        </span>
+                        <span>{a.room_name}</span>
+                      </button>
+                    </li>
+                  ))}
+                </ul>
+              )}
             </div>
           )}
         </div>
