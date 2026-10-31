@@ -1990,11 +1990,18 @@ export function TFlow({ user }: { user: UserIdentity | null }) {
           <a
             className={activeNav(id) ? "active" : ""}
             aria-current={activeNav(id) ? "page" : undefined}
+            aria-label={name}
             href={`#${id}`}
             key={id}
           >
-            <Icon size={23} strokeWidth={activeNav(id) ? 2 : 1.6} />
-            <span>{name}</span>
+            <Icon
+              aria-hidden="true"
+              size={23}
+              strokeWidth={activeNav(id) ? 2 : 1.6}
+            />
+            <span>
+              {id === "organizer" ? "События" : id === "scan" ? "Сканер" : name}
+            </span>
           </a>
         ))}
       </nav>
