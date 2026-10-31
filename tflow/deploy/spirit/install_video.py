@@ -195,7 +195,8 @@ def asset_state(path):
             ["openssl", "x509", "-in", str(cert), "-noout", "-checkhost", HOST]))
     binary = Path("/usr/local/lib/tflow/livekit-server")
     binary_ready = binary.is_file() and VERSION in subprocess.run([str(binary), "--version"],capture_output=True,text=True).stdout
-    return {"configuration":values,"certificate_ready":bool(ready),"binary_ready":bool(binary_ready)}
+    services_ready = all(subprocess.run(["systemctl", "is-active", "--quiet", service],capture_output=True).returncode == 0 for service in ("tflow", "tflow-video", "caddy"))
+    return {"configuration":values,"certificate_ready":bool(ready),"binary_ready":bool(binary_ready),"services_ready":services_ready}
 
 
 def main(path):

@@ -357,6 +357,7 @@ def build_schema():
         paths.setdefault(path, {})[method] = operation
 
     add("/health", "get", "Проверка сервера", "Общее", public=True)
+    add("/version", "get", "Версия запущенного приложения", "Общее", public=True)
     add(
         "/auth/me",
         "get",

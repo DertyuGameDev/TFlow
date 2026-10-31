@@ -5,6 +5,7 @@ import json
 import os
 from pathlib import Path
 import tarfile
+import re
 
 project = Path(__file__).resolve().parents[1]
 output = project.parent / "release"
@@ -15,6 +16,19 @@ excluded_parts = {"data", "staticfiles", "__pycache__", "tests", ".venv", "node_
 
 if not (project / "dist" / "index.html").is_file():
     raise SystemExit("Build the frontend before creating a release")
+
+build_id = json.loads((project / "dist" / "version.json").read_text())["id"]
+expected = os.environ.get("CI_COMMIT_SHA") or os.environ.get("GITHUB_SHA") or build_id
+if not re.fullmatch(r"[a-f0-9]{40}", expected) or build_id != expected:
+    raise SystemExit("Frontend was built from a different commit; rebuild before packaging")
+html = (project / "dist" / "index.html").read_bytes()
+assets = {}
+for asset in re.findall(r'(?:src|href)="(/assets/[^"?#]+)"', html.decode()):
+    if ".." in asset:
+        raise SystemExit("Unsupported frontend asset path")
+    assets[asset] = hashlib.sha256((project / "dist" / asset.lstrip("/")).read_bytes()).hexdigest()
+if not assets:
+    raise SystemExit("No frontend entry assets found")
 
 with tarfile.open(archive, "w:gz") as bundle:
     for root in allowed:
@@ -29,7 +43,8 @@ with tarfile.open(archive, "w:gz") as bundle:
             bundle.add(path, arcname=str(Path("tflow") / relative), recursive=False)
 
 manifest = {
-    "commit": os.environ.get("CI_COMMIT_SHA", "local"),
+    "commit": expected,
+    "frontend": {"index_sha256": hashlib.sha256(html).hexdigest(), "assets": assets},
     "pipeline_id": os.environ.get("CI_PIPELINE_ID"),
     "archive": archive.name,
     "sha256": hashlib.sha256(archive.read_bytes()).hexdigest(),

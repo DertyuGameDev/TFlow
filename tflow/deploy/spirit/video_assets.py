@@ -65,3 +65,5 @@ def prepare_assets(directory, remote, target, options, script, runner):
     config = directory / "video.json"
     config.write_text(json.dumps(values)); config.chmod(0o600)
     runner(["scp", *options, str(config), target + ":" + remote + "/video.json"], "prepared asset configuration")
+
+    return not (state["certificate_ready"] and state["binary_ready"] and state.get("services_ready", False))

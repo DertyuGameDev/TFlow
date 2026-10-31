@@ -37,10 +37,11 @@ class VideoAssetTests(unittest.TestCase):
         def runner(args, stage, **kwargs):
             calls.append((args, stage))
             return SimpleNamespace(stdout=json.dumps({"configuration": self.values,
-                                  "certificate_ready": True, "binary_ready": True}))
+                                  "certificate_ready": True, "binary_ready": True, "services_ready": True}))
         with tempfile.TemporaryDirectory() as directory, patch("video_assets.urllib.request.urlopen") as network:
             private = Path(directory)
-            prepare_assets(private, "/home/ubuntu/tflow-video-ci", "ubuntu@test", [], "script", runner)
+            requires_installation = prepare_assets(private, "/home/ubuntu/tflow-video-ci", "ubuntu@test", [], "script", runner)
+            self.assertFalse(requires_installation)
             network.assert_not_called()
             config = json.loads((private / "video.json").read_text())
             self.assertTrue(config["ci_managed_certificate"])

@@ -149,12 +149,16 @@ def logout_view(request):
     return redirect("/")
 
 
+@never_cache
 @ensure_csrf_cookie
 def frontend(request):
     page = settings.PROJECT_DIR / "dist" / "index.html"
     if not page.is_file():
         return HttpResponse("Сначала выполните npm run build в папке tflow", status=503)
-    return FileResponse(page.open("rb"), content_type="text/html; charset=utf-8")
+    from .release_info import release_info
+    response = FileResponse(page.open("rb"), content_type="text/html; charset=utf-8")
+    response["X-TFlow-Release"] = release_info()["id"]
+    return response
 
 
 def csrf_failure(request, reason=""):
@@ -220,6 +224,9 @@ def dispatch_api(request, path):
 
         ScheduleLock.objects.get(pk=1)
         return JsonResponse({"ok": True, "backend": "django"})
+    if path == "version" and method == "GET":
+        from .release_info import release_info
+        return JsonResponse(release_info())
     if path == "profile/qr" and method == "GET":
         from io import BytesIO
         import qrcode

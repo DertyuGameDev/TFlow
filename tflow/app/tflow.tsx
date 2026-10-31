@@ -77,6 +77,7 @@ import { isAttendedPastEvent, matchesEventTime, type EventTimeFilter } from "../
 import { OrganizerTutorial } from "./ui/organizer-tutorial";
 import { ProfileUpcomingEvents } from "./ui/profile-upcoming-events";
 import { EventFlows } from "./ui/event-flows";
+import { ReleaseUpdate } from "./ui/release-update";
 import { CatalogActivities } from "./ui/catalog-activities";
 import { WebinarChannels } from "./ui/webinar-channels";
 import { KeyAccessPage } from "./ui/access-keys";
@@ -1131,6 +1132,7 @@ export function TFlow({ user }: { user: UserIdentity | null }) {
           </div>
         </div>
       </header>
+      <ReleaseUpdate />
       <main
         id="main-content"
         className={`flow-main ${["scan", "pass"].includes(route.view) ? "scanner-main" : ""}`}

@@ -4,6 +4,8 @@ import hashlib
 import hmac
 import json
 import socket
+from pathlib import Path
+import sys
 import ssl
 import time
 from urllib.request import Request, urlopen
@@ -90,3 +92,16 @@ def verify_public(values):
     except Exception:
         raise ControlError("Browser-facing video transport check failed; inspect Spirit ingress and the safe VM network diagnostics") from None
     print("Public video HTTPS, API authentication, media TCP and TURN TLS checks passed", flush=True)
+
+
+def verify_media(directory, config, runner):
+    sdk = directory / "media-sdk"
+    runner([sys.executable, "-m", "venv", str(sdk)], "media test environment")
+    python = str(sdk / "bin" / "python")
+    runner([python, "-m", "pip", "install", "--disable-pip-version-check", "--quiet",
+            "livekit==1.2.0", "PyJWT==2.15.1"], "pinned media test SDK")
+    result = runner([python, str(Path(__file__).with_name("verify_video_media.py")), str(config)], "audio/video/chat transmission")
+    report = json.loads(result.stdout.strip().splitlines()[-1])
+    if not report.get("ok") or report.get("audio_frames",0) < 30 or report.get("video_frames",0) < 3 or report.get("audio_peak",0) <= 500 or not report.get("chat_received"):
+        raise ControlError("Synthetic audio/video/chat verification failed")
+    print("Synthetic audio/video/chat verified:", json.dumps({key:report[key] for key in ("audio_frames","video_frames","chat_received")}), flush=True)
