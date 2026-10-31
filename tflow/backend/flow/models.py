@@ -96,6 +96,14 @@ class Community(models.Model):
     )
 
 
+class CommunityAvatar(models.Model):
+    community = models.OneToOneField(
+        Community, on_delete=models.CASCADE, related_name="avatar"
+    )
+    image = models.BinaryField()
+    updated_at = models.DateTimeField(default=timezone.now)
+
+
 class Event(models.Model):
     id = models.CharField(primary_key=True, max_length=100, default=new_id)
     owner = models.ForeignKey(User, on_delete=models.PROTECT, related_name="events")

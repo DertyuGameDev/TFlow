@@ -5,6 +5,7 @@ from .models import (
     Bookmark,
     CheckIn,
     Community,
+    CommunityAvatar,
     Event,
     EventRegistration,
     Membership,
@@ -227,6 +228,11 @@ def notice_json(notice):
 def bootstrap(user):
     participant = user.is_authenticated and user.role == "participant"
     communities = Community.objects.annotate(
+        avatar_updated=Subquery(
+            CommunityAvatar.objects.filter(community_id=OuterRef("pk")).values(
+                "updated_at"
+            )[:1]
+        ),
         member_count=Count("memberships", distinct=True),
         event_count=Count("event", filter=Q(event__status="published"), distinct=True),
         joined=Exists(
@@ -237,15 +243,9 @@ def bootstrap(user):
         ),
     ).order_by("name")
     schedule = (
-        activities_for(user).filter(registrations__user=user)
-        if participant
-        else []
+        activities_for(user).filter(registrations__user=user) if participant else []
     )
-    waitlist = (
-        activities_for(user).filter(waitlist__user=user)
-        if participant
-        else []
-    )
+    waitlist = activities_for(user).filter(waitlist__user=user) if participant else []
     notifications = user.notifications.all()[:50] if user.is_authenticated else []
     return {
         "events": [event_json(event) for event in visible_events(user)],
@@ -262,6 +262,11 @@ def bootstrap(user):
                 "joined": int(c.joined),
                 "owner_id": c.owner_id,
                 "event_count": c.event_count,
+                "avatar_url": (
+                    f"/api/communities/{c.pk}/avatar?v={c.avatar_updated.timestamp():.6f}"
+                    if c.avatar_updated
+                    else None
+                ),
             }
             for c in communities
         ],

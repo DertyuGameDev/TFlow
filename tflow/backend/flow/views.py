@@ -12,7 +12,7 @@ from django.utils.http import url_has_allowed_host_and_scheme
 from django.views.decorators.cache import never_cache
 from django.views.decorators.csrf import ensure_csrf_cookie
 from .auth_forms import LoginForm, RegisterForm
-from .avatars import save_avatar
+from .avatars import save_avatar, save_community_avatar
 from .notifications import notification_page
 from .calendar import activity_item, calendar_response, event_item
 from .contracts import (
@@ -29,6 +29,7 @@ from .models import (
     Activity,
     Bookmark,
     Community,
+    CommunityAvatar,
     EventRegistration,
     Membership,
     Registration,
@@ -224,6 +225,34 @@ def dispatch_api(request, path):
             {"error": "Метод не поддерживается", "code": "METHOD_NOT_ALLOWED"},
             status=405,
         )
+    if resource == "communities" and item_id and action == "avatar":
+        club = Community.objects.filter(pk=item_id).first()
+        if not club:
+            raise FlowError("NOT_FOUND", "Клуб не найден", 404)
+        if method == "GET":
+            avatar = CommunityAvatar.objects.filter(community=club).first()
+            if not avatar:
+                raise FlowError("NOT_FOUND", "Фото клуба ещё не загружено", 404)
+            return HttpResponse(
+                bytes(avatar.image),
+                content_type="image/webp",
+                headers={
+                    "Cache-Control": "no-store",
+                    "X-Content-Type-Options": "nosniff",
+                },
+            )
+        actor = require_user(request)
+        if club.owner_id != actor.pk:
+            raise FlowError(
+                "FORBIDDEN", "Изменить фото может только создатель клуба", 403
+            )
+        if method == "POST":
+            save_community_avatar(club, request.FILES.get("avatar"))
+            return JsonResponse({"ok": True})
+        if method == "DELETE":
+            CommunityAvatar.objects.filter(community=club).delete()
+            return JsonResponse({"ok": True})
+        return HttpResponseNotAllowed(["GET", "POST", "DELETE"])
     if method == "GET":
         if resource == "events" and item_id and action == "webinar":
             from .webinars import status
@@ -347,16 +376,27 @@ def dispatch_api(request, path):
             ) from error
         if not isinstance(body, dict):
             raise FlowError("VALIDATION", "Ожидается объект с полями формы", 400)
-        if any(isinstance(value, (dict, list)) and not (
-            resource == "events" and action == "requirements" and method == "PATCH"
-            and key == "required_profile_fields" and isinstance(value, list)
-        ) for key, value in body.items()):
+        if any(
+            isinstance(value, (dict, list))
+            and not (
+                resource == "events"
+                and action == "requirements"
+                and method == "PATCH"
+                and key == "required_profile_fields"
+                and isinstance(value, list)
+            )
+            for key, value in body.items()
+        ):
 
             raise FlowError(
                 "VALIDATION", "Поля формы должны содержать простые значения", 400
             )
     if path == "profile/become-organizer" and method == "POST":
-        raise FlowError("ROLE_FIXED", "Роль выбирается при регистрации и не может быть изменена", 403)
+        raise FlowError(
+            "ROLE_FIXED",
+            "Роль выбирается при регистрации и не может быть изменена",
+            403,
+        )
     elif path == "profile" and method == "PATCH":
         services.save_profile(user, body)
     elif path == "notifications" and method == "PATCH":
