@@ -688,6 +688,17 @@ export default function Webinar({
                   maxLength={1000}
                   value={draft}
                   onChange={(event) => setDraft(event.target.value)}
+                  onKeyDown={(event) => {
+                    if (
+                      event.key === "Enter" &&
+                      !event.shiftKey &&
+                      !event.nativeEvent.isComposing &&
+                      event.nativeEvent.keyCode !== 229
+                    ) {
+                      event.preventDefault();
+                      if (!event.repeat) event.currentTarget.form?.requestSubmit();
+                    }
+                  }}
                   placeholder="Ваш вопрос или сообщение"
                 />
               </label>
