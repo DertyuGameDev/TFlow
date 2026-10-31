@@ -71,7 +71,7 @@ import { AccountMenu } from "./ui/account-menu";
 import { EventTimeFilterControl } from "./ui/event-time-filter";
 import { matchesEventTime, type EventTimeFilter } from "../lib/event-filters";
 import { OrganizerTutorial } from "./ui/organizer-tutorial";
-import { OrganizerMascot } from "./ui/organizer-mascot";
+import { ProfileUpcomingEvents } from "./ui/profile-upcoming-events";
 import { EventParticipants } from "./ui/event-participants";
 import { ThemeToggle } from "./ui/theme-toggle";
 const Webinar = lazy(() => import("./ui/webinar"));
@@ -342,11 +342,15 @@ function DiscoveryCard({
 function ProfileView({
   profile,
   organizer,
+  events,
+  onCreate,
   onEdit,
   onAvatar,
 }: {
   profile: Profile;
   organizer: boolean;
+  events: FlowEvent[];
+  onCreate: () => void;
   onEdit: () => void;
   onAvatar: () => void;
 }) {
@@ -363,7 +367,9 @@ function ProfileView({
             : "Аккаунт участника · роль изменить нельзя"
         }
       />
-      <div className="personal-layout">
+      <div
+        className={`personal-layout${organizer ? " organizer-profile-layout" : ""}`}
+      >
         {!organizer && (
           <section className="personal-pass">
             <div className="pass-top">
@@ -465,23 +471,14 @@ function ProfileView({
               <button className="text-button">Выйти из аккаунта</button>
             </form>
           </section>
-          {organizer && (
-            <section className="profile-organizer">
-              <span className="organizer-eyebrow">
-                <LayoutDashboard size={18} />
-                Ваши события
-              </span>
-              <h2>Кабинет организатора</h2>
-              <p>
-                Создавайте события, ведите вебинары и встречайте гостей по QR.
-              </p>
-              <a className="button primary" href="#organizer">
-                Мои события
-                <ArrowRight size={18} />
-              </a>
-            </section>
-          )}
         </div>
+        {organizer && (
+          <ProfileUpcomingEvents
+            events={events}
+            organizerId={profile.id}
+            onCreate={onCreate}
+          />
+        )}
       </div>
     </>
   );
@@ -832,7 +829,8 @@ export function TFlow({ user }: { user: UserIdentity | null }) {
     format ||
     date ||
     topic ||
-    clubFilter || eventTime !== "all"
+    clubFilter ||
+    eventTime !== "all"
   );
   const resetFilters = () => {
     setQuery("");
@@ -980,7 +978,11 @@ export function TFlow({ user }: { user: UserIdentity | null }) {
                     </span>
                   )}
                 </a>
-                <AccountMenu profile={data.profile ?? {name:user.displayName, avatar_url:null}} />
+                <AccountMenu
+                  profile={
+                    data.profile ?? { name: user.displayName, avatar_url: null }
+                  }
+                />
               </>
             ) : (
               <a className="button secondary small-button" href="/login/">
@@ -1073,7 +1075,10 @@ export function TFlow({ user }: { user: UserIdentity | null }) {
                     )}
                   </button>
                 </div>
-                <EventTimeFilterControl value={eventTime} onChange={setEventTime} />
+                <EventTimeFilterControl
+                  value={eventTime}
+                  onChange={setEventTime}
+                />
                 <div className="catalog-category-filter">
                   <CategorySelect value={topic} onChange={setTopic} allowAll />
                   {data.communities.length > 0 && (
@@ -1214,89 +1219,93 @@ export function TFlow({ user }: { user: UserIdentity | null }) {
                     </button>
                   )}
                 </Heading>
-                <div
-                  className={`organizer-dashboard${own.length === 0 ? " is-empty" : ""}`}
-                >
-                  <div className="organizer-dashboard-content">
-                    <OrganizerTutorial
-                      key={user.userId}
-                      userId={user.userId}
-                      events={own}
-                      onAction={(action, event) => {
-                        if (action === "create" || !event)
-                          setDialog({ type: "create" });
-                        else if (action === "schedule")
-                          setDialog({ type: "schedule", event });
-                        else if (action === "preview") go("event", event.id);
-                        else if (action === "entry")
-                          go(hasWebinar(event) ? "webinar" : "scan", event.id);
-                        else
-                          go(
-                            "manage",
-                            event.id,
-                            action === "program" || action === "participants"
-                              ? action
-                              : undefined,
-                          );
-                      }}
+                <OrganizerTutorial
+                  key={user.userId}
+                  userId={user.userId}
+                  events={own}
+                  onAction={(action, event) => {
+                    if (action === "create" || !event)
+                      setDialog({ type: "create" });
+                    else if (action === "schedule")
+                      setDialog({ type: "schedule", event });
+                    else if (action === "preview") go("event", event.id);
+                    else if (action === "entry")
+                      go(hasWebinar(event) ? "webinar" : "scan", event.id);
+                    else
+                      go(
+                        "manage",
+                        event.id,
+                        action === "program" || action === "participants"
+                          ? action
+                          : undefined,
+                      );
+                  }}
+                />
+                {own.length > 0 ? (
+                  <>
+                    <div className="metric-grid overview-metrics">
+                      <div>
+                        <span>Событий</span>
+                        <strong>{own.length}</strong>
+                      </div>
+                      <div>
+                        <span>Регистраций</span>
+                        <strong>
+                          {own.reduce((n, e) => n + e.participant_count, 0)}
+                        </strong>
+                      </div>
+                      <div>
+                        <span>Уже вошли</span>
+                        <strong>
+                          {own.reduce((n, e) => n + e.checked_in_count, 0)}
+                        </strong>
+                      </div>
+                    </div>
+                    <EventTimeFilterControl
+                      value={ownEventTime}
+                      onChange={setOwnEventTime}
                     />
-                    {own.length > 0 ? (
-                      <>
-                        <div className="metric-grid overview-metrics">
-                          <div>
-                            <span>Событий</span>
-                            <strong>{own.length}</strong>
-                          </div>
-                          <div>
-                            <span>Регистраций</span>
-                            <strong>
-                              {own.reduce((n, e) => n + e.participant_count, 0)}
-                            </strong>
-                          </div>
-                          <div>
-                            <span>Уже вошли</span>
-                            <strong>
-                              {own.reduce((n, e) => n + e.checked_in_count, 0)}
-                            </strong>
-                          </div>
-                        </div>
-                        <EventTimeFilterControl value={ownEventTime} onChange={setOwnEventTime} />
-                        <div className="host-events">
-                          {visibleOwn.map((e) => (
-                            <OrganizerEvent
-                              event={e}
-                              key={e.id}
-                              onMove={() =>
-                                setDialog({ type: "move", event: e })
-                              }
-                              onDelete={() =>
-                                setDialog({ type: "delete", event: e })
-                              }
-                            />
-                          ))}
-                          {visibleOwn.length === 0 && <Empty title="Таких событий пока нет" text="Выберите другое состояние мероприятий.">
-                            <button className="button secondary" onClick={()=>setOwnEventTime("all")}>Показать все</button>
-                          </Empty>}
-                        </div>
-                      </>
-                    ) : (
-                      <Empty
-                        icon={CalendarDays}
-                        title="Начните с вашей встречи"
-                        text="Название, время и место — этого хватит для начала. Остальное можно добавить позже."
-                      >
-                        <button
-                          className="button primary"
-                          onClick={() => setDialog({ type: "create" })}
+                    <div className="host-events">
+                      {visibleOwn.map((e) => (
+                        <OrganizerEvent
+                          event={e}
+                          key={e.id}
+                          onMove={() => setDialog({ type: "move", event: e })}
+                          onDelete={() =>
+                            setDialog({ type: "delete", event: e })
+                          }
+                        />
+                      ))}
+                      {visibleOwn.length === 0 && (
+                        <Empty
+                          title="Таких событий пока нет"
+                          text="Выберите другое состояние мероприятий."
                         >
-                          <Plus size={18} />
-                          Создать событие
-                        </button>
-                      </Empty>
-                    )}
-                  </div>
-                  <OrganizerMascot />
-                </div>
+                          <button
+                            className="button secondary"
+                            onClick={() => setOwnEventTime("all")}
+                          >
+                            Показать все
+                          </button>
+                        </Empty>
+                      )}
+                    </div>
+                  </>
+                ) : (
+                  <Empty
+                    icon={CalendarDays}
+                    title="Начните с вашей встречи"
+                    text="Название, время и место — этого хватит для начала. Остальное можно добавить позже."
+                  >
+                    <button
+                      className="button primary"
+                      onClick={() => setDialog({ type: "create" })}
+                    >
+                      <Plus size={18} />
+                      Создать событие
+                    </button>
+                  </Empty>
+                )}
               </>
             )}
             {route.view === "organizer" && !user && <OrganizerIntro />}
@@ -1442,6 +1451,8 @@ export function TFlow({ user }: { user: UserIdentity | null }) {
                   <ProfileView
                     profile={data.profile}
                     organizer={organizer}
+                    events={data.events}
+                    onCreate={() => setDialog({ type: "create" })}
                     onEdit={() => setDialog({ type: "profile" })}
                     onAvatar={() => setDialog({ type: "avatar" })}
                   />

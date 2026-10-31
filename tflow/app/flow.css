@@ -487,11 +487,7 @@ body{font-size:16px;color:#222329;background:#fff}
 .role-switch{display:inline-flex;align-items:center;justify-content:center;gap:8px;min-height:40px;padding:8px 12px;border:1px solid #eadb92;border-radius:12px;background:#fffae4;font-size:12px;color:#5d5125;white-space:nowrap}
 .role-switch:hover{background:#fff2b3}
 .role-switch:focus-visible{outline:2px solid #806a13;outline-offset:3px}
-.profile-organizer{padding:25px 27px;border:1px solid #f0e3ab;border-radius:19px;background:#fffbeb;min-width:0}
 .organizer-eyebrow{display:inline-flex;align-items:center;gap:8px;color:#806a25;font-size:12px;font-weight:500}
-.profile-organizer h2{font-size:21px;line-height:1.3;letter-spacing:-.5px;margin-top:14px;overflow-wrap:anywhere}
-.profile-organizer p{color:#6e7480;font-size:13px;line-height:1.7;margin:12px 0 20px}
-.profile-organizer .button{width:100%}
 .organizer-intro{max-width:100%;padding:22px 0 48px}
 .organizer-intro>h1{font-size:clamp(30px,4.5vw,53px);line-height:1.13;letter-spacing:-1.5px;margin-top:20px;overflow-wrap:anywhere}
 .organizer-lead{color:#6e7480;max-width:650px;font-size:16px;line-height:1.8;margin:22px 0 30px}
@@ -509,7 +505,7 @@ body{font-size:16px;color:#222329;background:#fff}
 .draft-notice strong{font-size:13px}
 .draft-notice p{font-size:12px;line-height:1.8;margin-top:7px}
 @media(max-width:1050px){.desktop-navigation{gap:14px}.flow-topbar-inner{gap:16px}.flow-account{gap:8px}.role-switch{font-size:var(--font-size-min);padding:8px}.organizer-steps li{padding:21px}}
-@media(max-width:760px){.role-switch{min-width:40px;min-height:40px;padding:9px}.role-switch>span{display:none}.flow-account>.favorite-link{display:none}.organizer-steps{grid-template-columns:minmax(0,1fr);gap:12px}.organizer-steps li{padding:22px}.organizer-steps li>svg{margin-bottom:14px}.organizer-intro{padding-top:6px}.organizer-lead{font-size:14px;line-height:1.75}.organizer-enable{justify-items:stretch}.organizer-enable>.text-button{justify-content:center}.profile-organizer{padding:22px}.draft-notice{padding:16px}}
+@media(max-width:760px){.role-switch{min-width:40px;min-height:40px;padding:9px}.role-switch>span{display:none}.flow-account>.favorite-link{display:none}.organizer-steps{grid-template-columns:minmax(0,1fr);gap:12px}.organizer-steps li{padding:22px}.organizer-steps li>svg{margin-bottom:14px}.organizer-intro{padding-top:6px}.organizer-lead{font-size:14px;line-height:1.75}.organizer-enable{justify-items:stretch}.organizer-enable>.text-button{justify-content:center}.draft-notice{padding:16px}}
 
 /* Supplied brand artwork is embedded unchanged; the mark view shares its asset. */
 .brand-logo{display:block;flex:none;width:176px;height:49px;max-width:100%}
