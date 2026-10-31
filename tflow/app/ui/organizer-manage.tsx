@@ -46,9 +46,9 @@ import type { ProgramRange } from "../../lib/program-editing";
 import { OrganizerTutorial } from "./organizer-tutorial";
 import "../event-management.css";
 
-type Section = "event" | "program" | "participants";
+type Section = "event" | "program" | "flow";
 type Props = {
-  initialSection?: Section;
+  initialSection?: Section | "participants";
   detail: EventDetail;
   rows: AttendanceRow[];
   busy: boolean;
@@ -92,13 +92,14 @@ export function OrganizerManage({
   send,
   refresh,
 }: Props) {
-  const [section, setSection] = useState<Section>(initialSection);
+  const [section, setSection] = useState<Section>(initialSection === "participants" ? "event" : initialSection);
   const [query, setQuery] = useState("");
   const [filter, setFilter] = useState("all");
   const [settingsOpen, setSettingsOpen] = useState(false);
   const [swapping, setSwapping] = useState<Activity | null>(null);
   const [programNotice, setProgramNotice] = useState("");
-  const [programView, setProgramView] = useState<"flow" | "timeline">("flow");
+  const [participantsOpen, setParticipantsOpen] = useState(initialSection === "participants");
+  const participantsRef = useRef<HTMLDetailsElement>(null);
   const [selectedProgramId, setSelectedProgramId] = useState("");
   const [graphDraft, setGraphDraft] = useState<{
     activityId?: string;
@@ -224,10 +225,10 @@ export function OrganizerManage({
       count: detail.activities.length,
     },
     {
-      id: "participants" as const,
-      label: "Участники",
-      icon: Users,
-      count: rows.length,
+      id: "flow" as const,
+      label: "Флоу",
+      icon: Clock3,
+      count: detail.activities.length,
     },
   ];
   const visible = rows.filter(
@@ -243,10 +244,18 @@ export function OrganizerManage({
   const required = REQUIREMENT_FIELDS.filter((field) =>
     e.required_profile_fields?.includes(field.key as RequiredProfileField),
   ).map((field) => field.label);
+  function showParticipants() {
+    setQuery(""); setFilter("all"); setSection("event"); setParticipantsOpen(true);
+    setTimeout(() => {
+      participantsRef.current?.scrollIntoView({ block: "nearest" });
+      participantsRef.current?.querySelector("summary")?.focus({ preventScroll: true });
+    }, 0);
+  }
   function switchWithKeyboard(
     event: KeyboardEvent<HTMLButtonElement>,
     index: number,
   ) {
+    if (graphDraft) return;
     let next = index;
     if (event.key === "ArrowRight") next = (index + 1) % tabs.length;
     else if (event.key === "ArrowLeft")
@@ -278,7 +287,7 @@ export function OrganizerManage({
               if (action === "create") onCreate();
               else if (action === "schedule") onSchedule();
               else if (action === "program") setSection("program");
-              else if (action === "participants") setSection("participants");
+              else if (action === "participants") showParticipants();
               else if (action === "preview") onOpenPublic();
               else if (action === "entry")
                 hasWebinar(e) ? onOpenWebinar() : onScan();
@@ -324,6 +333,8 @@ export function OrganizerManage({
             type="button"
             role="tab"
             id={`${id}-tab-${tab.id}`}
+            disabled={!!graphDraft && section !== tab.id}
+            title={graphDraft && section !== tab.id ? "Сначала сохраните или отмените изменения пункта" : undefined}
             aria-selected={section === tab.id}
             aria-controls={`${id}-panel-${tab.id}`}
             tabIndex={section === tab.id ? 0 : -1}
@@ -371,12 +382,7 @@ export function OrganizerManage({
         </dl>
         <EventParticipants
           rows={rows}
-          onShowAll={() => {
-            setQuery("");
-            setFilter("all");
-            setSection("participants");
-            document.getElementById(`${id}-tab-participants`)?.focus();
-          }}
+          onShowAll={showParticipants}
         />
         <AccessKeyManager event={e} send={send}/>
         <article className="management-card">
@@ -441,227 +447,9 @@ export function OrganizerManage({
             </button>
           </div>
         </article>
-      </section>
-      <section
-        role="tabpanel"
-        id={`${id}-panel-program`}
-        aria-labelledby={`${id}-tab-program`}
-        hidden={section !== "program"}
-        className="management-panel"
-      >
-        <section className="management-card management-schedule">
-          <header className="management-section-heading">
-            <div>
-              <h2>Расписание мероприятия</h2>
-              <p>Общее время и место встречи. Всё время указано по МСК.</p>
-            </div>
-            <button className="button secondary" onClick={onSchedule}>
-              <Settings2 size={17} />
-              Изменить время и место
-            </button>
-          </header>
-          <dl className="management-facts management-schedule-facts">
-            <div>
-              <dt>
-                <CalendarDays size={15} />
-                Начало
-              </dt>
-              <dd>
-                <time dateTime={new Date(e.starts_at).toISOString()}>
-                  {dateLabel(e.starts_at, { year: "numeric" })}
-                  <strong>{timeLabel(e.starts_at)}</strong>
-                </time>
-              </dd>
-            </div>
-            <div>
-              <dt>
-                <Clock3 size={15} />
-                Окончание
-              </dt>
-              <dd>
-                <time dateTime={new Date(e.ends_at).toISOString()}>
-                  {dateLabel(e.ends_at, { year: "numeric" })}
-                  <strong>{timeLabel(e.ends_at)}</strong>
-                </time>
-              </dd>
-            </div>
-            <div>
-              <dt>
-                <MapPin size={15} />
-                Место
-              </dt>
-              <dd>
-                {e.format === "Онлайн"
-                  ? "Вебинар внутри ТФлоу"
-                  : [e.city, e.venue, e.address].filter(Boolean).join(" · ")}
-              </dd>
-            </div>
-          </dl>
-        </section>
-        <section className="management-card management-rooms">
-          <header className="management-section-heading">
-            <div>
-              <h2>Аудитории</h2>
-              <p>
-                Очные залы и несколько онлайн-потоков могут работать
-                параллельно. Для каждого одновременного эфира создайте свою
-                онлайн-аудиторию.
-              </p>
-            </div>
-            <button className="text-button" onClick={() => onRoom()}>
-              <Plus size={17} />
-              Добавить аудиторию
-            </button>
-          </header>
-          <div className="management-room-list">
-            {detail.rooms.map((room) => (
-              <button
-                key={room.id}
-                onClick={() => onRoom(room)}
-                aria-label={`Изменить аудиторию ${room.name}`}
-              >
-                <span>
-                  <strong>{room.name}</strong>
-                  <small>
-                    {room.is_online
-                      ? `Вебинар · ${room.capacity} зрителей`
-                      : `${room.capacity} мест`}
-                  </small>
-                </span>
-                {room.is_online ? <Video size={16} /> : <Pencil size={16} />}
-              </button>
-            ))}
-          </div>
-          {detail.rooms.some((room) => room.is_online) &&
-            hasWebinar(e) &&
-            e.status === "published" && (
-              <button className="text-button" onClick={onOpenWebinar}>
-                <Video size={17} /> Выбрать онлайн-флоу
-              </button>
-            )}
-        </section>
-        <header className="management-section-heading">
-          <div>
-            <h2>Пункты программы</h2>
-          </div>
-          <div
-            className="flow-view-toggle"
-            role="group"
-            aria-label="Вид программы"
-          >
-            <button
-              type="button"
-              aria-pressed={programView === "flow"}
-              disabled={!!graphDraft && programView !== "flow"}
-              onClick={() => setProgramView("flow")}
-            >
-              Флоу
-            </button>
-            <button
-              type="button"
-              aria-pressed={programView === "timeline"}
-              disabled={!!graphDraft && programView !== "timeline"}
-              onClick={() => setProgramView("timeline")}
-            >
-              Шкала времени
-            </button>
-          </div>
-          <button
-            type="button"
-            className="button primary"
-            onClick={() => openProgramItem()}
-          >
-            <Plus size={18} />
-            Добавить пункт
-          </button>
-        </header>
-        {programNotice && (
-          <p className="management-program-notice" role="status">
-            {programNotice}
-          </p>
-        )}
-        {programView === "flow" ? (
-          <OrganizerFlow
-            activities={detail.activities}
-            editor={programEditor}
-            onEdit={(activity) => openProgramItem(activity)}
-            onSwap={(activity) => {
-              setGraphDraft(null);
-              setSwapping(activity);
-            }}
-          />
-        ) : (
-          <>
-            <ProgramTimeline
-              event={e}
-              activities={detail.activities}
-              rooms={detail.rooms}
-              onEdit={(activity) => openProgramItem(activity)}
-              onSelect={(activity) => openProgramItem(activity)}
-              selectedActivityId={selectedProgramId}
-              onCreate={(range) => openProgramItem(undefined, range)}
-              onReschedule={async (activity, range) => {
-                const currentActivity = detail.activities.find(
-                  (item) => item.id === activity.id,
-                );
-                if (
-                  currentActivity &&
-                  currentActivity.updated_at !== activity.updated_at
-                )
-                  throw new Error(
-                    "Этот пункт уже изменился. Обновите программу.",
-                  );
-                if (
-                  graphDraft &&
-                  (graphDraft.activityId ?? "__new-program-item") ===
-                    activity.id
-                ) {
-                  setGraphDraft((current) =>
-                    current
-                      ? { ...current, range: { ...current.range, ...range } }
-                      : current,
-                  );
-                } else openProgramItem(activity, range);
-              }}
-              inlineEditor={programEditor}
-            />
-            <OrganizerProgramList
-              activities={detail.activities}
-              onSwap={(activity) => {
-                setGraphDraft(null);
-                setSwapping(activity);
-              }}
-              editingId={selectedProgramId}
-              onEdit={(activity) => openProgramItem(activity)}
-            />
-          </>
-        )}
-        {activityEditor && (
-          <Modal
-            key={activityEditorKey}
-            title="Параметры пункта"
-            onClose={() => onCloseActivity?.()}
-          >
-            {activityEditor}
-          </Modal>
-        )}
-      </section>
-      {swapping && (
-        <ProgramSwap
-          activity={swapping}
-          detail={detail}
-          send={send}
-          refresh={refresh}
-          onClose={() => setSwapping(null)}
-        />
-      )}
-      <section
-        role="tabpanel"
-        id={`${id}-panel-participants`}
-        aria-labelledby={`${id}-tab-participants`}
-        hidden={section !== "participants"}
-        className="management-panel"
-      >
+        <details ref={participantsRef} aria-label="Все участники" className="management-participants" open={participantsOpen}
+          onToggle={event => setParticipantsOpen(event.currentTarget.open)}>
+          <summary>Участники <span className="management-count">{rows.length}</span></summary>
         <section className="management-registration management-card">
           <div>
             <h3>Что спросить при записи</h3>
@@ -788,7 +576,197 @@ export function OrganizerManage({
             )}
           </div>
         )}
+        </details>
       </section>
+      <section
+        role="tabpanel"
+        id={`${id}-panel-program`}
+        aria-labelledby={`${id}-tab-program`}
+        hidden={section !== "program"}
+        className="management-panel"
+      >
+        <section className="management-card management-schedule">
+          <header className="management-section-heading">
+            <div>
+              <h2>Расписание мероприятия</h2>
+              <p>Общее время и место встречи. Всё время указано по МСК.</p>
+            </div>
+            <button className="button secondary" onClick={onSchedule}>
+              <Settings2 size={17} />
+              Изменить время и место
+            </button>
+          </header>
+          <dl className="management-facts management-schedule-facts">
+            <div>
+              <dt>
+                <CalendarDays size={15} />
+                Начало
+              </dt>
+              <dd>
+                <time dateTime={new Date(e.starts_at).toISOString()}>
+                  {dateLabel(e.starts_at, { year: "numeric" })}
+                  <strong>{timeLabel(e.starts_at)}</strong>
+                </time>
+              </dd>
+            </div>
+            <div>
+              <dt>
+                <Clock3 size={15} />
+                Окончание
+              </dt>
+              <dd>
+                <time dateTime={new Date(e.ends_at).toISOString()}>
+                  {dateLabel(e.ends_at, { year: "numeric" })}
+                  <strong>{timeLabel(e.ends_at)}</strong>
+                </time>
+              </dd>
+            </div>
+            <div>
+              <dt>
+                <MapPin size={15} />
+                Место
+              </dt>
+              <dd>
+                {e.format === "Онлайн"
+                  ? "Вебинар внутри ТФлоу"
+                  : [e.city, e.venue, e.address].filter(Boolean).join(" · ")}
+              </dd>
+            </div>
+          </dl>
+        </section>
+        <section className="management-card management-rooms">
+          <header className="management-section-heading">
+            <div>
+              <h2>Аудитории</h2>
+              <p>
+                Очные залы и несколько онлайн-потоков могут работать
+                параллельно. Для каждого одновременного эфира создайте свою
+                онлайн-аудиторию.
+              </p>
+            </div>
+            <button className="text-button" onClick={() => onRoom()}>
+              <Plus size={17} />
+              Добавить аудиторию
+            </button>
+          </header>
+          <div className="management-room-list">
+            {detail.rooms.map((room) => (
+              <button
+                key={room.id}
+                onClick={() => onRoom(room)}
+                aria-label={`Изменить аудиторию ${room.name}`}
+              >
+                <span>
+                  <strong>{room.name}</strong>
+                  <small>
+                    {room.is_online
+                      ? `Вебинар · ${room.capacity} зрителей`
+                      : `${room.capacity} мест`}
+                  </small>
+                </span>
+                {room.is_online ? <Video size={16} /> : <Pencil size={16} />}
+              </button>
+            ))}
+          </div>
+          {detail.rooms.some((room) => room.is_online) &&
+            hasWebinar(e) &&
+            e.status === "published" && (
+              <button className="text-button" onClick={onOpenWebinar}>
+                <Video size={17} /> Выбрать онлайн-флоу
+              </button>
+            )}
+        </section>
+        <header className="management-section-heading">
+          <div>
+            <h2>Пункты программы</h2>
+          </div>
+          <button
+            type="button"
+            className="button primary"
+            onClick={() => openProgramItem()}
+          >
+            <Plus size={18} />
+            Добавить пункт
+          </button>
+        </header>
+        {programNotice && (
+          <p className="management-program-notice" role="status">
+            {programNotice}
+          </p>
+        )}
+        {section === "program" && (
+          <>
+            <ProgramTimeline
+              event={e}
+              activities={detail.activities}
+              rooms={detail.rooms}
+              onEdit={(activity) => openProgramItem(activity)}
+              onSelect={(activity) => openProgramItem(activity)}
+              selectedActivityId={selectedProgramId}
+              onCreate={(range) => openProgramItem(undefined, range)}
+              onReschedule={async (activity, range) => {
+                const currentActivity = detail.activities.find(
+                  (item) => item.id === activity.id,
+                );
+                if (
+                  currentActivity &&
+                  currentActivity.updated_at !== activity.updated_at
+                )
+                  throw new Error(
+                    "Этот пункт уже изменился. Обновите программу.",
+                  );
+                if (
+                  graphDraft &&
+                  (graphDraft.activityId ?? "__new-program-item") ===
+                    activity.id
+                ) {
+                  setGraphDraft((current) =>
+                    current
+                      ? { ...current, range: { ...current.range, ...range } }
+                      : current,
+                  );
+                } else openProgramItem(activity, range);
+              }}
+              inlineEditor={programEditor}
+            />
+            <OrganizerProgramList
+              activities={detail.activities}
+              onSwap={(activity) => {
+                setGraphDraft(null);
+                setSwapping(activity);
+              }}
+              editingId={selectedProgramId}
+              onEdit={(activity) => openProgramItem(activity)}
+            />
+          </>
+        )}
+        {activityEditor && (
+          <Modal
+            key={activityEditorKey}
+            title="Параметры пункта"
+            onClose={() => onCloseActivity?.()}
+          >
+            {activityEditor}
+          </Modal>
+        )}
+      </section>
+      <section role="tabpanel" id={`${id}-panel-flow`} aria-labelledby={`${id}-tab-flow`}
+        hidden={section !== "flow"} className="management-panel">
+        {section === "flow" && <OrganizerFlow activities={detail.activities} editor={programEditor}
+          onEdit={activity => openProgramItem(activity)} onSwap={activity => {
+            setGraphDraft(null); setSwapping(activity);
+          }}/>}
+      </section>
+      {swapping && (
+        <ProgramSwap
+          activity={swapping}
+          detail={detail}
+          send={send}
+          refresh={refresh}
+          onClose={() => setSwapping(null)}
+        />
+      )}
+
       {settingsOpen && (
         <Modal
           title="Данные при записи"

@@ -78,10 +78,10 @@ describe("превью участников события", () => {
     const user = userEvent.setup();
     render(<OrganizerManage {...manageProps} />);
     await user.click(screen.getByRole("button", { name: "Все участники" }));
-    expect(screen.getByRole("tab", { name: /Участники\s*7/ })).toHaveAttribute("aria-selected", "true");
-    expect(screen.getByRole("tab", { name: /Участники\s*7/ })).toHaveFocus();
+    expect(screen.getByRole("tab", { name: "Событие" })).toHaveAttribute("aria-selected", "true");
+    expect(screen.getByRole("group", { name: "Все участники" })).toHaveAttribute("open");
     await user.type(screen.getByRole("textbox", { name: "Найти участника" }), "Участник 6");
-    const panel = screen.getByRole("tabpanel", { name: /Участники\s*7/ });
+    const panel = screen.getByRole("group", { name: "Все участники" });
     expect(within(panel).getByText("Участник 6")).toBeVisible();
     expect(within(panel).queryByText("Участник 1")).not.toBeInTheDocument();
     await user.click(within(panel).getByText("Участник 6"));
@@ -90,7 +90,7 @@ describe("превью участников события", () => {
 
   it("позволяет сразу открыть вкладку участников по переходу со страницы события", () => {
     render(<OrganizerManage {...manageProps} initialSection="participants" />);
-    expect(screen.getByRole("tab", { name: /Участники\s*7/ })).toHaveAttribute("aria-selected", "true");
+    expect(screen.getByRole("tab", { name: "Событие" })).toHaveAttribute("aria-selected", "true");
     expect(screen.getByRole("textbox", { name: "Найти участника" })).toBeVisible();
   });
 });

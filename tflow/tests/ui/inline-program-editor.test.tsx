@@ -106,9 +106,7 @@ function server(initial: Activity[] = [first]) {
 
 async function mountTimeline() {
   render(<TFlow user={host} />);
-  await userEvent
-    .setup()
-    .click(await screen.findByRole("button", { name: "Шкала времени" }));
+  await screen.findByRole("region", { name: "Графическое расписание" });
 }
 
 describe("редактирование прямо на графике", () => {
@@ -299,6 +297,23 @@ describe("редактирование прямо на графике", () => {
   });
 });
 
+it("opens the original graph by default and puts Flow in its own top-level tab", async () => {
+  server([first]);
+  const user = userEvent.setup();
+  render(<TFlow user={host}/>);
+  expect(await screen.findByRole("region", { name: "Графическое расписание" })).toBeVisible();
+  expect(screen.getAllByRole("tab").map(tab => tab.textContent?.replace(/\d+/g, "").trim())).toEqual(["Событие", "Программа", "Флоу"]);
+  expect(screen.queryByRole("button", { name: "Шкала времени" })).not.toBeInTheDocument();
+  await user.click(screen.getByRole("tab", { name: /^Флоу/ }));
+  expect(screen.getByRole("region", { name: "Флоу организатора" })).toBeVisible();
+  expect(screen.queryByRole("region", { name: "Графическое расписание" })).not.toBeInTheDocument();
+  await user.keyboard("{ArrowLeft}");
+  expect(screen.getByRole("region", { name: "Графическое расписание" })).toBeVisible();
+  await user.click(screen.getByRole("button", { name: "Добавить пункт" }));
+  expect(screen.getByRole("textbox", { name: "Название пункта на графике" })).toBeVisible();
+  expect(screen.getByRole("tab", { name: /^Флоу/ })).toBeDisabled();
+});
+
 describe("вертикальный флоу организатора", () => {
   it("редактирует внутри блока и не теряет название при изменении порядка пунктов", async () => {
     const writes = server([
@@ -314,6 +329,7 @@ describe("вертикальный флоу организатора", () => {
     ]);
     const user = userEvent.setup();
     render(<TFlow user={host} />);
+    await user.click(await screen.findByRole("tab", { name: /^Флоу/ }));
     const flow = await screen.findByRole("region", {
       name: "Флоу организатора",
     });

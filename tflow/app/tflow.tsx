@@ -1489,7 +1489,9 @@ export function TFlow({ user }: { user: UserIdentity | null }) {
                   <OrganizerManage
                     key={detail.event.id}
                     initialSection={
-                      route.mode === "participants"
+                      route.mode === "flow"
+                        ? "flow"
+                        : route.mode === "participants"
                         ? "participants"
                         : route.mode === "program"
                           ? "program"

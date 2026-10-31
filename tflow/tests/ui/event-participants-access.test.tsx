@@ -47,7 +47,9 @@ describe("доступ к анкетам из управления событи�
     expect(screen.getByRole("dialog", { name: "Анна Петрова" })).toBeVisible();
     await user.click(screen.getByRole("button", { name: "Закрыть" }));
     await user.click(screen.getByRole("button", { name: "Все участники" }));
-    expect(screen.getByRole("tab", { name: /Участники\s*1/ })).toHaveAttribute("aria-selected", "true");
+    expect(screen.getByRole("tab", { name: "Событие" })).toHaveAttribute("aria-selected", "true");
+    expect(document.querySelector("details.management-participants")).toHaveAttribute("open");
+    expect(screen.queryByRole("tab", { name: /Участники/ })).not.toBeInTheDocument();
     expect(fetch).toHaveBeenCalledWith(`/api/events/${event.id}/attendance`, expect.anything());
   });
 
