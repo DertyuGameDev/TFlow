@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { flowDuration, layoutFlow } from "../lib/flow-layout";
+import { FLOW_DAY_HEADING, flowDuration, layoutFlow } from "../lib/flow-layout";
 import type { Activity } from "../lib/types";
 import { event } from "./fixtures";
 
@@ -13,7 +13,7 @@ function activity(id: string, start: number, duration: number) {
   } as Activity;
 }
 describe("геометрия флоу по времени", () => {
-  it.each([2, 8, 64])(
+  it.each([3, 8, 32])(
     "показывает час в 12 раз длиннее пяти минут и сохраняет десятиминутный перерыв при масштабе %s",
     (scale) => {
       const layout = layoutFlow(
@@ -28,6 +28,22 @@ describe("геометрия флоу по времени", () => {
       );
     },
   );
+  it("начинает шкалу с первой активности, не добавляя выдуманный перерыв", () => {
+    const first = activity("first", 12, 60);
+    const second = activity("second", 72, 60);
+    const { days, placements } = layoutFlow([first, second], 3);
+    expect(days[0].start).toBe(first.starts_at);
+    expect(days[0].end).toBe(second.ends_at);
+    expect(days[0].height).toBe(360);
+    expect(days[0].gaps).toEqual([]);
+    expect(placements[0].top).toBe(days[0].top + FLOW_DAY_HEADING);
+    const ticks = days[0].ticks;
+    expect(ticks[0].time).toBe(first.starts_at);
+    expect(ticks.at(-1)!.time).toBe(second.ends_at);
+    for (let i = 1; i < ticks.length; i++) {
+      expect(ticks[i].top - ticks[i - 1].top).toBeGreaterThanOrEqual(24);
+    }
+  });
   it("располагает пересечения рядом и возвращает полную ширину после них", () => {
     const { placements } = layoutFlow(
       [

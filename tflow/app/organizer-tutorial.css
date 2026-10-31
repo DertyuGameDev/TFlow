@@ -282,6 +282,7 @@
   grid-template-columns: 35px 14px minmax(0, 1fr);
   align-items: stretch;
   height: 90px;
+  margin-bottom: 3px;
 }
 .tutorial-flow-row:first-child {
   height: 60px;
@@ -301,13 +302,12 @@
   left: 1px;
   top: 0;
   bottom: 0;
-  width: 11px;
-  border: 2px solid #8b9cae;
-  border-right: 0;
-  border-radius: 12px 0 0 12px;
+  width: 4px;
+  background: #7dabb8;
+  border-radius: 3px;
 }
 .tutorial-flow-row.is-live .tutorial-flow-rail::before {
-  border-color: #dfb91a;
+  background: #dfb91a;
 }
 .tutorial-flow-rail > i {
   display: none;
@@ -317,10 +317,15 @@
   gap: 5px;
   min-width: 0;
   margin: 0;
-  padding: 8px 4px;
+  padding: 8px;
+  border-radius: 3px 14px 14px 3px;
+  background: color-mix(in srgb, #7dabb8 15%, var(--theme-bg, #fff));
   align-content: start;
   overflow-wrap: anywhere;
   font-size: 12px;
+}
+.tutorial-flow-row.is-live .tutorial-flow-block {
+  background: color-mix(in srgb, #ffdd2d 17%, var(--theme-bg, #fff));
 }
 .tutorial-flow-block > strong {
   font-weight: 600;

@@ -55,23 +55,33 @@ export function layoutFlow(activities: Activity[], pixelsPerMinute: number) {
   let offset = 0,
     maximumLanes = 1;
   for (const [key, group] of grouped) {
-    const start =
-      Math.floor(group[0].starts_at / (15 * FLOW_MINUTE)) * 15 * FLOW_MINUTE;
-    const end =
-      Math.ceil(
-        Math.max(...group.map((item) => item.ends_at), start + FLOW_MINUTE) /
-          (15 * FLOW_MINUTE),
-      ) *
-      15 *
-      FLOW_MINUTE;
+    const start = group[0].starts_at;
+    const end = Math.max(
+      ...group.map((item) => item.ends_at),
+      start + FLOW_MINUTE,
+    );
     const height = ((end - start) / FLOW_MINUTE) * scale;
     const top = offset + FLOW_DAY_HEADING;
     const toY = (time: number) => top + ((time - start) / FLOW_MINUTE) * scale;
     const tickMinutes =
       scale >= 32 ? 1 : scale >= 12 ? 5 : scale >= 4 ? 15 : 30;
-    const ticks: FlowDay["ticks"] = [];
-    for (let time = start; time <= end; time += tickMinutes * FLOW_MINUTE)
+    const ticks: FlowDay["ticks"] = [{ time: start, top: toY(start) }];
+    for (
+      let time =
+        Math.ceil(start / (tickMinutes * FLOW_MINUTE)) *
+        tickMinutes *
+        FLOW_MINUTE;
+      time < end;
+      time += tickMinutes * FLOW_MINUTE
+    ) {
+      if (time - ticks.at(-1)!.time < (24 / scale) * FLOW_MINUTE) continue;
       ticks.push({ time, top: toY(time) });
+    }
+    if (
+      end - ticks.at(-1)!.time < (24 / scale) * FLOW_MINUTE &&
+      ticks.length > 1
+    )
+      ticks.pop();
     if (ticks.at(-1)?.time !== end) ticks.push({ time: end, top: toY(end) });
     const gaps: FlowDay["gaps"] = [];
     let cursor = start;

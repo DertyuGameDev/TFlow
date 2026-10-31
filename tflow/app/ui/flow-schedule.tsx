@@ -46,13 +46,13 @@ export function useFlowClock(activities: Activity[]) {
   return now;
 }
 
-const COLORS = ["#40947f", "#628ac3", "#9b78b0", "#bf8056", "#657e98"];
+const COLORS = ["#6ab49d", "#79a9e5", "#ad91d0", "#d7a36b", "#7dabb8"];
 function colorFor(room: string) {
   let hash = 0;
   for (const char of room) hash = (hash * 31 + char.charCodeAt(0)) >>> 0;
   return COLORS[hash % COLORS.length];
 }
-const SCALES = [2, 4, 8, 16, 32, 64];
+const SCALES = [3, 5, 8, 12, 20, 32];
 
 export function FlowSchedule({
   activities,
@@ -69,7 +69,7 @@ export function FlowSchedule({
   onEdit?: (activity: Activity) => void;
   label?: string;
 }) {
-  const [zoom, setZoom] = useState(2),
+  const [zoom, setZoom] = useState(0),
     [opened, setOpened] = useState("");
   const [viewportWidth, setViewportWidth] = useState(0),
     [scrollX, setScrollX] = useState(0);
@@ -164,7 +164,7 @@ export function FlowSchedule({
       {activities.length > 0 && (
         <div className="flow-map-tools">
           <p>
-            Время по МСК <span>Длина линии — длительность</span>
+            Время по МСК <span>Высота полосы — длительность</span>
           </p>
           <div className="flow-map-controls">
             {nowY !== null && (
@@ -193,13 +193,9 @@ export function FlowSchedule({
                 <Minus size={16} />
               </button>
               <span>
-                {SCALES[zoom] >= 32
-                  ? "1 мин"
-                  : SCALES[zoom] >= 12
-                    ? "5 мин"
-                    : SCALES[zoom] >= 4
-                      ? "15 мин"
-                      : "30 мин"}
+                {zoom === 0
+                  ? "Обзор"
+                  : `${Math.round((SCALES[zoom] / SCALES[0]) * 100)}%`}
               </span>
               <button
                 aria-label="Увеличить масштаб флоу"
@@ -289,7 +285,7 @@ export function FlowSchedule({
                 live = a.starts_at <= now && now < a.ends_at,
                 past = a.ends_at <= now,
                 open = a.id === openId;
-              const color = live ? "#c2a20b" : colorFor(a.room_id),
+              const color = live ? "#e0bb27" : colorFor(a.room_id),
                 duration = flowDuration(a.ends_at - a.starts_at);
               const progress = live
                 ? Math.max(
@@ -303,7 +299,7 @@ export function FlowSchedule({
               return (
                 <li
                   key={a.id}
-                  className={`flow-event ${live ? "is-live" : ""} ${past ? "is-past" : ""} ${open ? "is-open" : ""} ${placement.height < 180 ? "is-brief" : placement.height < 300 ? "is-medium" : ""} ${placement.height < 25 ? "is-tiny" : ""} ${placement.lanes > 1 ? "is-parallel" : ""} ${onEdit ? "is-editable" : ""} ${a.registered || a.waitlisted ? "has-status" : ""}`}
+                  className={`flow-event ${live ? "is-live" : ""} ${past ? "is-past" : ""} ${open ? "is-open" : ""} ${placement.height < 68 ? "is-brief" : placement.height < 112 ? "is-medium" : ""} ${placement.height < 14 ? "is-tiny" : ""} ${placement.lanes > 1 ? "is-parallel" : ""} ${onEdit ? "is-editable" : ""} ${a.registered || a.waitlisted ? "has-status" : ""}`}
                   aria-current={live ? "step" : undefined}
                   data-activity-id={a.id}
                   data-duration-minutes={(a.ends_at - a.starts_at) / 60000}
@@ -314,29 +310,10 @@ export function FlowSchedule({
                       left: `calc(var(--flow-gutter) + (100% - var(--flow-gutter)) * ${placement.lane / placement.lanes} + 5px)`,
                       width: `calc((100% - var(--flow-gutter)) * ${placement.span / placement.lanes} - 12px)`,
                       "--flow-color": color,
-                      "--flow-fill": color + "18",
+                      "--flow-progress": `${progress}%`,
                     } as CSSProperties
                   }
                 >
-                  <svg
-                    className="flow-duration-rail"
-                    aria-hidden="true"
-                    focusable="false"
-                    viewBox={`0 0 22 ${placement.height}`}
-                    preserveAspectRatio="none"
-                  >
-                    <path
-                      d={`M21 0 Q3 0 3 ${Math.min(18, placement.height / 2)} L3 ${placement.height - Math.min(18, placement.height / 2)} Q3 ${placement.height} 21 ${placement.height}`}
-                    />
-                    {live && (
-                      <path
-                        className="flow-elapsed"
-                        pathLength="100"
-                        strokeDasharray={`${progress} 100`}
-                        d={`M21 0 Q3 0 3 ${Math.min(18, placement.height / 2)} L3 ${placement.height - Math.min(18, placement.height / 2)} Q3 ${placement.height} 21 ${placement.height}`}
-                      />
-                    )}
-                  </svg>
                   <div className="flow-ribbon">
                     <div className="flow-ribbon-summary" aria-hidden={open}>
                       <span className="flow-ribbon-time">
