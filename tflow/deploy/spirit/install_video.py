@@ -169,8 +169,9 @@ def main(path):
                 member = next(member for member in bundle.getmembers() if member.name == "livekit-server" and member.isfile())
                 binary.write_bytes(bundle.extractfile(member).read())
             binary.chmod(0o755)
-    private_write(Path("/etc/tflow-video/livekit.yaml"), livekit_config(values), 0o640)
-    shutil.chown("/etc/tflow-video/livekit.yaml", group="tflow-video")
+    private_write(Path("/etc/tflow-video/livekit.yaml"), livekit_config(values), 0o400)
+    # Caddy shares the TLS group, but must not be able to read media API keys.
+    shutil.chown("/etc/tflow-video/livekit.yaml", user="tflow-video", group="root")
     private_write(Path("/etc/systemd/system/tflow-video.service"), UNIT, 0o644)
     caddy = Path("/etc/caddy/Caddyfile")
     text = caddy.read_text()
