@@ -5,6 +5,7 @@ import { RoomEvent } from "livekit-client";
 import Webinar from "../../app/ui/webinar";
 import { deferred, event } from "../fixtures";
 import type { Activity } from "../../lib/types";
+import { ApiError } from "../../lib/api-error";
 
 const media = vi.hoisted(() => {
   class TestRoom {
@@ -119,6 +120,48 @@ describe("комната вебинара", () => {
   });
 
 
+  it("при отзыве разрешения показывает закрытый доступ вместо бесконечного ожидания", async () => {
+    const send = vi.fn().mockRejectedValue(Object.assign(new ApiError({ code: "INVALID_SCAN_KEY", error: "Ключ отозван" }), { status: 403 }));
+    render(<Webinar event={online} user={{ ...host, userId: "helper", role: "participant" }} send={send} delegated/>);
+    expect(await screen.findByRole("heading", { name: "Доступ к эфиру закрыт" })).toBeVisible();
+    expect(screen.getByRole("alert")).toHaveTextContent("Ключ отозван");
+    expect(screen.queryByText("Проверяем эфир…")).not.toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "Войти в вебинар" })).toBeDisabled();
+  });
+  it("принимает серверное разрешение ведущего для доверенного лица без смены роли", async () => {
+    const send = sender(), person = userEvent.setup();
+    const helper = { ...host, userId: "helper-participant", role: "participant" as const };
+    render(<Webinar event={online} user={helper} send={send} delegated/>);
+    await person.click(await screen.findByRole("button", { name: "Начать эфир" }));
+    expect(send).toHaveBeenCalledWith(`events/${event.id}/webinar`, "POST", { operation: "start" });
+    expect(await screen.findByRole("button", { name: "Включить микрофон" })).toBeVisible();
+    expect(screen.getByRole("button", { name: "Завершить эфир" })).toBeVisible();
+    expect(media.rooms[0].localParticipant.setMicrophoneEnabled).not.toHaveBeenCalled();
+  });
+  it("зритель получает видео и звук доверенного ведущего с другим ID", async () => {
+    const person = userEvent.setup();
+    const send = vi.fn(async (_path: string, method: string) => method === "GET"
+      ? { configured: true, host: false, active: true, session: "delegated-session", ended: false, published: true }
+      : { url: "ws://video.example.test", token: "viewer-token", session: "delegated-session", host: false });
+    const viewer = { ...host, userId: "viewer", role: "participant" as const };
+    render(<Webinar event={online} user={viewer} send={send}/>);
+    await person.click(await screen.findByRole("button", { name: "Войти в вебинар" }));
+    const video = { kind: "video", sid: "helper-camera", attach: vi.fn(), detach: vi.fn() };
+    const audio = { kind: "audio", sid: "helper-audio", attach: vi.fn(), detach: vi.fn() };
+    await act(async () => {
+      media.rooms[0].remoteParticipants.set("trusted-helper", {
+        identity: "trusted-helper", permissions: { canPublish: true }, isCameraEnabled: true,
+        isMicrophoneEnabled: true, isSpeaking: true, audioLevel: .5,
+        getTrackPublication: (source: string) => source === "camera" ? { track: video } : undefined,
+        audioTrackPublications: new Map([["voice", { track: audio }]]),
+      });
+      media.rooms[0].emit(RoomEvent.TrackSubscribed);
+    });
+    expect(video.attach).toHaveBeenCalledWith(expect.any(HTMLVideoElement));
+    expect(audio.attach).toHaveBeenCalledWith(expect.any(HTMLAudioElement));
+    expect(screen.queryByRole("button", { name: "Включить микрофон" })).not.toBeInTheDocument();
+    expect(screen.queryByRole("button", { name: "Завершить эфир" })).not.toBeInTheDocument();
+  });
   it("два онлайн-флоу используют разные API и комнаты, завершение одного не отключает второй", async () => {
     const base: Activity = { id: "python", event_id: event.id, room_id: "online-one", room_name: "Python",
       title: "Python", description: "", speaker: "", starts_at: event.starts_at, ends_at: event.ends_at,

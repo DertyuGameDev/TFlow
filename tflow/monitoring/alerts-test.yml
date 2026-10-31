@@ -1,0 +1,23 @@
+rule_files: [/etc/prometheus/alerts.yml]
+evaluation_interval: 1m
+tests:
+  - interval: 1m
+    input_series:
+      - series: 'up{job="tflow",instance="test"}'
+        values: '0 0 0'
+    alert_rule_test:
+      - eval_time: 2m
+        alertname: TFlowUnavailable
+        exp_alerts:
+          - exp_labels: {job: tflow, instance: test, severity: critical}
+            exp_annotations:
+              summary: 'ТФлоу недоступен или база не отвечает'
+              description: 'Проверьте процесс Django, доступность БД и токен метрик. См. docs/observability.md.'
+  - interval: 1m
+    input_series:
+      - series: 'up{job="tflow",instance="test"}'
+        values: '1 1 1'
+    alert_rule_test:
+      - eval_time: 2m
+        alertname: TFlowUnavailable
+        exp_alerts: []

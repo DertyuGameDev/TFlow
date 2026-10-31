@@ -34,7 +34,7 @@ export function CatalogActivities({ activities }: { activities: Activity[] }) {
               {activity.room_is_online ? `Онлайн · ${activity.room_name}` : activity.room_name}
             </span>
             {activity.speaker && <span>{activity.speaker}</span>}
-            {!!activity.registered && <span className="catalog-activity-status">Вы записаны</span>}
+            {!!activity.registered && <span className="catalog-activity-status">{activity.registration_required === false ? "В вашем расписании" : "Вы записаны"}</span>}
             {!!activity.waitlisted && <span className="catalog-activity-status">Вы в очереди · № {activity.waitlist_position}</span>}
           </li>
         ))}

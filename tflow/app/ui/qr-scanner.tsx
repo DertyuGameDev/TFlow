@@ -5,7 +5,7 @@ import { timeLabel } from "../../lib/time";
 import type { Send } from "./forms";
 import { ParticipantDetails } from "./profile-data";
 
-export function QRScanner({event,events,initialToken,send,onScan}:{event?:FlowEvent;events:FlowEvent[];initialToken?:string;send:Send;onScan:()=>void}) {
+export function QRScanner({event,events,initialToken,send,onScan,endpoint}:{event?:Pick<FlowEvent,"id"|"title">;events:Pick<FlowEvent,"id"|"title">[];initialToken?:string;send:Send;onScan:()=>void;endpoint?:string}) {
   const [eventId,setEventId]=useState(event?.id??""),[result,setResult]=useState<ScanResult|null>(null),[error,setError]=useState("");
   const [busy,setBusy]=useState(false),[camera,setCamera]=useState(false),[manual,setManual]=useState(initialToken??"");
   const [errorKind,setErrorKind]=useState<"scan"|"camera"|"image">("scan");
@@ -18,7 +18,7 @@ export function QRScanner({event,events,initialToken,send,onScan}:{event?:FlowEv
     if(locked.current||!eventId)return;
     locked.current=true;stop();setBusy(true);setError("");setResult(null);setErrorKind("scan");
     try{
-      const next=await send(`events/${eventId}/check-in`,"POST",{qr}) as ScanResult;
+      const next=await send(endpoint??`events/${eventId}/check-in`,"POST",{qr}) as ScanResult;
       if(next.already_checked_in)throw new Error("QR-код уже использован для входа на это мероприятие. Повторный вход запрещён");
       if(!next.admitted)throw new Error("Вход не подтверждён");
       if(alive.current){setResult(next);onScan();}
@@ -61,7 +61,7 @@ export function QRScanner({event,events,initialToken,send,onScan}:{event?:FlowEv
     {!result&&<div className="scanner-buttons"><button className="button primary" onClick={()=>void startCamera()} disabled={!eventId||busy||camera}><Camera size={19}/>{camera?"Камера включена":"Включить камеру"}</button><label className={`button secondary image-upload ${!eventId||busy||camera?"disabled":""}`}><ImagePlus size={19}/>Загрузить QR<input aria-label="Загрузить фотографию QR" type="file" accept="image/*" disabled={!eventId||busy||camera} onChange={e=>{const file=e.target.files?.[0];if(file)void readImage(file);e.target.value="";}}/></label></div>}
     {busy&&<div className="scan-progress" role="status"><LoaderCircle className="spin" size={20}/>Проверяем регистрацию…</div>}
     <div ref={feedback}>
-      {result&&<div className="scan-result scan-approved" role="status"><span className="result-icon"><Check size={26}/></span><div><h2>Вход подтверждён</h2><p>Регистрация на это событие найдена · {timeLabel(result.checked_in_at)}</p></div><div className="scanned-profile"><h3>{result.attendee.name}</h3><ParticipantDetails data={result.attendee.profile_data}/>{result.attendee.activities.length>0&&<p>Программа: {result.attendee.activities.join(", ")}</p>}</div></div>}
+      {result&&<div className="scan-result scan-approved" role="status"><span className="result-icon"><Check size={26}/></span><div><h2>Вход подтверждён</h2><p>Регистрация на это событие найдена · {timeLabel(result.checked_in_at)}</p></div><div className="scanned-profile"><h3>{result.attendee.name}</h3>{result.attendee.profile_data&&<ParticipantDetails data={result.attendee.profile_data}/>}{result.attendee.activities.length>0&&<p>Программа: {result.attendee.activities.join(", ")}</p>}</div></div>}
       {error&&<div className="scan-result scan-rejected" role="alert"><span className="result-icon"><X size={26}/></span><div><h2>{errorKind==="camera"?"Камера недоступна":errorKind==="image"?"QR не распознан":"Вход не подтверждён"}</h2><p>{error}</p></div></div>}
     </div>
     {(result||error)&&<button className="button primary next-scan" onClick={()=>{setResult(null);setError("");void startCamera();}} disabled={!eventId||busy}><RotateCcw size={18}/>{error&&errorKind!=="scan"?"Попробовать камеру":"Следующий участник"}</button>}

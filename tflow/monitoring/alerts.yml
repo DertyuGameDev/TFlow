@@ -1,0 +1,31 @@
+groups:
+  - name: tflow
+    rules:
+      - alert: TFlowUnavailable
+        expr: up{job="tflow"} == 0 or probe_success{job="tflow-health"} == 0 or up{job="tflow-health"} == 0
+        for: 1m
+        labels: {severity: critical}
+        annotations:
+          summary: 'ТФлоу недоступен или база не отвечает'
+          description: 'Проверьте процесс Django, доступность БД и токен метрик. См. docs/observability.md.'
+      - alert: TFlowHighErrorRate
+        expr: sum(rate(tflow_http_requests_total{status=~"5.."}[5m])) / clamp_min(sum(rate(tflow_http_requests_total[5m])), 0.001) > 0.05 and sum(increase(tflow_http_requests_total{status=~"5.."}[5m])) >= 5
+        for: 2m
+        labels: {severity: critical}
+        annotations:
+          summary: 'Более 5% запросов завершаются ошибкой сервера'
+          description: 'Откройте ошибки в Grafana и найдите request_id из ответа пользователя.'
+      - alert: TFlowSlowRequests
+        expr: histogram_quantile(0.95, sum by (le) (rate(tflow_http_duration_seconds_bucket[5m]))) > 2
+        for: 5m
+        labels: {severity: warning}
+        annotations:
+          summary: 'p95 времени ответа выше двух секунд'
+          description: 'Проверьте маршруты на дашборде, нагрузку и блокировки БД.'
+      - alert: TFlowErrorLogs
+        expr: sum(increase(tflow_errors_total[5m])) >= 5
+        for: 1m
+        labels: {severity: warning}
+        annotations:
+          summary: 'Повторяющиеся ошибки приложения, включая фоновые задачи'
+          description: 'В Grafana откройте ERROR-логи; HTTP-ошибки также учитываются.'

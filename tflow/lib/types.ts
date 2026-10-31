@@ -17,6 +17,8 @@ export type FlowEvent = {
 };
 export type Room = { id: string; event_id: string; name: string; capacity: number; is_online?: boolean };
 export type Activity = {
+  registration_required?: boolean;
+  event_enrolled?: boolean;
   id: string; event_id: string; room_id: string; title: string; description: string; speaker: string;
   starts_at: number; ends_at: number; capacity: number; updated_at: number; room_name: string;
   taken: number; registered: number; waiting_count: number; waitlisted: number; waitlist_position: number;
@@ -30,7 +32,7 @@ export type Bootstrap = { events: FlowEvent[]; activities?: Activity[]; tickets:
 export type EventDetail = { event: FlowEvent; rooms: Room[]; activities: Activity[] };
 export type Attendee = ParticipantData & { id: string; profile_data: ParticipantData; activities: string[] };
 export type AttendanceRow = { id: string; name: string; email: string; city: string; profile_data: ParticipantData; created_at: number; checked_in_at: number | null };
-export type ScanResult = { admitted: boolean; already_checked_in: boolean; checked_in_at: number; attendee: Attendee };
+export type ScanResult = { admitted: boolean; already_checked_in: boolean; checked_in_at: number; attendee: Pick<Attendee, "id" | "name" | "activities"> & { profile_data?: ParticipantData } };
 export const CATEGORY_GROUPS = categoryGroups;
 export const TOPICS = CATEGORY_GROUPS.flatMap(group => group.categories);
 export const CITIES = [...CITY_SUGGESTIONS, "Онлайн"];

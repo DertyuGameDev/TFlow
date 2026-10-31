@@ -337,7 +337,7 @@ def validate_activity(activity):
             "В этой аудитории уже проходит другая активность. Измените время или аудиторию",
         )
     registered = Registration.objects.filter(activity_id=activity.pk)
-    if registered.count() > activity.capacity:
+    if activity.registration_required and registered.count() > activity.capacity:
         raise FlowError(
             "BELOW_REGISTERED",
             "Нельзя уменьшить лимит ниже числа зарегистрированных участников",
@@ -368,6 +368,8 @@ def save_activity(user, data, *, event_id=None, activity_id=None):
         else:
             activity = Activity(event=owned_event(event_id, user))
         data = dict(data)
+        if data.get("registration_required") is None:
+            data.pop("registration_required", None)
         expected_updated_at = data.pop("expected_updated_at", None)
         if activity_id and expected_updated_at is not None and expected_updated_at != round(activity.updated_at.timestamp() * 1000):
             raise FlowError("STALE_ACTIVITY", "Этот пункт уже изменился. Обновите программу и повторите действие")
@@ -482,9 +484,9 @@ def registration_activity(activity_id):
         raise FlowError(
             "NOT_PUBLISHED", "Регистрация на неопубликованную программу недоступна"
         )
-    if activity.starts_at <= timezone.now():
+    if (activity.starts_at if activity.registration_required else activity.ends_at) <= timezone.now():
         raise FlowError(
-            "REGISTRATION_CLOSED", "Регистрация закрыта: активность уже началась"
+            "REGISTRATION_CLOSED", "Регистрация закрыта: активность уже началась" if activity.registration_required else "Активность уже завершилась"
         )
     return activity
 
@@ -495,6 +497,9 @@ def promote_waitlist_locked(activity):
     A ticket is secured when joining the queue. Conflicting people keep their
     position while the next eligible person receives the seat.
     """
+    if not activity.registration_required:
+        activity.waitlist.all().delete()
+        return
     if activity.event.status != "published" or activity.starts_at <= timezone.now():
         return
     free = activity.capacity - activity.registrations.count()
@@ -542,6 +547,8 @@ def join_waitlist(user, activity_id, profile_data=None):
     require_participant(user)
     with schedule_write():
         activity = registration_activity(activity_id)
+        if not activity.registration_required:
+            raise FlowError("REGISTRATION_NOT_REQUIRED", "На эту активность не нужна отдельная запись. Добавьте её в расписание", 400)
         if activity.registrations.filter(user=user).exists():
             raise FlowError("ALREADY_REGISTERED", "Вы уже записаны на эту активность")
         if activity.waitlist.filter(user=user).exists():
@@ -570,6 +577,14 @@ def register(user, activity_id, profile_data=None):
         activity = registration_activity(activity_id)
         if Registration.objects.filter(user=user, activity=activity).exists():
             raise FlowError("ALREADY_REGISTERED", "Вы уже записаны на эту активность")
+        if not activity.registration_required:
+            if not EventRegistration.objects.filter(user=user, event=activity.event).exists():
+                raise FlowError("EVENT_REGISTRATION_REQUIRED", "Сначала зарегистрируйтесь на мероприятие", 403)
+            if participant_conflict(user, activity):
+                raise FlowError("PARTICIPANT_CONFLICT", "Это время занято другой активностью в вашем расписании")
+            # A personal calendar entry only: no seat is reserved or taken from a quota.
+            Registration.objects.create(user=user, activity=activity)
+            return True
         if activity.registrations.count() >= activity.capacity:
             raise FlowError(
                 "NO_SEATS", "Свободные места закончились. Выберите другую активность"
@@ -600,7 +615,8 @@ def cancel(user, activity_id):
         if removed:
             activity = Activity.objects.select_related("event").get(pk=activity_id)
             from .webinars import disconnect_viewer
-            disconnect_viewer(user, activity.event_id, activity_id=activity.pk)
+            if activity.registration_required:
+                disconnect_viewer(user, activity.event_id, activity_id=activity.pk)
             promote_waitlist_locked(activity)
             retry_user_waitlists_locked(user)
 
@@ -826,11 +842,10 @@ def move_event(user, event_id, data):
         promote_event_waitlist_locked(event)
 
 
-def attendee_by_qr(user, event_id, raw):
+def person_from_qr(raw):
     import uuid
     from urllib.parse import urlparse
 
-    event = owned_event(event_id, user)
     if not isinstance(raw, str) or len(raw) > 2048:
         raise FlowError("INVALID_QR", "Это не QR-код участника ТФлоу", 400)
     value = raw.strip()
@@ -854,6 +869,12 @@ def attendee_by_qr(user, event_id, raw):
     person = User.objects.filter(
         pass_token=token, is_active=True, role="participant"
     ).first()
+    return person
+
+
+def attendee_by_qr(user, event_id, raw):
+    event = owned_event(event_id, user)
+    person = person_from_qr(raw)
     if not person or not event.enrollments.filter(user=person).exists():
         raise FlowError(
             "NOT_REGISTERED", "Нет регистрации на это мероприятие. Вход не подтверждён"
@@ -864,12 +885,14 @@ def attendee_by_qr(user, event_id, raw):
 def check_in(user, event_id, raw):
     with schedule_write():
         event, person = attendee_by_qr(user, event_id, raw)
-        entry, created = CheckIn.objects.get_or_create(
-            user=person, event=event, defaults={"checked_by": user}
-        )
-        if not created:
-            raise FlowError(
-                "ALREADY_CHECKED_IN",
-                "QR-код уже использован для входа на это мероприятие. Повторный вход запрещён",
-            )
+        entry = mark_event_entry(user, event, person)
         return person, entry, False
+
+
+def mark_event_entry(user, event, person, access_key=None):
+    entry, created = CheckIn.objects.get_or_create(
+        user=person, event=event, defaults={"checked_by": user, "access_key": access_key}
+    )
+    if not created:
+        raise FlowError("ALREADY_CHECKED_IN", "QR-код уже использован для входа на это мероприятие. Повторный вход запрещён")
+    return entry

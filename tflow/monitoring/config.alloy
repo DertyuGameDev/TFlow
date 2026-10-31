@@ -1,0 +1,19 @@
+local.file_match "tflow" {
+  path_targets = [{__path__ = "/logs/*.jsonl", job = "tflow"}]
+}
+loki.source.file "tflow" {
+  targets    = local.file_match.tflow.targets
+  forward_to = [loki.process.tflow.receiver]
+}
+loki.process "tflow" {
+  stage.json {
+    expressions = {level = "level", logger = "logger"}
+  }
+  stage.labels {
+    values = {level = "", logger = ""}
+  }
+  forward_to = [loki.write.local.receiver]
+}
+loki.write "local" {
+  endpoint { url = "http://127.0.0.1:3100/loki/api/v1/push" }
+}

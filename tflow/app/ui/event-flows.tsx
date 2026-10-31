@@ -23,8 +23,9 @@ export function EventFlows({ onManage, ...program }: Props) {
       {program.activities.length ? (
         <>
           {!program.organizer && <p className="event-flows-hint">
-            Запишитесь на понравившиеся активности. Проверим пересечения в расписании;
-            если места закончились, можно встать в лист ожидания.
+            {program.activities.some(item => item.registration_required === false)
+              ? "Активности без отдельной записи доступны участникам мероприятия. Добавляйте их в расписание; на остальные бронируйте место."
+              : "Запишитесь на понравившиеся активности. Проверим пересечения в расписании; если места закончились, можно встать в лист ожидания."}
           </p>}
           <ActivityProgram {...program} />
         </>

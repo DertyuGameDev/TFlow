@@ -2,8 +2,10 @@ from django.urls import path, re_path
 from flow import views
 from flow import openapi
 from flow.deploy_hooks import dns_challenge
+from flow.observability import metrics_view
 
 urlpatterns = [
+    path("internal/metrics", metrics_view),
     path("login/", views.login_view, name="login"),
     path("register/", views.register_view, name="register"),
     path("logout/", views.logout_view, name="logout"),

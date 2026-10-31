@@ -8,6 +8,16 @@ from .test_api import FAST_HASHER
 class CompactSignupTests(TestCase):
     password = "Minimal-signup-strong-947!"
 
+    def test_catalog_signup_renders_both_role_choices(self):
+        response = self.client.get("/register/?next=%2F%23events")
+        self.assertEqual(response.status_code, 200)
+        self.assertFalse(response.context["participant_signup"])
+        self.assertContains(response, 'type="radio" name="role" value="participant"', count=1)
+        self.assertContains(response, 'type="radio" name="role" value="organizer"', count=1)
+        self.assertContains(response, "Как вы хотите использовать ТФлоу?")
+        self.assertContains(response, "Роль нельзя изменить после регистрации.")
+        self.assertContains(response, 'name="next" value="/#events"')
+
     def test_credential_check_does_not_create_or_authenticate_an_account(self):
         response = self.client.post("/register/", {
             "intent": "credentials", "email": " CHECK@example.test ",

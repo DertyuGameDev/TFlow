@@ -20,6 +20,7 @@ export function ActivityForm({
   initialEnd,
   initialRoomId,
   compact = false,
+  detailsOnly = false,
   send,
   done,
 }: {
@@ -30,6 +31,7 @@ export function ActivityForm({
   initialEnd?: number;
   initialRoomId?: string;
   compact?: boolean;
+  detailsOnly?: boolean;
   send: Send;
   done: () => void | Promise<void>;
 }) {
@@ -59,6 +61,7 @@ export function ActivityForm({
   const [capacity, setCapacity] = useState(
     activity?.capacity ?? Math.min(event.capacity, limit),
   );
+  const [registrationRequired, setRegistrationRequired] = useState(activity?.registration_required !== false);
   const presetRoom = rooms.find((item) => item.id === initialRoomId);
   const presetRoomId = presetRoom?.id,
     presetRoomCapacity = presetRoom?.capacity;
@@ -93,6 +96,7 @@ export function ActivityForm({
         starts_at,
         ends_at,
         capacity,
+        registration_required: registrationRequired,
       },
     );
     await done();
@@ -110,6 +114,8 @@ export function ActivityForm({
   }
   const extraFields = (
     <>
+      <label className="program-available"><input type="checkbox" checked={registrationRequired} onChange={(event) => setRegistrationRequired(event.target.checked)} />Нужна отдельная запись на активность</label>
+      {!registrationRequired && <p className="muted small">Доступна всем записанным на мероприятие. Добавление в личное расписание не бронирует место.</p>}
       <div className="form-row">
         <label>
           Спикер · необязательно
@@ -148,44 +154,54 @@ export function ActivityForm({
       className={`flow-form ${compact ? "program-form-compact" : ""}`}
       onSubmit={submit}
     >
-      <label className="program-item-name">
-        Название пункта программы
-        <input
-          name="title"
-          required
-          defaultValue={activity?.title}
-          placeholder="Например, Открытие или Лекция о дизайне"
-        />
-      </label>
-      <div className="form-row program-item-time">
-        <label>
-          Начало · МСК
-          <input
-            name="starts_at"
-            type="datetime-local"
-            step={60}
-            required
-            min={localInput(event.starts_at)}
-            max={localInput(event.ends_at)}
-            value={startsAt}
-            onChange={(e) => changeStart(e.target.value)}
-          />
-        </label>
-        <label>
-          Окончание · МСК
-          <input
-            name="ends_at"
-            type="datetime-local"
-            step={60}
-            required
-            min={startsAt}
-            max={localInput(event.ends_at)}
-            value={endsAt}
-            onChange={(e) => setEndsAt(e.target.value)}
-          />
-        </label>
-      </div>
-      {!compact && (
+      {detailsOnly ? (
+        <>
+          <input type="hidden" name="title" value={activity?.title ?? ""} />
+          <input type="hidden" name="starts_at" value={startsAt} />
+          <input type="hidden" name="ends_at" value={endsAt} />
+        </>
+      ) : (
+        <>
+          <label className="program-item-name">
+            Название пункта программы
+            <input
+              name="title"
+              required
+              defaultValue={activity?.title}
+              placeholder="Например, Открытие или Лекция о дизайне"
+            />
+          </label>
+          <div className="form-row program-item-time">
+            <label>
+              Начало · МСК
+              <input
+                name="starts_at"
+                type="datetime-local"
+                step={60}
+                required
+                min={localInput(event.starts_at)}
+                max={localInput(event.ends_at)}
+                value={startsAt}
+                onChange={(e) => changeStart(e.target.value)}
+              />
+            </label>
+            <label>
+              Окончание · МСК
+              <input
+                name="ends_at"
+                type="datetime-local"
+                step={60}
+                required
+                min={startsAt}
+                max={localInput(event.ends_at)}
+                value={endsAt}
+                onChange={(e) => setEndsAt(e.target.value)}
+              />
+            </label>
+          </div>
+        </>
+      )}
+      {!compact && !detailsOnly && (
         <p className="muted small">
           В пределах мероприятия: {dateLabel(event.starts_at)}{" "}
           {timeLabel(event.starts_at)} — {dateLabel(event.ends_at)}{" "}

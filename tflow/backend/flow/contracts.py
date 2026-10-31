@@ -69,6 +69,7 @@ class CommunityInput(forms.Form):
 
 
 class ActivityInput(forms.Form):
+    registration_required = forms.NullBooleanField(required=False)
     expected_updated_at = forms.IntegerField(required=False, min_value=1)
     title = forms.CharField()
     description = forms.CharField(required=False)

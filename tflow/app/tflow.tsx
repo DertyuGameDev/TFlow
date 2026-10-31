@@ -79,6 +79,7 @@ import { ProfileUpcomingEvents } from "./ui/profile-upcoming-events";
 import { EventFlows } from "./ui/event-flows";
 import { CatalogActivities } from "./ui/catalog-activities";
 import { WebinarChannels } from "./ui/webinar-channels";
+import { KeyAccessPage } from "./ui/access-keys";
 import { ThemeToggle } from "./ui/theme-toggle";
 const Webinar = lazy(() => import("./ui/webinar"));
 import {
@@ -139,6 +140,7 @@ const routeFromHash = (organizer: boolean): Route => {
     "organizer",
     "manage",
     "scan",
+    "access",
     "event",
     "webinar",
     "pass",
@@ -886,7 +888,7 @@ export function TFlow({ user }: { user: UserIdentity | null }) {
   const activityEditor = dialog?.type === "activity" && detail ? (
     <ActivityForm
       key={activityEditorKey}
-      compact={route.view === "manage"}
+      detailsOnly={route.view === "manage"}
       event={detail.event}
       rooms={detail.rooms}
       activity={
@@ -1010,13 +1012,17 @@ export function TFlow({ user }: { user: UserIdentity | null }) {
     const queue = operation === "join" || operation === "leave";
     const message = {
       register: "Активность добавлена в программу",
-      cancel: "Запись отменена",
+      cancel: a.registration_required === false ? "Активность убрана из расписания" : "Запись отменена",
       join: "Вы в листе ожидания. При появлении места запишем автоматически и уведомим вас.",
       leave: "Вы вышли из листа ожидания",
     }[operation];
     if (!leaving) {
       const event = data.events.find((event) => event.id === a.event_id);
       if (event) {
+        if (a.registration_required === false && !event.enrolled) {
+          void enroll(event);
+          return;
+        }
         void enroll(
           event,
           `activities/${a.id}/${queue ? "waitlist" : "registration"}`,
@@ -1559,6 +1565,7 @@ export function TFlow({ user }: { user: UserIdentity | null }) {
                 )}
               </>
             )}
+            {route.view === "access" && <KeyAccessPage user={user} send={send}/>}
             {route.view === "scan" && organizer && (
               <>
                 <button

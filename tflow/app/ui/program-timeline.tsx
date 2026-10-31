@@ -5,6 +5,7 @@ import {
   useRef,
   useState,
   type CSSProperties,
+  type ReactNode,
 } from "react";
 import {
   ChevronLeft,
@@ -24,6 +25,7 @@ import { FormError } from "./forms";
 import { dateKey, dateLabel, timeLabel } from "../../lib/time";
 import {
   buildProgramTracks,
+  PROGRAM_COLORS,
   itemsInRange,
   programColorMap,
   programDayBounds,
@@ -47,6 +49,9 @@ export function ProgramTimeline({
   onCreate,
   onReschedule,
   onSwap,
+  onSelect,
+  selectedActivityId,
+  inlineEditor,
 }: {
   event: FlowEvent;
   activities: Activity[];
@@ -55,10 +60,15 @@ export function ProgramTimeline({
   onCreate?: (range: ProgramRange) => void;
   onReschedule?: (activity: Activity, range: ProgramRange) => Promise<void>;
   onSwap?: (activity: Activity) => void;
+  onSelect?: (activity: Activity) => void;
+  selectedActivityId?: string;
+  inlineEditor?: { item: Activity; content: ReactNode };
 }) {
   const id = useId();
   const viewport = useRef<HTMLDivElement>(null);
   const canvas = useRef<HTMLDivElement>(null);
+  const inlineContent = useRef<HTMLDivElement>(null);
+  const [inlineHeight, setInlineHeight] = useState(260);
   const [width, setWidth] = useState(720);
   const [chosenDay, setChosenDay] = useState(dateKey(event.starts_at));
   const [roomId, setRoomId] = useState("");
@@ -98,6 +108,12 @@ export function ProgramTimeline({
   );
   const projectedGroups = new Map<string, typeof projection.nodes>();
   for (const node of projection.nodes) {
+    if (
+      inlineEditor &&
+      node.segment.items.length === 1 &&
+      node.segment.items[0].id === inlineEditor.item.id
+    )
+      continue;
     const group = projectedGroups.get(node.roomKey) ?? [];
     group.push(node);
     projectedGroups.set(node.roomKey, group);
@@ -105,7 +121,10 @@ export function ProgramTimeline({
   const axisY = projection.aboveRows * 76 + 16;
   const ticks = programTimeTicks(start, end);
   const dense = projection.nodes.some((node) => node.segment.items.length > 1);
-  const selectedItem = items.find((item) => item.id === selectedId) ?? items[0];
+  const selectedItem =
+    inlineEditor?.item ??
+    items.find((item) => item.id === (selectedActivityId || selectedId)) ??
+    items[0];
   const step = PROGRAM_MINUTE;
   const editor = useTimelineEditor({
     event,
@@ -117,6 +136,7 @@ export function ProgramTimeline({
     roomId: room || (rooms.length === 1 ? rooms[0][0] : undefined),
     onCreate,
     onReschedule,
+    deferredSave: Boolean(onSelect),
   });
   const selected =
     selectedItem && editor.preview?.activity?.id === selectedItem.id
@@ -124,6 +144,7 @@ export function ProgramTimeline({
       : selectedItem;
   const editing = editor.dragging || editor.saving;
   const focusedGroup =
+    !inlineEditor &&
     onReschedule &&
     selectedItem &&
     projection.nodes.some(
@@ -161,8 +182,74 @@ export function ProgramTimeline({
       },
     ]);
   }
+  if (inlineEditor) {
+    const item = inlineEditor.item;
+    const left = Math.max(
+      0,
+      Math.min(
+        canvasWidth,
+        ((item.starts_at - start) / (end - start)) * canvasWidth,
+      ),
+    );
+    const right = Math.max(
+      left,
+      Math.min(
+        canvasWidth,
+        ((item.ends_at - start) / (end - start)) * canvasWidth,
+      ),
+    );
+    const labelWidth = Math.min(canvasWidth, 360);
+    projectedGroups.set("__inline", [
+      {
+        segment: {
+          id: `inline-${item.id}`,
+          items: [item],
+          start: Math.max(start, item.starts_at),
+          end: Math.min(end, item.ends_at),
+        },
+        roomName: item.room_name,
+        roomKey: "__inline",
+        side: "below",
+        row: projection.belowRows,
+        left,
+        right,
+        labelWidth,
+        labelLeft: Math.max(
+          0,
+          Math.min(canvasWidth - labelWidth, (left + right - labelWidth) / 2),
+        ),
+      },
+    ]);
+  }
   const plotHeight =
-    axisY + (projection.belowRows + (focusedGroup ? 1 : 0)) * 76 + 24;
+    axisY +
+    (projection.belowRows + (focusedGroup ? 1 : 0)) * 76 +
+    24 +
+    (inlineEditor ? inlineHeight + 60 : 0);
+  const inlineId = inlineEditor?.item.id;
+  const inlineDay = inlineEditor
+    ? dateKey(inlineEditor.item.starts_at)
+    : undefined;
+  const directEditing = Boolean(onSelect);
+  useEffect(() => {
+    const element = inlineContent.current;
+    if (!inlineId || !element) return;
+    const measure = () => { const height = element.getBoundingClientRect().height; if (height > 0) setInlineHeight(height); };
+    measure();
+    if (typeof ResizeObserver === "undefined") return;
+    const observer = new ResizeObserver(measure);
+    observer.observe(element);
+    return () => observer.disconnect();
+  }, [inlineId]);
+  useEffect(() => {
+    if (!inlineId || !inlineDay) return;
+    setChosenDay(inlineDay);
+    setRoomId("");
+    setSelectedId(inlineId);
+  }, [inlineId, inlineDay]);
+  useEffect(() => {
+    if (directEditing) editor.resetFeedback();
+  }, [inlineId, directEditing, editor.resetFeedback]);
   const selectedIndex = items.findIndex((item) => item.id === selected?.id);
   const group = groupIds ? new Set(groupIds) : null;
   const listItems = items.filter(
@@ -220,6 +307,11 @@ export function ProgramTimeline({
     });
   }
   function selectItem(item: Activity) {
+    if (onSelect) {
+      onSelect(item);
+      setListOpen(false);
+      return;
+    }
     setSelectedId(item.id);
     const element = viewport.current;
     if (element && zoom > 1)
@@ -233,6 +325,10 @@ export function ProgramTimeline({
       });
   }
   function selectSegment(segment: TimelineSegment) {
+    if (onSelect && segment.items.length === 1) {
+      onSelect(segment.items[0]);
+      return;
+    }
     setSelectedId(segment.items[0].id);
     setQuery("");
     setPage(0);
@@ -247,7 +343,7 @@ export function ProgramTimeline({
 
   return (
     <section
-      className={`program-timeline ${editing ? "is-editing" : ""}`}
+      className={`program-timeline ${editing ? "is-editing" : ""} ${inlineEditor ? "has-inline-editor" : ""}`}
       aria-label="Графическое расписание"
       onKeyDownCapture={(e) => {
         if (e.key === "Escape" && editor.dragging) {
@@ -344,27 +440,35 @@ export function ProgramTimeline({
         </div>
       </div>
       <p className="timeline-caption" id={`${id}-hint`}>
-        Пунктов: {items.length} · время по МСК. Выберите отрезок для деталей.
-        {dense
-          ? " Мелкие пункты объединены в группы с числом — откройте группу или увеличьте масштаб."
-          : ""}
-        {zoom > 1 ? " Шкалу можно прокручивать по горизонтали." : ""}
-        {onCreate ? " Новый пункт — выделите время на основной линии." : ""}
-        {onReschedule && (
-          <span className="sr-only">
-            Alt и стрелки влево и вправо перемещают пункт целиком. Стрелки на краях меняют выбранную границу. Shift увеличивает
-            шаг до 15 минут. Esc отменяет перетаскивание.
-          </span>
+        {onSelect ? (
+          "Тяните цветной отрезок, чтобы перенести активность целиком. Края меняют длительность. Нажмите на пункт, чтобы изменить название и время."
+        ) : (
+          <>
+            Пунктов: {items.length} · время по МСК. Выберите отрезок для
+            деталей.
+            {dense
+              ? " Мелкие пункты объединены в группы с числом — откройте группу или увеличьте масштаб."
+              : ""}
+            {zoom > 1 ? " Шкалу можно прокручивать по горизонтали." : ""}
+            {onCreate ? " Новый пункт — выделите время на основной линии." : ""}
+            {onReschedule && (
+              <span className="sr-only">
+                Alt и стрелки влево и вправо перемещают пункт целиком. Стрелки на краях меняют выбранную границу. Shift
+                увеличивает шаг до 15 минут. Esc отменяет перетаскивание.
+              </span>
+            )}
+          </>
         )}
       </p>
       {(onCreate || onReschedule) && (
         <div className="timeline-edit-feedback" role="status">
           {editor.saving
-            ? "Сохраняем время…"
-            : editor.preview
-              ? `${editor.preview.activity?.title ?? "Новый пункт"}: ${timeLabel(editor.preview.range.starts_at)}–${timeLabel(editor.preview.range.ends_at)} МСК`
-              : editor.notice ||
-                `Перетащите отрезок для переноса, края — для изменения длины. Шаг ${step / PROGRAM_MINUTE} мин.`}
+              ? onSelect ? "Выбираем время…" : "Сохраняем время…"
+              : editor.preview
+                ? `${editor.preview.activity?.title ?? "Новый пункт"}: ${timeLabel(editor.preview.range.starts_at)}–${timeLabel(editor.preview.range.ends_at)} МСК`
+                : editor.notice || (onSelect
+                  ? inlineEditor ? "Не сохранено · галочка или Enter — сохранить · Esc — отменить" : "Шаг — 1 минута · Alt + стрелки — перенос · Shift — 15 минут"
+                  : `Перетащите отрезок для переноса, края — для изменения длины. Шаг ${step / PROGRAM_MINUTE} мин.`)}
         </div>
       )}
       <FormError error={editor.error} />
@@ -432,7 +536,7 @@ export function ProgramTimeline({
             <div
               className="timeline-track"
               role="group"
-              aria-label={`${key === "__editing" ? "Редактирование: " : ""}${nodes[0].roomName}`}
+              aria-label={`${key === "__editing" || key === "__inline" ? "Редактирование: " : ""}${nodes[0].roomName}`}
               key={key}
             >
               {nodes.map((node) => {
@@ -472,11 +576,12 @@ export function ProgramTimeline({
                   node.side === "above"
                     ? axisY - 42 - node.row * 76
                     : axisY + 44 + node.row * 76;
-                const color = colors.get(segment.items[0].id);
+                const color =
+                  colors.get(segment.items[0].id) ?? PROGRAM_COLORS[0];
                 return (
                   <div
                     key={segment.id}
-                    className={`timeline-node timeline-node-${node.side} ${selectedNode ? "is-selected" : ""} ${right - left < 44 ? "is-compact" : ""}`}
+                    className={`timeline-node timeline-node-${node.side} ${selectedNode ? "is-selected" : ""} ${right - left < 44 ? "is-compact" : ""} ${node.roomKey === "__inline" ? "timeline-node-inline" : ""}`}
                     data-row={node.row}
                     style={
                       {
@@ -496,49 +601,91 @@ export function ProgramTimeline({
                       className="timeline-projection timeline-projection-end"
                       aria-hidden="true"
                     />
-                    <button
-                      type="button"
-                      className={`timeline-segment ${multiple ? "timeline-cluster" : onReschedule ? "timeline-movable" : ""}`}
-                      aria-label={label}
-                      aria-pressed={selectedNode}
-                      title={`${label} · ${node.roomName}`}
-                      onClick={() => selectSegment(segment)}
-                      disabled={editor.saving}
-                      onPointerDown={onReschedule && !multiple ? (e) => { setSelectedId(item.id); editor.begin(e, item, "move"); } : undefined}
-                      {...editor.pointerHandlers}
-                      onKeyDown={onReschedule && !multiple ? (e) => editor.moveWithKeyboard(e, item) : undefined}
-                    >
-                      <span
-                        className="timeline-node-label"
-                        style={{
-                          left: labelLeft - left,
-                          width: node.labelWidth,
-                        }}
+                    {node.roomKey === "__inline" ? (
+                      <>
+                        <button
+                          type="button"
+                          className="timeline-inline-move"
+                          aria-label={`Переместить ${item.title}`}
+                          disabled={editor.saving}
+                          onPointerDown={(e) => editor.begin(e, item, "move")}
+                          {...editor.pointerHandlers}
+                          onKeyDown={(e) => editor.moveWithKeyboard(e, item)}
+                        >
+                          <i
+                            className="timeline-event-line"
+                            style={{ background: color }}
+                            aria-hidden="true"
+                          />
+                        </button>
+                        <div
+                          ref={inlineContent}
+                          className="timeline-inline-content"
+                          style={{
+                            left: labelLeft - left,
+                            width: node.labelWidth,
+                          }}
+                        >
+                          {inlineEditor?.content}
+                        </div>
+                      </>
+                    ) : (
+                      <button
+                        type="button"
+                        className={`timeline-segment ${multiple ? "timeline-cluster" : onReschedule ? "timeline-movable" : ""}`}
+                        aria-label={label}
+                        aria-pressed={selectedNode}
+                        title={`${label} · ${node.roomName}`}
+                        onClick={(event) => { if (!editor.shouldIgnoreClick(event.detail, multiple ? "" : item.id)) selectSegment(segment); }}
+                        disabled={editor.saving}
+                        onPointerDown={
+                          onReschedule && !multiple
+                            ? (e) => {
+                                setSelectedId(item.id);
+                                editor.begin(e, item, "move");
+                              }
+                            : undefined
+                        }
+                        {...editor.pointerHandlers}
+                        onKeyDown={
+                          onReschedule && !multiple
+                            ? (e) => editor.moveWithKeyboard(e, item)
+                            : undefined
+                        }
                       >
-                        <strong>
-                          {multiple ? (
-                            <>
-                              <Layers size={13} aria-hidden="true" />
-                              Группа · {segment.items.length}
-                            </>
-                          ) : (
-                            segment.items[0].title
-                          )}
-                        </strong>
-                        <small>
-                          {timeLabel(segmentStart)}–{tickLabel(segmentEnd)}
-                          {rooms.length > 1 ? ` · ${node.roomName}` : ""}
-                        </small>
-                      </span>
-                      <i
-                        className="timeline-event-line"
-                        style={{
-                          background: segmentBackground(segment, colors),
-                        }}
-                        aria-hidden="true"
-                      />
-                    </button>
+                        <span
+                          className="timeline-node-label"
+                          style={{
+                            left: labelLeft - left,
+                            width: node.labelWidth,
+                          }}
+                        >
+                          <strong>
+                            {multiple ? (
+                              <>
+                                <Layers size={13} aria-hidden="true" />
+                                Группа · {segment.items.length}
+                              </>
+                            ) : (
+                              segment.items[0].title
+                            )}
+                          </strong>
+                          <small>
+                            {timeLabel(segmentStart)}–{tickLabel(segmentEnd)}
+                            {rooms.length > 1 ? ` · ${node.roomName}` : ""}
+                          </small>
+                        </span>
+                        <i
+                          className="timeline-event-line"
+                          style={{
+                            background: segmentBackground(segment, colors),
+                          }}
+                          aria-hidden="true"
+                        />
+                      </button>
+                    )}
                     {onReschedule &&
+                      (!onSelect || inlineEditor) &&
                       selectedNode &&
                       !multiple &&
                       (["start", "end"] as const).map(
@@ -569,7 +716,7 @@ export function ProgramTimeline({
               })}
             </div>
           ))}
-          {tracks.length === 0 && (
+          {tracks.length === 0 && !inlineEditor && (
             <p className="timeline-empty">
               {onCreate
                 ? "Выделите отрезок на линии, чтобы добавить первый пункт."
@@ -578,7 +725,7 @@ export function ProgramTimeline({
           )}
         </div>
       </div>
-      {selected && (
+      {!onSelect && selected && (
         <article
           className="timeline-detail"
           aria-label="Выбранный пункт программы"
@@ -648,20 +795,24 @@ export function ProgramTimeline({
           </div>
         </article>
       )}
-      <button
-        className="text-button timeline-list-toggle"
-        aria-expanded={listOpen}
-        aria-controls={`${id}-list`}
-        onClick={() => {
-          setListOpen(!listOpen);
-          setGroupIds(null);
-          setPage(0);
-        }}
-      >
-        <List size={17} />
-        {listOpen ? "Скрыть список" : `Найти пункт в списке · ${items.length}`}
-      </button>
-      {listOpen && (
+      {!onSelect && (
+        <button
+          className="text-button timeline-list-toggle"
+          aria-expanded={listOpen}
+          aria-controls={`${id}-list`}
+          onClick={() => {
+            setListOpen(!listOpen);
+            setGroupIds(null);
+            setPage(0);
+          }}
+        >
+          <List size={17} />
+          {listOpen
+            ? "Скрыть список"
+            : `Найти пункт в списке · ${items.length}`}
+        </button>
+      )}
+      {listOpen && (!onSelect || groupIds) && (
         <div className="timeline-list" id={`${id}-list`}>
           {groupIds && (
             <div className="timeline-group-heading">

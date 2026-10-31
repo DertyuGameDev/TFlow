@@ -203,6 +203,7 @@ class Activity(models.Model):
     starts_at = models.DateTimeField()
     ends_at = models.DateTimeField()
     capacity = models.PositiveBigIntegerField()
+    registration_required = models.BooleanField(default=True)
     updated_at = models.DateTimeField(default=timezone.now)
 
     class Meta:
@@ -296,6 +297,7 @@ class CheckIn(models.Model):
     )
     source = models.CharField(max_length=12, choices=[("qr", "QR на входе"), ("webinar", "Подключение к вебинару")], default="qr")
     created_at = models.DateTimeField(default=timezone.now)
+    access_key = models.ForeignKey("EventAccessKey", on_delete=models.SET_NULL, null=True, blank=True, related_name="check_ins")
 
     class Meta:
         constraints = [
@@ -304,6 +306,36 @@ class CheckIn(models.Model):
             ),
             models.CheckConstraint(condition=(models.Q(source="qr", checked_by__isnull=False) | models.Q(source="webinar", checked_by__isnull=True)), name="check_in_source_verifier"),
         ]
+
+
+class EventAccessKey(models.Model):
+    """Revocable event-scanner or activity-host permission; only a hash is stored."""
+
+    id = models.CharField(primary_key=True, max_length=100, default=new_id)
+    event = models.ForeignKey(Event, on_delete=models.CASCADE, related_name="access_keys")
+    activity = models.ForeignKey(Activity, on_delete=models.CASCADE, null=True, blank=True, related_name="access_keys")
+    created_by = models.ForeignKey(User, on_delete=models.SET_NULL, null=True, related_name="issued_access_keys")
+    token_hash = models.CharField(max_length=64, unique=True)
+    purpose = models.CharField(max_length=16, choices=[("scan", "Сканер мероприятия"), ("webinar", "Ведущий онлайн-флоу")])
+    created_at = models.DateTimeField(default=timezone.now)
+    expires_at = models.DateTimeField()
+    revoked_at = models.DateTimeField(null=True, blank=True)
+
+    class Meta:
+        constraints = [
+            models.UniqueConstraint(fields=["event"], condition=Q(activity__isnull=True, revoked_at__isnull=True), name="one_active_event_scan_key"),
+            models.UniqueConstraint(fields=["activity"], condition=Q(activity__isnull=False, revoked_at__isnull=True), name="one_active_flow_access_key"),
+            models.CheckConstraint(condition=Q(purpose="scan", activity__isnull=True) | Q(purpose="webinar", activity__isnull=False), name="valid_access_key_scope"),
+        ]
+
+
+class EventAccessUse(models.Model):
+    key = models.ForeignKey(EventAccessKey, on_delete=models.CASCADE, related_name="uses")
+    user = models.ForeignKey(User, on_delete=models.CASCADE, related_name="access_key_uses")
+    last_used_at = models.DateTimeField(default=timezone.now)
+
+    class Meta:
+        constraints = [models.UniqueConstraint(fields=["key", "user"], name="unique_access_key_user")]
 
 
 class Bookmark(models.Model):

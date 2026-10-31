@@ -14,7 +14,8 @@ describe("меню аккаунта", () => {
     expect(screen.queryByRole("menu")).not.toBeInTheDocument();
     await user.click(trigger);
     expect(trigger).toHaveAttribute("aria-expanded", "true");
-    expect(screen.getAllByRole("menuitem")).toHaveLength(2);
+    expect(screen.getAllByRole("menuitem")).toHaveLength(3);
+    expect(screen.getByRole("menuitem", { name: "Доступ по ключу" })).toHaveAttribute("href", "#access");
     expect(screen.getByRole("menuitem", { name: "Профиль" })).toHaveFocus();
     await user.click(trigger);
     expect(screen.queryByRole("menu")).not.toBeInTheDocument();
@@ -49,6 +50,7 @@ describe("меню аккаунта", () => {
     expect(trigger).toHaveFocus();
     expect(screen.queryByRole("menu")).not.toBeInTheDocument();
     await user.click(trigger);
+    await user.tab();
     await user.tab();
     await user.tab();
     expect(screen.queryByRole("menu")).not.toBeInTheDocument();

@@ -1,4 +1,5 @@
 import {
+  useCallback,
   useRef,
   useState,
   type KeyboardEvent,
@@ -38,6 +39,7 @@ export function useTimelineEditor({
   canvas,
   onCreate,
   onReschedule,
+  deferredSave = false,
 }: {
   event: FlowEvent;
   activities: Activity[];
@@ -48,14 +50,20 @@ export function useTimelineEditor({
   canvas: RefObject<HTMLDivElement | null>;
   onCreate?: (range: ProgramRange) => void;
   onReschedule?: (activity: Activity, range: ProgramRange) => Promise<void>;
+  deferredSave?: boolean;
 }) {
   const gesture = useRef<Gesture | null>(null),
     locked = useRef(false);
+  const draggedClick = useRef<string | null>(null);
   const [preview, setPreview] = useState<Preview | null>(null);
   const [dragging, setDragging] = useState(false),
     [saving, setSaving] = useState(false);
   const [error, setError] = useState(""),
     [notice, setNotice] = useState("");
+  const resetFeedback = useCallback(() => {
+    setError("");
+    setNotice("");
+  }, []);
   function timeAt(x: number) {
     const bounds = canvas.current!.getBoundingClientRect();
     return timelineTimeAt(x, bounds.left, bounds.width, start, end, step);
@@ -74,6 +82,7 @@ export function useTimelineEditor({
     )
       return;
     if (activity ? !onReschedule : !onCreate) return;
+    draggedClick.current = null;
     e.preventDefault();
     const anchor = timeAt(e.clientX);
     gesture.current = {
@@ -98,17 +107,27 @@ export function useTimelineEditor({
   }
   function rangeAt(current: Gesture, x: number) {
     const value = timeAt(x);
+    const delta =
+      Math.round(
+        (((x - current.x) /
+          Math.max(1, canvas.current!.getBoundingClientRect().width)) *
+          (end - start)) /
+          step,
+      ) * step;
     if (current.activity && current.edge === "move")
-      return moveProgramRange(current.activity, Math.abs(x - current.x) < 4 ? 0 : value - current.anchor, event.starts_at, event.ends_at);
+      return moveProgramRange(
+        current.activity,
+        Math.abs(x - current.x) < 4 ? 0 : delta,
+        event.starts_at,
+        event.ends_at,
+      );
     return current.activity
       ? resizeProgramRange(
           current.activity,
           current.edge === "start" ? "start" : "end",
           (current.edge === "start"
             ? current.activity.starts_at
-            : current.activity.ends_at) +
-            value -
-            current.anchor,
+            : current.activity.ends_at) + delta,
           event.starts_at,
           event.ends_at,
         )
@@ -129,6 +148,7 @@ export function useTimelineEditor({
   }
   function cancel() {
     if (!gesture.current) return;
+    draggedClick.current = gesture.current.activity?.id ?? null;
     release();
     setPreview(null);
     setNotice("Изменение отменено.");
@@ -158,7 +178,9 @@ export function useTimelineEditor({
     try {
       await onReschedule(activity, range);
       setNotice(
-        `Время «${activity.title}» сохранено: ${timeLabel(range.starts_at)}–${timeLabel(range.ends_at)}.`,
+        deferredSave
+          ? `Новое время: ${timeLabel(range.starts_at)}–${timeLabel(range.ends_at)}. Нажмите галочку, чтобы сохранить.`
+          : `Время «${activity.title}» сохранено: ${timeLabel(range.starts_at)}–${timeLabel(range.ends_at)}.`,
       );
     } catch (cause) {
       setError(
@@ -222,6 +244,7 @@ export function useTimelineEditor({
       const current = gesture.current;
       if (!current || current.pointerId !== e.pointerId) return;
       const range = rangeAt(current, e.clientX);
+      draggedClick.current = current.activity && Math.abs(e.clientX - current.x) >= 4 ? current.activity.id : null;
       release();
       if (current.activity) void save(current.activity, range);
       else {
@@ -242,11 +265,13 @@ export function useTimelineEditor({
     saving,
     error,
     notice,
+    shouldIgnoreClick: (detail: number, activityId: string) => detail !== 0 && draggedClick.current === activityId,
     begin,
     cancel,
     createAtStart,
     resizeWithKeyboard,
     moveWithKeyboard,
     pointerHandlers,
+    resetFeedback,
   };
 }
