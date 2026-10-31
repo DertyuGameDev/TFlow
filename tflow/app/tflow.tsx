@@ -66,6 +66,7 @@ import { Calendar } from "./ui/calendar";
 import { EventRemovalDialog } from "./ui/event-removal-dialog";
 import { NotificationCenter } from "./ui/notification-center";
 import { CheckInStatus } from "./ui/check-in-status";
+import { EventRegistrationAction, EventWaitlists } from "./ui/event-waitlist";
 import { Clubs } from "./ui/clubs";
 import { OrganizerManage } from "./ui/organizer-manage";
 import { AccountMenu } from "./ui/account-menu";
@@ -313,6 +314,9 @@ function DiscoveryCard({
             {event.checked_in ? "Вы вошли" : "Вы идёте"}
           </span>
         )}
+        {!event.enrolled && !!event.event_waitlisted && <span className="registered-tag event-waitlist-tag">
+          <Clock3 size={12} />В очереди · №{event.event_waitlist_position}
+        </span>}
       </div>
       <div className="discovery-copy">
         <p>
@@ -348,6 +352,8 @@ function ProfileView({
   onCreate,
   onEdit,
   onAvatar,
+  pending,
+  onLeaveEventWaitlist,
 }: {
   profile: Profile;
   organizer: boolean;
@@ -355,6 +361,8 @@ function ProfileView({
   onCreate: () => void;
   onEdit: () => void;
   onAvatar: () => void;
+  pending: boolean;
+  onLeaveEventWaitlist: (event: FlowEvent) => void;
 }) {
   const [copyState, setCopyState] = useState<"idle" | "copied" | "error">(
     "idle",
@@ -432,6 +440,7 @@ function ProfileView({
           </section>
         )}
         <div className="profile-sections">
+          {!organizer && <EventWaitlists events={events} pending={pending} onLeave={onLeaveEventWaitlist} />}
           <section className="personal-info">
             <div className="person-heading">
               <button
@@ -612,6 +621,7 @@ export function TFlow({ user }: { user: UserIdentity | null }) {
     loadSequence = useRef(0),
     detailSequence = useRef(0);
   const knownCheckIns = useRef<{ userId: string; ids: Set<string> } | null>(null);
+  const knownEventQueues = useRef<{ userId: string; ids: Set<string> } | null>(null);
   latest.current = route;
   const send = useCallback(
     async (path: string, method = "GET", body?: unknown): Promise<any> => {
@@ -668,6 +678,14 @@ export function TFlow({ user }: { user: UserIdentity | null }) {
             userId: user.userId,
             ids: new Set(checkedIn.map((event) => event.id)),
           };
+          const previousQueues = knownEventQueues.current;
+          if (previousQueues?.userId === user.userId) {
+            const promoted = (next.tickets as FlowEvent[]).find((event) => previousQueues.ids.has(event.id));
+            if (promoted) setToast({ text: `Место освободилось! Вы зарегистрированы на мероприятие «${promoted.title}».`, error: false });
+          }
+          knownEventQueues.current = { userId: user.userId, ids: new Set(
+            (next.events as FlowEvent[]).filter((event) => event.event_waitlisted).map((event) => event.id),
+          ) };
         }
         setData(next);
         setError("");
@@ -751,16 +769,16 @@ export function TFlow({ user }: { user: UserIdentity | null }) {
     const timer = setTimeout(() => setToast(null), 5000);
     return () => clearTimeout(timer);
   }, [toast]);
-  async function action(fn: () => Promise<unknown>, message: string) {
+  async function action(fn: () => Promise<unknown>, message: string | ((result: unknown) => string)) {
     if (!user) {
       location.assign(loginLink(route.view, route.id));
       return;
     }
     setPending(true);
     try {
-      await fn();
+      const result = await fn();
       await refresh();
-      setToast({ text: message, error: false });
+      setToast({ text: typeof message === "function" ? message(result) : message, error: false });
     } catch (e) {
       setToast({ text: (e as Error).message, error: true });
     } finally {
@@ -779,10 +797,13 @@ export function TFlow({ user }: { user: UserIdentity | null }) {
     );
   const enrollmentDone = (
     message = "Вы записаны. Событие добавлено в календарь.",
+    result?: unknown,
+    path = "",
   ) => {
     setDialog(null);
     void refresh();
-    setToast({ text: message, error: false });
+    const immediate = /^events\/[^/]+\/waitlist$/.test(path) && (result as { registered?: boolean } | undefined)?.registered === true;
+    setToast({ text: immediate ? "Место доступно! Вы зарегистрированы на мероприятие. Оно добавлено в календарь." : message, error: false });
   };
   async function enroll(
     event: FlowEvent,
@@ -805,8 +826,8 @@ export function TFlow({ user }: { user: UserIdentity | null }) {
     if (pending) return;
     setPending(true);
     try {
-      await send(path, "POST", {});
-      enrollmentDone(message);
+      const result = await send(path, "POST", {});
+      enrollmentDone(message, result, path);
     } catch (e) {
       if (e instanceof ApiError && e.code === "PROFILE_INCOMPLETE")
         setDialog({
@@ -821,6 +842,16 @@ export function TFlow({ user }: { user: UserIdentity | null }) {
       setPending(false);
     }
   }
+  const joinEventQueue = (event: FlowEvent) => void enroll(
+    event, `events/${event.id}/waitlist`,
+    "Вы в листе ожидания. При появлении места зарегистрируем вас автоматически и уведомим.",
+  );
+  const leaveEventQueue = (event: FlowEvent) => void action(
+    () => send(`events/${event.id}/waitlist`, "DELETE"),
+    (result) => (result as { registered?: boolean })?.registered
+      ? "Вы уже получили место на мероприятии. Регистрация сохранена в календаре."
+      : "Вы вышли из листа ожидания мероприятия",
+  );
   const closeForm = (id?: string) => {
     setDialog(null);
     void refresh();
@@ -1528,6 +1559,8 @@ export function TFlow({ user }: { user: UserIdentity | null }) {
                     onCreate={() => setDialog({ type: "create" })}
                     onEdit={() => setDialog({ type: "profile" })}
                     onAvatar={() => setDialog({ type: "avatar" })}
+                    pending={pending}
+                    onLeaveEventWaitlist={leaveEventQueue}
                   />
                 ) : (
                   <>
@@ -1728,33 +1761,15 @@ export function TFlow({ user }: { user: UserIdentity | null }) {
                             )}
                           </>
                         ) : user ? (
-                          <button
-                            className="button primary register-event"
-                            disabled={
-                              pending ||
-                              detail.event.participant_count >=
-                                detail.event.capacity ||
-                              detail.event.ends_at < Date.now() ||
-                              detail.event.status !== "published"
-                            }
-                            onClick={() => enroll(detail.event)}
-                          >
-                            {pending
-                              ? "Регистрируем…"
-                              : detail.event.participant_count >=
-                                  detail.event.capacity
-                                ? "Мест больше нет"
-                                : detail.event.ends_at < Date.now()
-                                  ? "Событие завершено"
-                                  : "Зарегистрироваться"}
-                            <ArrowRight size={18} />
-                          </button>
+                          <EventRegistrationAction event={detail.event} profile={data.profile} pending={pending}
+                            onRegister={() => void enroll(detail.event)} onJoin={() => joinEventQueue(detail.event)}
+                            onLeave={() => leaveEventQueue(detail.event)} />
                         ) : (
                           <a
                             className="button primary register-event"
                             href={signupLink("event", detail.event.id)}
                           >
-                            Зарегистрироваться
+                            {detail.event.participant_count >= detail.event.capacity ? "Войти и встать в очередь" : "Зарегистрироваться"}
                             <ArrowRight size={18} />
                           </a>
                         )}
@@ -1763,6 +1778,7 @@ export function TFlow({ user }: { user: UserIdentity | null }) {
                             ? hasWebinar(detail.event)
                               ? "Комната вебинара откроется прямо здесь, на ТФлоу."
                               : "Покажите QR из профиля на входе"
+                            : detail.event.event_waitlisted ? "Вы пока ожидаете место — QR для этого события ещё недоступен."
                             : "После регистрации событие появится в календаре."}
                         </p>
                         {!detail.event.enrolled &&
@@ -1905,6 +1921,7 @@ export function TFlow({ user }: { user: UserIdentity | null }) {
               <>
                 {user ? (
                   <>
+                    {!organizer && <EventWaitlists events={data.events} pending={pending} onLeave={leaveEventQueue} />}
                     <Calendar
                       data={data}
                       userId={user.userId}
@@ -2225,7 +2242,7 @@ export function TFlow({ user }: { user: UserIdentity | null }) {
             path={dialog.path}
             missing={dialog.missing}
             send={send}
-            done={() => enrollmentDone(dialog.message)}
+            done={(result) => enrollmentDone(dialog.message, result, dialog.path)}
           />
         </Modal>
       )}
