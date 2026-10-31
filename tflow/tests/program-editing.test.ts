@@ -1,6 +1,7 @@
 import { describe, expect, it } from "vitest";
 import {
   createProgramRange,
+  moveProgramRange,
   PROGRAM_MINUTE as minute,
   programRangeConflict,
   resizeProgramRange,
@@ -12,6 +13,11 @@ const start = Date.parse("2026-11-12T10:00:00+03:00"),
   end = start + 120 * minute;
 const range = { starts_at: start + 30 * minute, ends_at: start + 60 * minute };
 describe("редактирование времени на шкале", () => {
+  it("перемещает весь блок, сохраняя длительность у обеих границ мероприятия", () => {
+    expect(moveProgramRange(range, 15 * minute, start, end)).toEqual({starts_at: start + 45 * minute, ends_at: start + 75 * minute});
+    expect(moveProgramRange(range, -100 * minute, start, end)).toEqual({starts_at: start, ends_at: start + 30 * minute});
+    expect(moveProgramRange(range, 100 * minute, start, end)).toEqual({starts_at: end - 30 * minute, ends_at: end});
+  });
   it("учитывает прокрутку и масштаб, округляет шаг и ограничивает границы дня", () => {
     expect(timelineTimeAt(225, -100, 600, start, end, 5 * minute)).toBe(
       start + 65 * minute,

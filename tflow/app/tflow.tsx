@@ -615,6 +615,15 @@ export function TFlow({ user }: { user: UserIdentity | null }) {
     [format, setFormat] = useState(""),
     [date, setDate] = useState("");
   const [eventTime, setEventTime] = useState<EventTimeFilter>("all");
+  const [feedNow, setFeedNow] = useState(Date.now);
+  useEffect(() => {
+    if (eventTime !== "now") return;
+    const tick = () => setFeedNow(Date.now());
+    tick();
+    const timer = setInterval(tick, 1000);
+    window.addEventListener("focus", tick);
+    return () => { clearInterval(timer); window.removeEventListener("focus", tick); };
+  }, [eventTime]);
   const [ownEventSection, setOwnEventSection] = useState<
     "upcoming" | "archive"
   >("upcoming");
@@ -875,7 +884,8 @@ export function TFlow({ user }: { user: UserIdentity | null }) {
   const visible = data.events.filter(
     (e) =>
       e.status === "published" &&
-      matchesEventTime(e, eventTime) &&
+      matchesEventTime(e, eventTime, eventTime === "now" ? feedNow : Date.now()) &&
+      (eventTime !== "visited" || !!user) &&
       (route.view !== "saved" || e.saved) &&
       (!query ||
         `${e.title} ${e.city} ${e.venue} ${e.topic}`
@@ -893,7 +903,7 @@ export function TFlow({ user }: { user: UserIdentity | null }) {
       (!date ||
         new Date(e.starts_at + 3 * 3600000).toISOString().slice(0, 10) ===
           date),
-  );
+  ).sort((a, b) => eventTime === "visited" ? b.starts_at - a.starts_at : 0);
   const hasFilters = !!(
     query.trim() ||
     city ||
@@ -1223,7 +1233,11 @@ export function TFlow({ user }: { user: UserIdentity | null }) {
                     )}
                   </div>
                 )}
-                {visible.length ? (
+                {eventTime === "visited" && !user ? (
+                  <Empty icon={CalendarDays} title="Ваша история посещений" text="Войдите, чтобы увидеть мероприятия с подтверждённым посещением.">
+                    <a className="button primary" href="/login/?next=%2F%23events">Войти</a>
+                  </Empty>
+                ) : visible.length ? (
                   <div className="discovery-grid">
                     {visible.map((e) => (
                       <DiscoveryCard
@@ -1234,6 +1248,10 @@ export function TFlow({ user }: { user: UserIdentity | null }) {
                       />
                     ))}
                   </div>
+                ) : eventTime === "visited" ? (
+                  <Empty icon={CalendarDays} title="Пока нет подтверждённых посещений" text="После проверки QR на входе или подтверждённого подключения к вебинару мероприятие появится здесь." />
+                ) : eventTime === "now" ? (
+                  <Empty icon={CalendarDays} title="Сейчас мероприятий нет" text="Здесь появятся события, когда наступит время их начала по расписанию." />
                 ) : hasFilters ? (
                   <Empty
                     icon={Search}

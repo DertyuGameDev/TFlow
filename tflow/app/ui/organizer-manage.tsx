@@ -30,6 +30,7 @@ import { ParticipantDetails, RegistrationSettings } from "./profile-data";
 import { EventParticipants } from "./event-participants";
 import type { Send } from "./forms";
 import { ProgramTimeline } from "./program-timeline";
+import { ProgramSwap } from "./program-swap";
 import type { ProgramRange } from "../../lib/program-editing";
 import { OrganizerTutorial } from "./organizer-tutorial";
 import "../event-management.css";
@@ -78,6 +79,7 @@ export function OrganizerManage({
   const [query, setQuery] = useState("");
   const [filter, setFilter] = useState("all");
   const [settingsOpen, setSettingsOpen] = useState(false);
+  const [swapping, setSwapping] = useState<Activity | null>(null);
   const id = useId();
   const e = detail.event;
   const tabs = [
@@ -379,6 +381,7 @@ export function OrganizerManage({
           activities={detail.activities}
           rooms={detail.rooms}
           onEdit={onActivity}
+          onSwap={setSwapping}
           onCreate={(range) => onActivity(undefined, range)}
           onReschedule={async (activity, range) => {
             const current = detail.activities.find(
@@ -396,10 +399,12 @@ export function OrganizerManage({
               capacity: current.capacity,
               starts_at: range.starts_at,
               ends_at: range.ends_at,
+              expected_updated_at: current.updated_at,
             });
             await refresh();
           }}
         />
+        {swapping && <ProgramSwap activity={swapping} detail={detail} send={send} refresh={refresh} onClose={() => setSwapping(null)}/>}
         <section className="management-card management-rooms">
           <header className="management-section-heading">
             <div>

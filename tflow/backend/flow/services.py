@@ -368,6 +368,9 @@ def save_activity(user, data, *, event_id=None, activity_id=None):
         else:
             activity = Activity(event=owned_event(event_id, user))
         data = dict(data)
+        expected_updated_at = data.pop("expected_updated_at", None)
+        if activity_id and expected_updated_at is not None and expected_updated_at != round(activity.updated_at.timestamp() * 1000):
+            raise FlowError("STALE_ACTIVITY", "Этот пункт уже изменился. Обновите программу и повторите действие")
         new_room_name = data.pop("new_room_name", "")
         new_room_capacity = data.pop("new_room_capacity", None)
         online_room = data.pop("online_room", False)

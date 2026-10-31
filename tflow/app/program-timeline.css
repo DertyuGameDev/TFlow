@@ -584,6 +584,7 @@
   }
   .timeline-detail-actions {
     flex-direction: row;
+    flex-wrap: wrap;
     align-items: center;
     justify-content: space-between;
     width: 100%;
@@ -617,3 +618,7 @@
     font-size: 16px;
   }
 }
+.timeline-movable { cursor: grab; touch-action: pan-y; }
+.timeline-movable:active { cursor: grabbing; }
+.program-swap-preview { margin: 0; padding: 0; list-style: none; display: grid; gap: 12px; max-height: 40vh; overflow: auto; }
+.program-swap-preview li { display: grid; gap: 5px; padding: 12px 0; border-bottom: 1px solid var(--flow-border); overflow-wrap: anywhere; }

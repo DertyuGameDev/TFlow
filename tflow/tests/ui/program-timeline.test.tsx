@@ -90,6 +90,23 @@ function drag(target: HTMLElement, from: number, to: number, finish = true) {
 }
 
 describe("действия на графике программы", () => {
+  it("перетаскивает блок целиком с сохранением длины и даёт клавиатурную альтернативу", async () => {
+    const activity = item(0), onReschedule = vi.fn().mockResolvedValue(undefined);
+    const {container} = render(<ProgramTimeline event={event} activities={[activity]} onEdit={vi.fn()} onReschedule={onReschedule}/>);
+    measureCanvas(container);
+    const block = screen.getByRole("button", {name: "Лекция 0 · 10:00–10:30"});
+    drag(block, 75, 225);
+    expect(onReschedule).toHaveBeenCalledExactlyOnceWith(activity, {starts_at: activity.starts_at + 30 * 60000, ends_at: activity.ends_at + 30 * 60000});
+    await waitFor(() => expect(block).not.toBeDisabled());
+    fireEvent.keyDown(block, {key:"ArrowRight", altKey:true, shiftKey:true});
+    expect(onReschedule).toHaveBeenLastCalledWith(activity, {starts_at: activity.starts_at + 15 * 60000, ends_at: activity.ends_at + 15 * 60000});
+  });
+  it("открывает обмен выбранного пункта явной кнопкой", async () => {
+    const onSwap = vi.fn(), user = userEvent.setup();
+    render(<ProgramTimeline event={event} activities={[item(0), item(1)]} onEdit={vi.fn()} onSwap={onSwap}/>);
+    await user.click(screen.getByRole("button", {name:"Поменять местами"}));
+    expect(onSwap).toHaveBeenCalledExactlyOnceWith(item(0));
+  });
   it("создаёт пункт выделением интервала даже на пустом графике и передаёт выбранную аудиторию", () => {
     const onCreate = vi.fn();
     const { container } = render(
