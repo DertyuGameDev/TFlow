@@ -69,3 +69,38 @@ package:
     paths:
       - release/tflow-release.tar.gz
       - release/manifest.json
+
+# Run on demand from the protected default branch to diagnose Spirit access.
+# Only variable NAMES and public connection statuses are logged, never values.
+spirit-readiness:
+  stage: deploy
+  image: python:3.12-slim
+  allow_failure: true
+  rules:
+    - if: '$CI_COMMIT_BRANCH == $CI_DEFAULT_BRANCH'
+      when: manual
+  script:
+    - |
+      python - <<'PY'
+      import os
+      import urllib.request
+      import urllib.error
+
+      markers = ("SPIRIT", "DEVPLATFORM", "DP_", "IAM", "CLIENT", "SECRET", "TOKEN", "ACCOUNT", "CREDENTIAL")
+      print("Credential-related variable names (values withheld):")
+      for name in sorted(os.environ):
+          if any(marker in name.upper() for marker in markers):
+              print(name)
+      for url in [
+          "https://spirit.t-education.com/",
+          "http://hack-mmk-25-vm1-162f2c.vm.prodcontest.com/",
+          "https://hack-mmk-25-vm1-162f2c.vm.prodcontest.com/api/health",
+      ]:
+          try:
+              with urllib.request.urlopen(url, timeout=8) as response:
+                  print(url, "HTTP", response.status)
+          except urllib.error.HTTPError as error:
+              print(url, "HTTP", error.code)
+          except Exception as error:
+              print(url, type(error).__name__)
+      PY
