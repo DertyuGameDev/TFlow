@@ -10,8 +10,11 @@ class ParticipantCheckInFeedbackTests(Scenario, TestCase):
         for client in [self.participant, self.stranger]:
             self.request(f"events/{self.event.pk}/registration", "post", client=client)
         self.assertEqual(self.request("bootstrap", client=self.participant)["tickets"][0]["checked_in"], 0)
-        for _ in range(2):
-            self.request(f"events/{self.event.pk}/check-in", "post", {"qr": str(self.person.pass_token)})
+        self.request(f"events/{self.event.pk}/check-in", "post", {"qr": str(self.person.pass_token)})
+        self.request(
+            f"events/{self.event.pk}/check-in", "post", {"qr": str(self.person.pass_token)},
+            status=409, code="ALREADY_CHECKED_IN",
+        )
         for client, admitted in [(self.participant, 1), (self.stranger, 0)]:
             state = self.request("bootstrap", client=client)
             detail = self.request(f"events/{self.event.pk}", client=client)

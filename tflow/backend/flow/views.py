@@ -427,7 +427,12 @@ def dispatch_api(request, path):
             raise FlowError("NOT_FOUND", "Действие не найдено", 404)
         club = services.save_community(user, validate(CommunityInput, body), item_id)
         return JsonResponse({"id": club.pk}, status=201 if method == "POST" else 200)
-    elif resource == "communities" and item_id and action == "subscription" and method == "PATCH":
+    elif (
+        resource == "communities"
+        and item_id
+        and action == "subscription"
+        and method == "PATCH"
+    ):
         services.set_community_subscription(user, item_id, body.get("enabled"))
     elif (
         resource == "communities"
@@ -468,6 +473,12 @@ def dispatch_api(request, path):
             services.move_event(user, item_id, validate(MoveEventInput, body))
         elif item_id and action == "registration" and method == "POST":
             services.enroll_event(user, item_id, body)
+        elif item_id and action == "waitlist" and method == "POST":
+            queued = services.join_event_waitlist(user, item_id, body)
+            return JsonResponse({"ok": True, "waitlisted": queued, "registered": not queued})
+        elif item_id and action == "waitlist" and method == "DELETE":
+            registered = services.leave_event_waitlist(user, item_id)
+            return JsonResponse({"ok": True, "waitlisted": False, "registered": registered})
         elif item_id and action == "requirements" and method == "PATCH":
             services.set_requirements(user, item_id, validate(RequirementsInput, body))
         elif item_id and action == "registration" and method == "DELETE":

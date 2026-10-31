@@ -63,8 +63,13 @@ def send_pending_emails(limit=25):
         subject = (
             "ТФлоу — мероприятие отменено"
             if notice.kind == "event_cancelled"
-            else "ТФлоу — новое событие клуба" if notice.kind == "club_event"
-            else "ТФлоу — изменение в вашем событии"
+            else (
+                "ТФлоу — новое событие клуба"
+                if notice.kind == "club_event"
+                else "ТФлоу — место на мероприятии освободилось"
+                if notice.kind == "event_waitlist"
+                else "ТФлоу — изменение в вашем событии"
+            )
         )
         url = (
             f"{settings.PUBLIC_APP_URL}/#notifications"

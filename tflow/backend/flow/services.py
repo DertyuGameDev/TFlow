@@ -12,6 +12,7 @@ from .models import (
     Community,
     Event,
     EventRegistration,
+    EventWaitlistEntry,
     Membership,
     Notification,
     Registration,
@@ -54,7 +55,9 @@ def require_organizer(user):
 
 def require_participant(user):
     if not user.is_authenticated or user.role != "participant":
-        raise FlowError("FORBIDDEN", "Запись на события доступна только участникам", 403)
+        raise FlowError(
+            "FORBIDDEN", "Запись на события доступна только участникам", 403
+        )
 
 
 def profile_updates(user, data):
@@ -62,24 +65,34 @@ def profile_updates(user, data):
     supplied = {key: value for key, value in data.items() if key in allowed}
     if not supplied:
         return {}
-    current = {key: value for key, value in participant_profile(user).items() if key in allowed}
+    current = {
+        key: value for key, value in participant_profile(user).items() if key in allowed
+    }
     if "first_name" in supplied or "last_name" in supplied:
-        first_name, last_name = (user.first_name, user.last_name) if user.first_name or user.last_name else split_name(user.name)
+        first_name, last_name = (
+            (user.first_name, user.last_name)
+            if user.first_name or user.last_name
+            else split_name(user.name)
+        )
         current.update(first_name=first_name, last_name=last_name)
     values = validate(ProfileInput, {**current, **supplied})
     if {"name", "first_name", "last_name"} & supplied.keys():
-        supplied.update({key: values[key] for key in ("name", "first_name", "last_name")})
+        supplied.update(
+            {key: values[key] for key in ("name", "first_name", "last_name")}
+        )
     return {key: values[key] for key in supplied}
 
 
 def save_profile(user, data):
-    with transaction.atomic():
+    with schedule_write():
         person = User.objects.select_for_update().get(pk=user.pk)
         values = profile_updates(person, data)
         for key, value in values.items():
             setattr(person, key, value)
         if values:
             person.save(update_fields=list(values))
+        for event in Event.objects.filter(waitlist_entries__user=person):
+            promote_event_waitlist_locked(event)
 
 
 def set_requirements(user, event_id, data):
@@ -88,6 +101,7 @@ def set_requirements(user, event_id, data):
         event.required_profile_fields = data["required_profile_fields"]
         event.updated_at = timezone.now()
         event.save(update_fields=["required_profile_fields", "updated_at"])
+        promote_event_waitlist_locked(event)
 
 
 def check_community(data, user, previous_id=None):
@@ -168,6 +182,7 @@ def update_event(user, event_id, data):
                     for uid in users
                 ]
             )
+        promote_event_waitlist_locked(event)
         return event
 
 
@@ -179,15 +194,26 @@ def publish_event(user, event_id):
         event.status, event.updated_at = "published", timezone.now()
         event.save(update_fields=["status", "updated_at"])
         if event.community_id:
-            recipients = Membership.objects.filter(
-                community_id=event.community_id, notify_events=True, user__is_active=True,
-            ).exclude(user_id=user.pk).values_list("user_id", flat=True)
-            create_notifications([
-                Notification(
-                    user_id=uid, event=event, kind="club_event",
-                    message=f"В клубе «{event.community.name}» опубликовано событие «{event.title}».",
-                ) for uid in recipients
-            ])
+            recipients = (
+                Membership.objects.filter(
+                    community_id=event.community_id,
+                    notify_events=True,
+                    user__is_active=True,
+                )
+                .exclude(user_id=user.pk)
+                .values_list("user_id", flat=True)
+            )
+            create_notifications(
+                [
+                    Notification(
+                        user_id=uid,
+                        event=event,
+                        kind="club_event",
+                        message=f"В клубе «{event.community.name}» опубликовано событие «{event.title}».",
+                    )
+                    for uid in recipients
+                ]
+            )
 
 
 def set_community_subscription(user, community_id, enabled):
@@ -196,7 +222,9 @@ def set_community_subscription(user, community_id, enabled):
     with schedule_write():
         if not Community.objects.filter(pk=community_id).exists():
             raise FlowError("NOT_FOUND", "Клуб не найден", 404)
-        if not Membership.objects.filter(user=user, community_id=community_id).update(notify_events=enabled):
+        if not Membership.objects.filter(user=user, community_id=community_id).update(
+            notify_events=enabled
+        ):
             raise FlowError("CLUB_MEMBERSHIP", "Сначала вступите в клуб", 403)
 
 
@@ -231,6 +259,7 @@ def delete_event(user, event_id):
         title = event.title
         users = (
             set(event.enrollments.values_list("user_id", flat=True))
+            | set(event.waitlist_entries.values_list("user_id", flat=True))
             | set(event.check_ins.values_list("user_id", flat=True))
             | set(
                 Registration.objects.filter(activity__event=event).values_list(
@@ -344,7 +373,8 @@ def save_activity(user, data, *, event_id=None, activity_id=None):
         online_room = data.pop("online_room", False)
         if new_room_name:
             room = Room.objects.create(
-                event=activity.event, name=new_room_name,
+                event=activity.event,
+                name=new_room_name,
                 capacity=new_room_capacity or data["capacity"],
             )
             data["room_id"] = room.pk
@@ -569,6 +599,91 @@ def cancel(user, activity_id):
             retry_user_waitlists_locked(user)
 
 
+def event_registration_profile_locked(user, event, profile_data=None):
+    person = User.objects.select_for_update().get(pk=user.pk)
+    values = profile_updates(person, profile_data or {})
+    for key, value in values.items():
+        setattr(person, key, value)
+    missing = [key for key in event.required_profile_fields if not getattr(person, key)]
+    if missing:
+        error = FlowError("PROFILE_INCOMPLETE", "Дополните данные для записи", 409)
+        error.missing_fields = missing
+        error.fields = {
+            key: [f"Заполните поле «{PROFILE_LABELS[key]}»"] for key in missing
+        }
+        raise error
+    if values:
+        person.save(update_fields=list(values))
+    return participant_profile(person)
+
+
+def eligible_event_waiters(event, registered):
+    for entry in event.waitlist_entries.select_related("user").filter(
+        user__is_active=True, user__role="participant",
+    ).order_by("id"):
+        if entry.user_id not in registered and all(
+            getattr(entry.user, key) for key in event.required_profile_fields
+        ):
+            yield entry
+
+
+def promote_event_waitlist_locked(event):
+    """Allocate tickets in FIFO order while holding the shared schedule lock."""
+    if event.status != "published" or event.ends_at <= timezone.now():
+        return
+    registered = set(event.enrollments.values_list("user_id", flat=True))
+    free = event.capacity - len(registered)
+    if free <= 0:
+        return
+    for entry in eligible_event_waiters(event, registered):
+        EventRegistration.objects.create(
+            user=entry.user, event=event, profile_data=participant_profile(entry.user),
+        )
+        entry.delete()
+        create_notifications([Notification(
+            user=entry.user, event=event, kind="event_waitlist",
+            message=f"Место освободилось! Вы зарегистрированы на мероприятие «{event.title}» из листа ожидания. Событие добавлено в календарь, QR доступен в профиле.",
+        )])
+        free -= 1
+        if free <= 0:
+            break
+
+
+def event_for_waitlist(event_id):
+    try:
+        event = Event.objects.get(pk=event_id)
+    except Event.DoesNotExist as error:
+        raise FlowError("NOT_FOUND", "Мероприятие не найдено", 404) from error
+    if event.status != "published":
+        raise FlowError("NOT_PUBLISHED", "Регистрация ещё не открыта")
+    if event.ends_at <= timezone.now():
+        raise FlowError("REGISTRATION_CLOSED", "Мероприятие уже завершилось")
+    return event
+
+
+def join_event_waitlist(user, event_id, profile_data=None):
+    require_participant(user)
+    with schedule_write():
+        event = event_for_waitlist(event_id)
+        if event.enrollments.filter(user=user).exists():
+            return False
+        event_registration_profile_locked(user, event, profile_data)
+        EventWaitlistEntry.objects.get_or_create(user=user, event=event)
+        promote_event_waitlist_locked(event)
+        return event.waitlist_entries.filter(user=user).exists()
+
+
+def leave_event_waitlist(user, event_id):
+    require_participant(user)
+    with schedule_write():
+        event = Event.objects.filter(pk=event_id).first()
+        if not event:
+            raise FlowError("NOT_FOUND", "Мероприятие не найдено", 404)
+        event.waitlist_entries.filter(user=user).delete()
+        promote_event_waitlist_locked(event)
+        return event.enrollments.filter(user=user).exists()
+
+
 def enroll_locked(user, event, profile_data=None):
     require_participant(user)
     if event.status != "published":
@@ -578,21 +693,17 @@ def enroll_locked(user, event, profile_data=None):
     existing = EventRegistration.objects.filter(user=user, event=event).first()
     if existing:
         return existing
-    if event.enrollments.count() >= event.capacity:
+    registered = set(event.enrollments.values_list("user_id", flat=True))
+    if len(registered) >= event.capacity:
         raise FlowError("NO_SEATS", "Свободные места закончились")
-    person = User.objects.select_for_update().get(pk=user.pk)
-    values = profile_updates(person, profile_data or {})
-    for key, value in values.items():
-        setattr(person, key, value)
-    missing = [key for key in event.required_profile_fields if not getattr(person, key)]
-    if missing:
-        error = FlowError("PROFILE_INCOMPLETE", "Дополните данные для записи", 409)
-        error.missing_fields = missing
-        error.fields = {key: [f"Заполните поле «{PROFILE_LABELS[key]}»"] for key in missing}
-        raise error
-    if values:
-        person.save(update_fields=list(values))
-    return EventRegistration.objects.create(user=person, event=event, profile_data=participant_profile(person))
+    first = next(eligible_event_waiters(event, registered), None)
+    if first and first.user_id != user.pk:
+        raise FlowError("WAITLIST_PRIORITY", "Места распределяются по очереди. Встаньте в лист ожидания")
+    snapshot = event_registration_profile_locked(user, event, profile_data)
+    ticket = EventRegistration.objects.create(user=user, event=event, profile_data=snapshot)
+    event.waitlist_entries.filter(user=user).delete()
+    promote_event_waitlist_locked(event)
+    return ticket
 
 
 def enroll_event(user, event_id, profile_data=None):
@@ -608,7 +719,8 @@ def cancel_event(user, event_id):
     with schedule_write():
         if CheckIn.objects.filter(user=user, event_id=event_id).exists():
             raise FlowError(
-                "ALREADY_CHECKED_IN", "Вход уже подтверждён. Отменить регистрацию нельзя"
+                "ALREADY_CHECKED_IN",
+                "Вход уже подтверждён. Отменить регистрацию нельзя",
             )
         activities = list(
             Activity.objects.filter(
@@ -621,9 +733,13 @@ def cancel_event(user, event_id):
         WaitlistEntry.objects.filter(user=user, activity__event_id=event_id).delete()
         Registration.objects.filter(user=user, activity__event_id=event_id).delete()
         EventRegistration.objects.filter(user=user, event_id=event_id).delete()
+        EventWaitlistEntry.objects.filter(user=user, event_id=event_id).delete()
         for activity in activities:
             promote_waitlist_locked(activity)
         retry_user_waitlists_locked(user)
+        event = Event.objects.filter(pk=event_id).first()
+        if event:
+            promote_event_waitlist_locked(event)
 
 
 def move_event(user, event_id, data):
@@ -701,6 +817,7 @@ def move_event(user, event_id, data):
             registrations__activity__event=event
         ).distinct():
             retry_user_waitlists_locked(participant)
+        promote_event_waitlist_locked(event)
 
 
 def attendee_by_qr(user, event_id, raw):
@@ -728,7 +845,9 @@ def attendee_by_qr(user, event_id, raw):
         token = uuid.UUID(value)
     except (ValueError, AttributeError) as error:
         raise FlowError("INVALID_QR", "Это не QR-код участника ТФлоу", 400) from error
-    person = User.objects.filter(pass_token=token, is_active=True, role="participant").first()
+    person = User.objects.filter(
+        pass_token=token, is_active=True, role="participant"
+    ).first()
     if not person or not event.enrollments.filter(user=person).exists():
         raise FlowError(
             "NOT_REGISTERED", "Нет регистрации на это мероприятие. Вход не подтверждён"
@@ -742,4 +861,9 @@ def check_in(user, event_id, raw):
         entry, created = CheckIn.objects.get_or_create(
             user=person, event=event, defaults={"checked_by": user}
         )
-        return person, entry, not created
+        if not created:
+            raise FlowError(
+                "ALREADY_CHECKED_IN",
+                "QR-код уже использован для входа на это мероприятие. Повторный вход запрещён",
+            )
+        return person, entry, False
