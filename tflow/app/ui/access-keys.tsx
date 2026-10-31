@@ -9,7 +9,7 @@ import "../access-keys.css";
 const Webinar = lazy(() => import("./webinar"));
 type KeyInfo = { id: string; expires_at: number; users: number };
 type Keys = { scan_key: KeyInfo | null; activities: { id: string; title: string; key: KeyInfo | null }[] };
-type Scope = { purpose: "scan" | "webinar"; event: FlowEvent; activity: Activity | null; expires_at: number };
+type Scope = { purpose: "scan" | "webinar"; event: FlowEvent; activity: Activity | null; expires_at: number; scan_activities?: Pick<Activity,"id"|"title">[] };
 
 export function AccessKeyManager({ event, send }: { event: FlowEvent; send: Send }) {
   const [open, setOpen] = useState(false), [data, setData] = useState<Keys | null>(null);
@@ -100,7 +100,7 @@ export function KeyAccessPage({ user, send }: { user: UserIdentity | null; send:
         <p>{scope.purpose === "scan" ? "Сканер мероприятия" : `Ведущий онлайн-флоу · ${scope.event.title}`} · до {dateLabel(scope.expires_at)} {timeLabel(scope.expires_at)} МСК</p></div>
         <button className="button secondary small-button" onClick={() => { setScope(null); setCredential(""); setError(""); }}><X size={16}/>Закрыть доступ</button>
       </header>
-      {scope.purpose === "scan" ? <QRScanner event={scope.event} events={[]} endpoint="access-keys/check-in" send={delegatedSend} onScan={() => {}}/>
+      {scope.purpose === "scan" ? <QRScanner event={scope.event} events={[]} activities={scope.scan_activities??[]} endpoint="access-keys/check-in" send={delegatedSend} onScan={() => {}}/>
         : user && scope.activity && <><p className="access-key-help">Вы можете вести только этот флоу. Для входа в другом браузере откройте «Доступ по ключу» и введите тот же ключ.</p>
           <Suspense fallback={<p role="status">Открываем студию…</p>}><Webinar key={credential} event={scope.event} activity={scope.activity} user={user} send={delegatedSend} delegated/></Suspense></>}
     </>}

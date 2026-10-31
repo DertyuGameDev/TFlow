@@ -13,6 +13,8 @@ from django.conf import settings
 from django.http import HttpResponse
 from prometheus_client import CONTENT_TYPE_LATEST, Counter, Histogram, CollectorRegistry, generate_latest, multiprocess
 
+SCHEDULE_WAIT = Histogram("tflow_schedule_lock_wait_seconds", "Time waiting for schedule consistency lock", buckets=(.001,.01,.05,.1,.5,1,2,5,10))
+SCHEDULE_HOLD = Histogram("tflow_schedule_lock_hold_seconds", "Time spent holding schedule consistency lock", buckets=(.001,.01,.05,.1,.5,1,2,5,10))
 request_id = contextvars.ContextVar("request_id", default=None)
 REQUESTS = Counter("tflow_http_requests_total", "Completed HTTP requests", ["method", "route", "status"])
 LATENCY = Histogram("tflow_http_duration_seconds", "HTTP latency", ["method", "route"], buckets=(.01, .05, .1, .25, .5, 1, 2, 5, 10))

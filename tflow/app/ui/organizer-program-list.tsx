@@ -99,6 +99,7 @@ export function OrganizerProgramList({
                     {item.waiting_count
                       ? ` · в очереди: ${item.waiting_count}`
                       : ""}</>}
+                    {` · посетили: ${item.attended_count ?? 0}`}
                   </small>
                 </div>
                 <div className="management-program-actions">

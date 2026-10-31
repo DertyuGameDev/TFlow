@@ -16,7 +16,7 @@ export function NotificationCenter({
   unreadCount: number;
   revision: string;
   onChange: () => Promise<void>;
-  onOpen: (eventId: string | null) => void;
+  onOpen: (eventId: string | null, activityId?: string | null) => void;
 }) {
   const [unreadOnly, setUnreadOnly] = useState(false);
   const [page, setPage] = useState<NoticePage>({
@@ -81,10 +81,11 @@ export function NotificationCenter({
     }
   }
   function open(notice: Notice) {
-    if (notice.read) onOpen(notice.event_id);
+    const target = () => notice.activity_id ? onOpen(notice.event_id, notice.activity_id) : onOpen(notice.event_id);
+    if (notice.read) target();
     else
       void markRead(`notifications/${notice.id}`, () =>
-        onOpen(notice.event_id),
+        target(),
       );
   }
 
@@ -180,6 +181,7 @@ export function NotificationCenter({
                     ? "Новое событие клуба"
                   : notice.kind === "event_waitlist"
                     ? "Место на мероприятии освободилось"
+                  : notice.kind === "activity_reminder" ? "Скоро начнётся активность"
                   : "Обновление события"}
               </h2>
               <p>{notice.message}</p>

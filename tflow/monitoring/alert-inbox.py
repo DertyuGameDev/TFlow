@@ -4,7 +4,7 @@ from pathlib import Path
 import json
 from datetime import datetime, timezone
 
-DEST = Path(__file__).resolve().parent / 'secrets/alerts.jsonl'
+DEST = Path(__file__).resolve().parent / 'secrets/inbox/alerts.jsonl'
 class Receiver(BaseHTTPRequestHandler):
     def do_POST(self):
         length = int(self.headers.get('Content-Length', '0'))
@@ -23,4 +23,5 @@ class Receiver(BaseHTTPRequestHandler):
     def log_message(self, *args):
         pass
 if __name__ == '__main__':
+    DEST.parent.mkdir(parents=True, exist_ok=True)
     HTTPServer(('127.0.0.1', 9094), Receiver).serve_forever()

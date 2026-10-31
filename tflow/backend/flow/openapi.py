@@ -218,9 +218,10 @@ def build_schema():
                 {
                     "id": text,
                     "event_id": {"type": "string", "nullable": True},
+                    "activity_id": {"type": "string", "nullable": True},
                     "kind": {
                         "type": "string",
-                        "enum": ["info", "event_cancelled", "club_event", "event_waitlist"],
+                        "enum": ["info", "event_cancelled", "club_event", "event_waitlist", "activity_reminder"],
                     },
                     "message": text,
                     "created_at": number,
@@ -245,7 +246,7 @@ def build_schema():
             "Subscription": object_schema(
                 {"enabled": {"type": "boolean"}}, ["enabled"]
             ),
-            "Scan": object_schema({"qr": text}, ["qr"]),
+            "Scan": object_schema({"qr": text, "activity_id": {"type":"string","description":"Необязательно: отметить посещение флоу этого мероприятия вместо входа на событие"}}, ["qr"]),
             "AvatarUpload": object_schema(
                 {"avatar": {"type": "string", "format": "binary"}}, ["avatar"]
             ),
@@ -577,7 +578,7 @@ def build_schema():
         "Участники",
         body="Scan",
         result={"type": "object"},
-        description="Одноразовый вход на событие. Повторное предъявление QR после успешного входа возвращает 409 ALREADY_CHECKED_IN. На другом событии требуется отдельная регистрация; личный QR сохраняется.",
+        description="Без activity_id — одноразовый вход на событие; с activity_id — отдельная отметка посещения флоу с проверкой записи (для открытого флоу достаточно билета). Повторное предъявление QR после успешного входа возвращает 409 ALREADY_CHECKED_IN. На другом событии требуется отдельная регистрация; личный QR сохраняется.",
     )
     add(
         "/schedule/calendar",
@@ -624,7 +625,7 @@ def build_schema():
     }
     for action, summary in [("resolve", "Открыть разрешение по ключу"), ("check-in", "Отметить вход по QR-ключу"), ("webinar", "Вести онлайн-флоу по ключу")]:
         add(f"/access-keys/{action}", "post", summary, "Доступ по ключу",
-            body=object_schema({"key":{"type":"string","writeOnly":True}, **({"qr":{"type":"string"}} if action=="check-in" else {}), **({"operation":{"type":"string","enum":["status","start","join","end"]}} if action=="webinar" else {})}, ["key"] + (["qr"] if action=="check-in" else ["operation"] if action=="webinar" else [])),
+            body=object_schema({"key":{"type":"string","writeOnly":True}, **({"qr":{"type":"string"}, "activity_id":{"type":"string"}} if action=="check-in" else {}), **({"operation":{"type":"string","enum":["status","start","join","end"]}} if action=="webinar" else {})}, ["key"] + (["qr"] if action=="check-in" else ["operation"] if action=="webinar" else [])),
             result={"type":"object"}, description="Нужны вход в свой аккаунт и CSRF. Ключ передаётся только в JSON-теле, не в URL. Разрешение не меняет роль и не даёт доступ к кабинету. QR-сканер возвращает только имя и результат, без контактов и анкеты; ключ ведущего действует только на привязанный флоу.")
     add(
         "/communities",

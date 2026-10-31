@@ -1,6 +1,14 @@
 # Linux host networking lets the collectors reach an existing Django process.
 # All UIs bind to loopback; expose them only through an authenticated VPN/tunnel.
 services:
+  alert-inbox:
+    image: python:3.12-slim
+    network_mode: host
+    command: [python, /app/alert-inbox.py]
+    volumes:
+      - ./alert-inbox.py:/app/alert-inbox.py:ro
+      - ./secrets/inbox:/app/secrets/inbox
+    restart: unless-stopped
   prometheus:
     image: prom/prometheus:v3.5.0
     network_mode: host

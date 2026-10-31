@@ -333,6 +333,10 @@ def dispatch_api(request, path):
                 event = services.owned_event(item_id, require_user(request))
                 rows = event.enrollments.select_related("user").order_by("-created_at")
                 check_ins = {entry.user_id: entry for entry in event.check_ins.all()}
+                from .models import ActivityAttendance
+                activity_visits = {}
+                for visit in ActivityAttendance.objects.filter(activity__event=event).select_related("activity"):
+                    activity_visits.setdefault(visit.user_id, []).append({"activity_id":visit.activity_id,"title":visit.activity.title,"source":visit.source,"created_at":milliseconds(visit.created_at)})
                 return JsonResponse(
                     [
                         {
@@ -341,6 +345,7 @@ def dispatch_api(request, path):
                             "email": registration_profile(row)["email"],
                             "city": registration_profile(row)["city"],
                             "profile_data": registration_profile(row),
+                            "activity_attendance": activity_visits.get(row.user_id, []),
                             "created_at": milliseconds(row.created_at),
                             "checked_in_at": (
                                 milliseconds(check_ins[row.user_id].created_at)
@@ -449,14 +454,15 @@ def dispatch_api(request, path):
         from .access_keys import resolve_key, delegated_check_in, record_use
         secret = body.get("key")
         if item_id == "check-in":
-            return JsonResponse(delegated_check_in(user, secret, body.get("qr")))
+            return JsonResponse(delegated_check_in(user, secret, body.get("qr"), body.get("activity_id")))
         if item_id == "resolve":
             key = resolve_key(user, secret)
             record_use(key, user)
             event = visible_events(user).get(pk=key.event_id)
             activity = activities_for(user).filter(pk=key.activity_id).first() if key.activity_id else None
             return JsonResponse({"purpose": key.purpose, "expires_at": milliseconds(key.expires_at),
-                                 "event": event_json(event), "activity": activity_json(activity) if activity else None})
+                                 "event": event_json(event), "activity": activity_json(activity) if activity else None,
+                                 "scan_activities": list(event.activities.values("id", "title")) if key.purpose == "scan" else []})
         if item_id == "webinar":
             from .webinars import operate, status
             key = resolve_key(user, secret, purpose="webinar")
@@ -546,7 +552,7 @@ def dispatch_api(request, path):
             return JsonResponse(operate(user, item_id, body.get("operation"), session=body.get("session")))
         elif item_id and action == "check-in" and method == "POST":
             person, entry, repeated = services.check_in(
-                user, item_id, body.get("qr", "")
+                user, item_id, body.get("qr", ""), body.get("activity_id")
             )
             return JsonResponse(
                 {

@@ -6,6 +6,7 @@ from django.utils import timezone
 from .contracts import FlowError
 from .mailing import create_notifications
 from .models import Activity, Event, Notification, User
+from .schedule_feedback import snapshot, change_message
 from .serializers import milliseconds
 from .services import (
     owned_event, promote_waitlist_locked, retry_user_waitlists_locked,
@@ -58,6 +59,7 @@ def swap_activities(user, activity_id, other_id, expected_event_updated_at=None,
         proposed = swapped_ranges(first, second)
         stamp = timezone.now()
         changes, activities = [], []
+        previous = {a.pk: snapshot(a) for a, _, _ in proposed}
         for activity, start, end in proposed:
             if (activity.starts_at, activity.ends_at) == (start, end):
                 continue
@@ -84,8 +86,8 @@ def swap_activities(user, activity_id, other_id, expected_event_updated_at=None,
                 affected_users |= users
                 recipients = users | set(activity.waitlist.values_list("user_id", flat=True))
                 create_notifications([
-                    Notification(user_id=uid, event_id=event.pk,
-                                 message=f"Изменилось время «{activity.title}». Проверьте свою программу.")
+                    Notification(user_id=uid, event_id=event.pk, activity=activity,
+                                 message=change_message(activity, previous[activity.pk]))
                     for uid in recipients
                 ])
                 promote_waitlist_locked(activity)

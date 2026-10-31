@@ -85,7 +85,8 @@ describe("доступ доверенного лица", () => {
     expect(await screen.findByRole("heading", { name: "Вход подтверждён" })).toBeVisible();
     expect(send).toHaveBeenCalledWith("access-keys/check-in", "POST", { qr: "participant-pass", key: secret });
     expect(screen.queryByText(profile.email)).not.toBeInTheDocument();
-    expect(screen.queryByRole("combobox")).not.toBeInTheDocument();
+    expect(screen.queryByLabelText("Событие")).not.toBeInTheDocument();
+    expect(screen.getByRole("combobox",{name:"Что отмечаем"})).toHaveValue("");
     expect(location.href).not.toContain(secret);
   });
 

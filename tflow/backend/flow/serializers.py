@@ -1,7 +1,9 @@
+from django.utils import timezone
 from django.db.models import Count, Exists, OuterRef, Q, Subquery, Value
 from django.db.models.functions import Coalesce
 from .models import (
     Activity,
+    ActivityAttendance,
     Bookmark,
     CheckIn,
     Community,
@@ -166,6 +168,9 @@ def activities_for(user):
         Activity.objects.select_related("room", "event")
         .annotate(
             taken=Count("registrations", distinct=True),
+            queue_time_conflict=Exists(Registration.objects.filter(user_id=uid, activity__starts_at__lt=OuterRef("ends_at"), activity__ends_at__gt=OuterRef("starts_at")).exclude(activity_id=OuterRef("pk"))),
+            attended=Exists(ActivityAttendance.objects.filter(activity_id=OuterRef("pk"), user_id=uid)),
+            attended_count=Count("attendance", distinct=True),
             event_enrolled=Exists(EventRegistration.objects.filter(event_id=OuterRef("event_id"), user_id=uid)),
             registered=Exists(
                 Registration.objects.filter(activity_id=OuterRef("pk"), user_id=uid)
@@ -208,6 +213,8 @@ def activity_json(activity, schedule=False):
         starts_at=milliseconds(activity.starts_at),
         ends_at=milliseconds(activity.ends_at),
         updated_at=milliseconds(activity.updated_at),
+        attended=bool(activity.attended),
+        attended_count=activity.attended_count,
         room_name=activity.room.name,
         room_is_online=activity.room.is_online,
         event_enrolled=bool(activity.event_enrolled),
@@ -215,6 +222,9 @@ def activity_json(activity, schedule=False):
         registered=int(activity.registered),
         waiting_count=activity.waiting_count,
         waitlisted=int(activity.waitlist_id is not None),
+        waitlist_state=("not_waiting" if activity.waitlist_id is None else
+                        "closed" if activity.starts_at <= timezone.now() or activity.event.status != "published" else
+                        "time_conflict" if activity.queue_time_conflict else "waiting"),
         waitlist_position=(
             activity.waitlist.filter(pk__lte=activity.waitlist_id).count()
             if activity.waitlist_id
@@ -236,6 +246,7 @@ def notice_json(notice):
         "id": notice.pk,
         "event_id": notice.event_id,
         "kind": notice.kind,
+        "activity_id": notice.activity_id,
         "message": notice.message,
         "created_at": milliseconds(notice.created_at),
         "read": int(notice.read),
