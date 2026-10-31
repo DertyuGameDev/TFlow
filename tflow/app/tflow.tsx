@@ -2204,7 +2204,6 @@ export function TFlow({
             </a>
             <a href="#clubs">Клубы по интересам</a>
             <a href="#places">Площадки</a>
-            <span>Время по МСК</span>
           </nav>
         </footer>
       </main>
