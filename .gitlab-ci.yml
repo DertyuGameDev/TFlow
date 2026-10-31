@@ -71,6 +71,32 @@ package:
       - release/tflow-release.tar.gz
       - release/manifest.json
 
+# Explicit deployment of the verified artifact. External HTTPS is a required
+# check inside this job; an unsuccessful deployment is visible on production.
+deploy-spirit:
+  stage: deploy
+  image: python:3.12-slim
+  interruptible: false
+  resource_group: tflow-spirit-vm1
+  timeout: 15m
+  allow_failure: true
+  variables:
+    GIT_DEPTH: "0"
+  needs:
+    - job: package
+      artifacts: true
+  rules:
+    - if: '$CI_COMMIT_BRANCH == $CI_DEFAULT_BRANCH'
+      when: manual
+  environment:
+    name: production
+    url: https://hack-mmk-25-vm1-162f2c.vm.prodcontest.com
+  before_script:
+    - apt-get update -qq
+    - apt-get install -y --no-install-recommends openssh-client git ca-certificates
+  script:
+    - python tflow/deploy/spirit/deploy.py release/manifest.json release/tflow-release.tar.gz
+
 # Maintenance uses the existing tenant-scoped Spirit CI identity. No key or
 # token is printed or stored in artifacts; only the public CLI is retained.
 .spirit-control:
