@@ -135,11 +135,6 @@ provision-owned-video:
   script:
     - python tflow/deploy/spirit/provision_video.py
 
-inspect-owned-video:
-  extends: provision-owned-video
-  script:
-    - python tflow/deploy/spirit/provision_video.py --inspect
-
 spirit-recover-network:
   extends: .spirit-control
   needs:
