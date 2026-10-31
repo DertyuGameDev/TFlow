@@ -76,11 +76,13 @@ function Media({ track, muted = false }: { track: Track; muted?: boolean }) {
 export default function Webinar({
   event,
   activity,
+  delegated = false,
   user,
   send,
 }: {
   event: FlowEvent;
   activity?: Activity;
+  delegated?: boolean;
   user: UserIdentity;
   send: Send;
 }) {
@@ -97,6 +99,7 @@ export default function Webinar({
     [error, setError] = useState(""),
     [tick, setTick] = useState(0),
     [confirmEnd, setConfirmEnd] = useState(false);
+  const [accessDenied, setAccessDenied] = useState(false);
   const [messages, setMessages] = useState<ChatMessage[]>([]),
     [draft, setDraft] = useState(""),
     [chatBusy, setChatBusy] = useState(false),
@@ -111,9 +114,9 @@ export default function Webinar({
   const [microphoneId, setMicrophoneId] = useState("default");
   const screenOperation = useRef<symbol | null>(null);
   const screenUnavailable = screenShareUnavailable(captureContext);
-  const roomUrl = `${location.origin}/${webinarPath(event.id, activity?.id)}`;
+  const roomUrl = `${location.origin}/${delegated ? "#access" : webinarPath(event.id, activity?.id)}`;
   const endpoint = activity ? `activities/${activity.id}/webinar` : `events/${event.id}/webinar`;
-  const host = user.role === "organizer" && event.owner_id === user.userId;
+  const host = status?.host ?? (user.role === "organizer" && event.owner_id === user.userId);
   function update() {
     if (alive.current) setTick((value) => value + 1);
   }
@@ -150,6 +153,7 @@ export default function Webinar({
       const next = (await send(endpoint, "GET")) as Status;
       if (!alive.current || sequence !== statusSequence.current) return;
       setStatus(next);
+      setAccessDenied(false);
       if (roomRef.current && (!next.active || session.current !== next.session))
         await leave();
     } catch (cause) {
@@ -157,6 +161,7 @@ export default function Webinar({
         setError((cause as Error).message);
         const code = (cause as Error & { status?: number }).status;
         if (code === 401 || code === 403 || code === 404) {
+          setAccessDenied(true);
           setStatus(null);
           await leave();
         }
@@ -269,7 +274,7 @@ export default function Webinar({
       setAudioBlocked(!room.canPlaybackAudio);
       setStatus({
         configured: true,
-        host,
+        host: access.host,
         active: true,
         session: access.session,
         ended: false,
@@ -413,7 +418,9 @@ export default function Webinar({
   const room = roomRef.current;
   const presenter = host
     ? room?.localParticipant
-    : room?.remoteParticipants.get(event.owner_id);
+    : [...(room?.remoteParticipants.values() ?? [])].find((person) => person.permissions?.canPublish && (person.isScreenShareEnabled || person.isCameraEnabled || person.isMicrophoneEnabled))
+      ?? room?.remoteParticipants.get(event.owner_id)
+      ?? [...(room?.remoteParticipants.values() ?? [])].find((person) => person.permissions?.canPublish);
   const screen = presenter?.getTrackPublication(
     Track.Source.ScreenShare,
   )?.track;
@@ -475,9 +482,11 @@ export default function Webinar({
         <div className="webinar-lobby">
           <Video size={35} />
           <h3>
-            {!status
-              ? error ? "Не удалось проверить эфир" : "Проверяем эфир…"
-              : !status.configured ? "Видеосервер не настроен"
+            {accessDenied
+              ? "Доступ к эфиру закрыт"
+              : !status
+                ? error ? "Не удалось проверить эфир" : "Проверяем эфир…"
+                : !status.configured ? "Видеосервер не настроен"
               : status.ended || (status.finished && !host)
                 ? "Эфир завершён"
                 : host
@@ -487,8 +496,10 @@ export default function Webinar({
                     : "Ожидаем начало эфира"}
           </h3>
           <p>
-            {!status
-              ? error ? "Повторите проверку соединения." : "Подождите несколько секунд."
+            {accessDenied
+              ? "Разрешение больше недействительно. Обратитесь к организатору."
+              : !status
+                ? error ? "Повторите проверку соединения." : "Подождите несколько секунд."
               : !status.configured
                 ? status.configuration_error || "Сервис трансляций ещё не подключён. Организатор сможет начать эфир после его подключения."
                 : !status.published

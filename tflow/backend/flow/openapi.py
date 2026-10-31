@@ -612,6 +612,19 @@ def build_schema():
             body=object_schema({"operation": {"type": "string", "enum": ["start", "join", "end"]}}, ["operation"]) if method == "post" else None,
             description="Изолированный эфир онлайн-активности. Владелец события запускает и завершает только этот эфир. Для просмотра нужна регистрация на событие и эту активность. Параллельные флоу имеют разные комнаты, видео, звук и чат.",
         )
+    add("/events/{event_id}/access-keys", "get", "Разрешения доверенным лицам", "Доступ по ключу",
+        result={"type": "object"}, description="Только владелец-организатор. Метаданные QR-ключа мероприятия и отдельных ключей ведущего онлайн-флоу. Секреты и хеши не возвращаются.")
+    add("/events/{event_id}/access-keys", "post", "Создать или отозвать разрешение", "Доступ по ключу",
+        body=object_schema({"operation": {"type":"string","enum":["issue","revoke"]}, "purpose":{"type":"string","enum":["scan","webinar"]}, "activity_id":{"type":"string","nullable":True}}, ["operation","purpose"]),
+        result={"type":"object"}, description="Только владелец. scan относится ко всему событию, webinar требует ID онлайн-активности. issue возвращает секрет один раз и отзывает старый ключ того же назначения. До окончания события/активности; revoke закрывает разрешение и отключает ведущих, вошедших по нему.")
+    paths["/events/{event_id}/access-keys"]["post"]["responses"]["201"] = {
+        "description": "Создан новый ключ; секрет возвращается только в этом ответе",
+        "content": {"application/json": {"schema": {"type": "object", "properties": {"key": {"type": "string"}}}}},
+    }
+    for action, summary in [("resolve", "Открыть разрешение по ключу"), ("check-in", "Отметить вход по QR-ключу"), ("webinar", "Вести онлайн-флоу по ключу")]:
+        add(f"/access-keys/{action}", "post", summary, "Доступ по ключу",
+            body=object_schema({"key":{"type":"string","writeOnly":True}, **({"qr":{"type":"string"}} if action=="check-in" else {}), **({"operation":{"type":"string","enum":["status","start","join","end"]}} if action=="webinar" else {})}, ["key"] + (["qr"] if action=="check-in" else ["operation"] if action=="webinar" else [])),
+            result={"type":"object"}, description="Нужны вход в свой аккаунт и CSRF. Ключ передаётся только в JSON-теле, не в URL. Разрешение не меняет роль и не даёт доступ к кабинету. QR-сканер возвращает только имя и результат, без контактов и анкеты; ключ ведущего действует только на привязанный флоу.")
     add(
         "/communities",
         "post",

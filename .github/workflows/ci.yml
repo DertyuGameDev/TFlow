@@ -1,0 +1,30 @@
+name: Verify and package
+on: [push, pull_request, workflow_dispatch]
+jobs:
+  verify:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+          cache: npm
+          cache-dependency-path: tflow/package-lock.json
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+      - run: python -m pip install -r tflow/backend/requirements.lock.txt
+      - run: npm ci
+        working-directory: tflow
+      - run: npm run check && npm run test:frontend && npm run build
+        working-directory: tflow
+      - run: python manage.py makemigrations --check --dry-run && python manage.py test flow.tests --noinput
+        working-directory: tflow/backend
+        env:
+          NOTIFICATION_EMAIL_ENABLED: '0'
+      - run: python -m unittest discover -s tflow/deploy/spirit -p 'test_*.py'
+      - run: python tflow/scripts/package-release.py
+      - uses: actions/upload-artifact@v4
+        with:
+          name: tflow-release
+          path: release/

@@ -35,6 +35,7 @@ import { REQUIREMENT_FIELDS } from "../../lib/profile-fields";
 import { Modal } from "./dialog";
 import { ParticipantDetails, RegistrationSettings } from "./profile-data";
 import { EventParticipants } from "./event-participants";
+import { AccessKeyManager } from "./access-keys";
 import type { Send } from "./forms";
 import { ProgramTimeline } from "./program-timeline";
 import { ProgramGraphEditor } from "./program-graph-editor";
@@ -341,6 +342,7 @@ export function OrganizerManage({
             document.getElementById(`${id}-tab-participants`)?.focus();
           }}
         />
+        <AccessKeyManager event={e} send={send}/>
         <article className="management-card">
           <header className="management-section-heading">
             <h2>О событии</h2>

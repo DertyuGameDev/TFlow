@@ -1,5 +1,5 @@
 import { useEffect, useId, useRef, useState, type KeyboardEvent } from "react";
-import { LogOut, UserRound } from "lucide-react";
+import { KeyRound, LogOut, UserRound } from "lucide-react";
 import type { Profile } from "../../lib/types";
 import { csrfToken } from "../../lib/session";
 import { Avatar } from "./avatar";
@@ -57,6 +57,7 @@ export function AccountMenu({ profile }: { profile: Pick<Profile, "name" | "avat
       onKeyDown={keyboard}>
       <p className="account-dropdown-name">{profile.name}</p>
       <a role="menuitem" href="#profile" onClick={() => setOpen(false)}><UserRound size={18} />Профиль</a>
+      <a role="menuitem" href="#access" onClick={() => setOpen(false)}><KeyRound size={18} />Доступ по ключу</a>
       <form method="post" action="/logout/" role="none">
         <input type="hidden" name="csrfmiddlewaretoken" value={csrfToken()} />
         <button type="submit" role="menuitem"><LogOut size={18} />Выйти из аккаунта</button>

@@ -826,11 +826,10 @@ def move_event(user, event_id, data):
         promote_event_waitlist_locked(event)
 
 
-def attendee_by_qr(user, event_id, raw):
+def person_from_qr(raw):
     import uuid
     from urllib.parse import urlparse
 
-    event = owned_event(event_id, user)
     if not isinstance(raw, str) or len(raw) > 2048:
         raise FlowError("INVALID_QR", "Это не QR-код участника ТФлоу", 400)
     value = raw.strip()
@@ -854,6 +853,12 @@ def attendee_by_qr(user, event_id, raw):
     person = User.objects.filter(
         pass_token=token, is_active=True, role="participant"
     ).first()
+    return person
+
+
+def attendee_by_qr(user, event_id, raw):
+    event = owned_event(event_id, user)
+    person = person_from_qr(raw)
     if not person or not event.enrollments.filter(user=person).exists():
         raise FlowError(
             "NOT_REGISTERED", "Нет регистрации на это мероприятие. Вход не подтверждён"
@@ -864,12 +869,14 @@ def attendee_by_qr(user, event_id, raw):
 def check_in(user, event_id, raw):
     with schedule_write():
         event, person = attendee_by_qr(user, event_id, raw)
-        entry, created = CheckIn.objects.get_or_create(
-            user=person, event=event, defaults={"checked_by": user}
-        )
-        if not created:
-            raise FlowError(
-                "ALREADY_CHECKED_IN",
-                "QR-код уже использован для входа на это мероприятие. Повторный вход запрещён",
-            )
+        entry = mark_event_entry(user, event, person)
         return person, entry, False
+
+
+def mark_event_entry(user, event, person, access_key=None):
+    entry, created = CheckIn.objects.get_or_create(
+        user=person, event=event, defaults={"checked_by": user, "access_key": access_key}
+    )
+    if not created:
+        raise FlowError("ALREADY_CHECKED_IN", "QR-код уже использован для входа на это мероприятие. Повторный вход запрещён")
+    return entry

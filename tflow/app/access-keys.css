@@ -1,0 +1,16 @@
+.access-key-manager h2{display:flex;align-items:center;gap:9px}
+.access-key-help,.key-access-page>p,.key-access-context p{font-size:14px;line-height:1.7;color:var(--muted)}
+.access-key-help{margin:12px 0 18px}
+.access-key-list{list-style:none;padding:0;margin:0;display:grid;gap:14px}
+.access-key-list>li{display:flex;align-items:flex-start;justify-content:space-between;gap:16px;flex-wrap:wrap;border:1px solid var(--line);border-radius:12px;padding:18px}
+.access-key-list h3{display:flex;align-items:center;gap:7px;font-size:15px;overflow-wrap:anywhere}
+.access-key-list p{margin-top:8px;font-size:13px;color:var(--muted);line-height:1.6}
+.access-key-actions{display:flex;gap:9px;flex-wrap:wrap}
+.access-key-revealed{flex-basis:100%;display:flex;align-items:flex-end;gap:12px;flex-wrap:wrap}
+.access-key-revealed label{display:grid;gap:6px;flex:1 1 260px;font-size:13px}
+.access-key-revealed input{width:100%;min-width:0;border:1px solid var(--line);border-radius:8px;padding:12px;background:var(--surface);color:inherit;font:inherit}
+.key-access-page h1{margin-bottom:14px;font-size:30px}
+.key-access-page>.flow-form{max-width:560px;margin-top:22px}
+.key-access-context{display:flex;align-items:flex-start;justify-content:space-between;gap:16px;margin:22px 0;flex-wrap:wrap}
+.key-access-context h2{font-size:21px;margin-bottom:8px}
+@media(max-width:600px){.access-key-actions{width:100%}.access-key-revealed>.button{width:100%}.access-key-list>li{padding:14px}.key-access-page h1{font-size:25px}}

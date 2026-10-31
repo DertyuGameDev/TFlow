@@ -79,6 +79,7 @@ import { ProfileUpcomingEvents } from "./ui/profile-upcoming-events";
 import { EventFlows } from "./ui/event-flows";
 import { CatalogActivities } from "./ui/catalog-activities";
 import { WebinarChannels } from "./ui/webinar-channels";
+import { KeyAccessPage } from "./ui/access-keys";
 import { ThemeToggle } from "./ui/theme-toggle";
 const Webinar = lazy(() => import("./ui/webinar"));
 import {
@@ -139,6 +140,7 @@ const routeFromHash = (organizer: boolean): Route => {
     "organizer",
     "manage",
     "scan",
+    "access",
     "event",
     "webinar",
     "pass",
@@ -1559,6 +1561,7 @@ export function TFlow({ user }: { user: UserIdentity | null }) {
                 )}
               </>
             )}
+            {route.view === "access" && <KeyAccessPage user={user} send={send}/>}
             {route.view === "scan" && organizer && (
               <>
                 <button

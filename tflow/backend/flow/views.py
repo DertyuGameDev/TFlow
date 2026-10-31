@@ -292,6 +292,9 @@ def dispatch_api(request, path):
             return JsonResponse({"ok": True})
         return HttpResponseNotAllowed(["GET", "POST", "DELETE"])
     if method == "GET":
+        if resource == "events" and item_id and action == "access-keys":
+            from .access_keys import management
+            return JsonResponse(management(require_user(request), item_id))
         if resource in {"events", "activities"} and item_id and action == "webinar":
             from .webinars import status
 
@@ -432,6 +435,37 @@ def dispatch_api(request, path):
             raise FlowError(
                 "VALIDATION", "Поля формы должны содержать простые значения", 400
             )
+    if resource == "events" and item_id and action == "access-keys" and method == "POST":
+        from .access_keys import issue_key, revoke_key, key_json
+        purpose, activity_id = body.get("purpose", "scan"), body.get("activity_id")
+        if body.get("operation") == "revoke":
+            revoke_key(user, item_id, purpose=purpose, activity_id=activity_id)
+            return JsonResponse({"ok": True})
+        if body.get("operation") != "issue":
+            raise FlowError("VALIDATION", "Выберите создание или отзыв ключа", 400)
+        key, secret = issue_key(user, item_id, purpose=purpose, activity_id=activity_id)
+        return JsonResponse({**key_json(key), "key": secret}, status=201)
+    if resource == "access-keys" and not action and method == "POST":
+        from .access_keys import resolve_key, delegated_check_in, record_use
+        secret = body.get("key")
+        if item_id == "check-in":
+            return JsonResponse(delegated_check_in(user, secret, body.get("qr")))
+        if item_id == "resolve":
+            key = resolve_key(user, secret)
+            record_use(key, user)
+            event = visible_events(user).get(pk=key.event_id)
+            activity = activities_for(user).filter(pk=key.activity_id).first() if key.activity_id else None
+            return JsonResponse({"purpose": key.purpose, "expires_at": milliseconds(key.expires_at),
+                                 "event": event_json(event), "activity": activity_json(activity) if activity else None})
+        if item_id == "webinar":
+            from .webinars import operate, status
+            key = resolve_key(user, secret, purpose="webinar")
+            operation = body.get("operation")
+            result = status(user, key.event_id, activity_id=key.activity_id, access_key=secret) if operation == "status" else operate(
+                user, key.event_id, operation, activity_id=key.activity_id, access_key=secret,
+            )
+            return JsonResponse(result)
+        raise FlowError("NOT_FOUND", "Действие с ключом не найдено", 404)
     if path == "profile/become-organizer" and method == "POST":
         raise FlowError(
             "ROLE_FIXED",

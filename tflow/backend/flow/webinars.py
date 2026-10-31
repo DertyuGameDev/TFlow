@@ -49,7 +49,7 @@ def configured():
     return not configuration_error()
 
 
-def event_for_webinar(user, event_id, *, activity_id=None):
+def event_for_webinar(user, event_id, *, activity_id=None, access_key=None):
     activity = None
     try:
         if activity_id:
@@ -60,6 +60,12 @@ def event_for_webinar(user, event_id, *, activity_id=None):
     except (Event.DoesNotExist, Activity.DoesNotExist) as error:
         raise FlowError("NOT_FOUND", "Мероприятие не найдено", 404) from error
     owner = event.owner_id == user.pk and user.role == "organizer"
+    if access_key is not None:
+        from .access_keys import resolve_key
+        if activity is None:
+            raise FlowError("INVALID_SCAN_KEY", "Ключ ведущего относится к конкретному онлайн-флоу", 403)
+        resolve_key(user, access_key, purpose="webinar", event_id=event.pk, activity_id=activity.pk)
+        owner = True
     if event.status != "published" and not owner:
         raise FlowError("NOT_FOUND", "Мероприятие не найдено", 404)
     if event.format not in {"Онлайн", "Гибрид"}:
@@ -81,8 +87,8 @@ def event_for_webinar(user, event_id, *, activity_id=None):
     return event, owner, activity
 
 
-def status(user, event_id, *, activity_id=None):
-    event, owner, activity = event_for_webinar(user, event_id, activity_id=activity_id)
+def status(user, event_id, *, activity_id=None, access_key=None):
+    event, owner, activity = event_for_webinar(user, event_id, activity_id=activity_id, access_key=access_key)
     webinar = Webinar.objects.filter(event=event, activity=activity).first()
     return {
         "configured": configured(),
@@ -190,11 +196,11 @@ def disconnect_viewer(user, event_id, *, activity_id=None):
             pass
 
 
-def operate(user, event_id, operation, session=None, *, activity_id=None):
+def operate(user, event_id, operation, session=None, *, activity_id=None, access_key=None):
     from .services import schedule_write
 
     with schedule_write():
-        event, owner, activity = event_for_webinar(user, event_id, activity_id=activity_id)
+        event, owner, activity = event_for_webinar(user, event_id, activity_id=activity_id, access_key=access_key)
         if operation not in {"start", "join", "end", "confirm"}:
             raise FlowError("VALIDATION", "Неизвестное действие с эфиром", 400)
         if operation in {"start", "end"} and not owner:
@@ -260,6 +266,9 @@ def operate(user, event_id, operation, session=None, *, activity_id=None):
             "canPublishData": True,
             "canUpdateOwnMetadata": False,
         }
+        if access_key is not None:
+            from .access_keys import resolve_key, record_use
+            record_use(resolve_key(user, access_key, purpose="webinar", event_id=event.pk, activity_id=activity_id), user)
         return {
             "url": settings.LIVEKIT_URL.replace("https://", "wss://", 1).replace("http://", "ws://", 1),
             "token": signed_token(str(user.pk), user.name, grants),
