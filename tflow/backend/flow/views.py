@@ -200,8 +200,10 @@ def dispatch_api(request, path):
         user = require_user(request)
         services.require_participant(user)
         output = BytesIO()
+        pass_path = f"/#pass/{user.pass_token}"
+        pass_url = settings.PUBLIC_APP_URL + pass_path if settings.PUBLIC_APP_URL else request.build_absolute_uri(pass_path)
         qrcode.make(
-            request.build_absolute_uri(f"/#pass/{user.pass_token}"),
+            pass_url,
             box_size=9,
             border=4,
         ).save(output, format="PNG")
