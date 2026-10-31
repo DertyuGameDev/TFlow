@@ -874,6 +874,7 @@ export function TFlow({ user }: { user: UserIdentity | null }) {
   const activityEditor = dialog?.type === "activity" && detail ? (
     <ActivityForm
       key={activityEditorKey}
+      compact={route.view === "manage"}
       event={detail.event}
       rooms={detail.rooms}
       activity={
@@ -897,7 +898,11 @@ export function TFlow({ user }: { user: UserIdentity | null }) {
       initialEnd={dialog.range?.ends_at}
       initialRoomId={dialog.range?.room_id}
       send={send}
-      done={() => closeForm()}
+      done={async () => {
+        await refresh();
+        setDialog(null);
+        setToast({ text: "Сохранено", error: false });
+      }}
     />
   ) : null;
   const own = data.events.filter((e) => e.owner_id === user?.userId);

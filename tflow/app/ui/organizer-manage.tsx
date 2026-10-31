@@ -21,7 +21,6 @@ import {
   Trash2,
   Users,
   Video,
-  X,
 } from "lucide-react";
 import type {
   Activity,
@@ -37,7 +36,8 @@ import { Modal } from "./dialog";
 import { ParticipantDetails, RegistrationSettings } from "./profile-data";
 import { EventParticipants } from "./event-participants";
 import type { Send } from "./forms";
-import { ProgramTimeline } from "./program-timeline";
+import { ActivityForm } from "./program-item-form";
+import { OrganizerProgramList } from "./organizer-program-list";
 import type { ProgramRange } from "../../lib/program-editing";
 import { OrganizerTutorial } from "./organizer-tutorial";
 import "../event-management.css";
@@ -66,6 +66,37 @@ type Props = {
   refresh: () => Promise<void>;
 };
 
+function NewProgramItemForm({
+  detail,
+  send,
+  done,
+}: Pick<Props, "detail" | "send"> & { done: () => Promise<void> }) {
+  const [start] = useState(() => {
+    const last = Math.max(
+      detail.event.starts_at,
+      ...detail.activities.map((item) => item.ends_at),
+    );
+    return last < detail.event.ends_at ? last : detail.event.starts_at;
+  });
+  return (
+    <ActivityForm
+      event={detail.event}
+      rooms={detail.rooms}
+      initialStart={start}
+      initialRoomId={
+        (detail.event.format === "Онлайн"
+          ? detail.rooms.find((room) => room.is_online)
+          : (detail.rooms.find((room) => !room.is_online) ?? detail.rooms[0])
+        )?.id
+      }
+      initialEnd={Math.min(start + 3600000, detail.event.ends_at)}
+      send={send}
+      done={done}
+      compact
+    />
+  );
+}
+
 export function OrganizerManage({
   initialSection = "event",
   detail,
@@ -92,6 +123,8 @@ export function OrganizerManage({
   const [query, setQuery] = useState("");
   const [filter, setFilter] = useState("all");
   const [settingsOpen, setSettingsOpen] = useState(false);
+  const [programFormVersion, setProgramFormVersion] = useState(0);
+  const [programNotice, setProgramNotice] = useState("");
   const id = useId();
   const editor = useRef<HTMLElement>(null);
   useEffect(() => {
@@ -384,70 +417,10 @@ export function OrganizerManage({
             </div>
           </dl>
         </section>
-        <header className="management-section-heading">
-          <div>
-            <h2>Пункты программы</h2>
-            <p>
-              Составьте расписание: укажите, что будет происходить и во сколько.
-            </p>
-          </div>
-          <button className="button primary" onClick={() => onActivity()}>
-            <Plus size={18} />
-            Добавить пункт программы
-          </button>
-        </header>
-        {activityEditor && (
-          <section
-            className="management-card management-program-editor"
-            ref={editor}
-            aria-labelledby={`${id}-activity-editor-title`}
-          >
-            <header className="management-section-heading">
-              <h3 id={`${id}-activity-editor-title`}>Пункт программы</h3>
-              {onCloseActivity && (
-                <button
-                  type="button"
-                  className="icon-button"
-                  aria-label="Закрыть форму пункта программы"
-                  onClick={onCloseActivity}
-                >
-                  <X size={20} />
-                </button>
-              )}
-            </header>
-            {activityEditor}
-          </section>
-        )}
-        <ProgramTimeline
-          event={e}
-          activities={detail.activities}
-          rooms={detail.rooms}
-          onEdit={onActivity}
-          onCreate={(range) => onActivity(undefined, range)}
-          onReschedule={async (activity, range) => {
-            const current = detail.activities.find(
-              (item) => item.id === activity.id,
-            );
-            if (!current || current.updated_at !== activity.updated_at)
-              throw new Error(
-                "Этот пункт уже изменился. Проверьте его время и повторите действие.",
-              );
-            await send(`activities/${current.id}`, "PATCH", {
-              title: current.title,
-              description: current.description,
-              speaker: current.speaker,
-              room_id: current.room_id,
-              capacity: current.capacity,
-              starts_at: range.starts_at,
-              ends_at: range.ends_at,
-            });
-            await refresh();
-          }}
-        />
         <section className="management-card management-rooms">
           <header className="management-section-heading">
             <div>
-              <h3>Аудитории</h3>
+              <h2>Аудитории</h2>
               <p>
                 Очные залы и онлайн-поток могут работать параллельно. «Онлайн»
                 доступен при добавлении пункта программы.
@@ -484,6 +457,80 @@ export function OrganizerManage({
                 <Video size={17} /> Открыть студию онлайн-аудитории
               </button>
             )}
+        </section>
+        <header className="management-section-heading">
+          <div>
+            <h2>Пункты программы</h2>
+            <p>Расписание по порядку. Время указано по МСК.</p>
+          </div>
+          <button
+            type="button"
+            className="button primary"
+            onClick={() => {
+              onCloseActivity?.();
+              requestAnimationFrame(() => {
+                editor.current?.scrollIntoView({ block: "start" });
+                editor.current
+                  ?.querySelector<HTMLInputElement>('input[name="title"]')
+                  ?.focus({ preventScroll: true });
+              });
+            }}
+          >
+            <Plus size={18} />
+            Добавить пункт
+          </button>
+        </header>
+        <OrganizerProgramList
+          activities={detail.activities}
+          editingId={activityEditorKey}
+          onEdit={(activity) => {
+            setProgramNotice("");
+            onActivity(activity);
+          }}
+        />
+        <section
+          className="management-card management-program-editor"
+          ref={editor}
+          aria-labelledby={`${id}-activity-editor-title`}
+        >
+          <header className="management-section-heading">
+            <h3 id={`${id}-activity-editor-title`}>
+              {activityEditor
+                ? "Изменить пункт программы"
+                : "Добавить пункт программы"}
+            </h3>
+            {activityEditor && onCloseActivity && (
+              <button
+                type="button"
+                className="text-button"
+                onClick={onCloseActivity}
+              >
+                Отменить редактирование
+              </button>
+            )}
+          </header>
+          {programNotice && (
+            <p className="management-program-notice" role="status">
+              {programNotice}
+            </p>
+          )}
+          {activityEditor ?? (
+            <NewProgramItemForm
+              key={programFormVersion}
+              detail={detail}
+              send={send}
+              done={async () => {
+                await refresh();
+                setProgramFormVersion((version) => version + 1);
+                setProgramNotice("Пункт добавлен. Можно добавить следующий.");
+                requestAnimationFrame(() =>
+                  editor.current
+                    ?.querySelector<HTMLInputElement>('input[name="title"]')
+                    ?.focus({ preventScroll: true }),
+                );
+              }}
+            />
+          )}
         </section>
       </section>
       <section

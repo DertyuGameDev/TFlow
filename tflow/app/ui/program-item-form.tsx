@@ -18,6 +18,7 @@ export function ActivityForm({
   initialStart,
   initialEnd,
   initialRoomId,
+  compact = false,
   send,
   done,
 }: {
@@ -27,8 +28,9 @@ export function ActivityForm({
   initialStart?: number;
   initialEnd?: number;
   initialRoomId?: string;
+  compact?: boolean;
   send: Send;
-  done: () => void;
+  done: () => void | Promise<void>;
 }) {
   const start = activity?.starts_at ?? initialStart ?? event.starts_at;
   const end =
@@ -92,7 +94,7 @@ export function ActivityForm({
         capacity,
       },
     );
-    done();
+    await done();
   });
   function changeStart(value: string) {
     const delta = fromLocalInput(value) - fromLocalInput(startsAt);
@@ -105,9 +107,47 @@ export function ActivityForm({
           : current;
       });
   }
-  return (
-    <form className="flow-form" onSubmit={submit}>
+  const extraFields = (
+    <>
+      <div className="form-row">
+        <label>
+          Спикер · необязательно
+          <input
+            name="speaker"
+            defaultValue={activity?.speaker}
+            placeholder="Имя и фамилия"
+          />
+        </label>
+        <label>
+          {online ? "Лимит зрителей" : "Лимит мест"}
+          <input
+            name="capacity"
+            type="number"
+            required
+            min={1}
+            max={limit}
+            value={capacity}
+            onChange={(e) => setCapacity(Number(e.target.value))}
+          />
+        </label>
+      </div>
       <label>
+        Описание · необязательно
+        <textarea
+          name="description"
+          rows={2}
+          defaultValue={activity?.description}
+          placeholder="Что будет происходить на этом этапе?"
+        />
+      </label>
+    </>
+  );
+  return (
+    <form
+      className={`flow-form ${compact ? "program-form-compact" : ""}`}
+      onSubmit={submit}
+    >
+      <label className="program-item-name">
         Название пункта программы
         <input
           name="title"
@@ -116,12 +156,13 @@ export function ActivityForm({
           placeholder="Например, Открытие или Лекция о дизайне"
         />
       </label>
-      <div className="form-row">
+      <div className="form-row program-item-time">
         <label>
           Начало · МСК
           <input
             name="starts_at"
             type="datetime-local"
+            step={60}
             required
             min={localInput(event.starts_at)}
             max={localInput(event.ends_at)}
@@ -134,6 +175,7 @@ export function ActivityForm({
           <input
             name="ends_at"
             type="datetime-local"
+            step={60}
             required
             min={startsAt}
             max={localInput(event.ends_at)}
@@ -142,11 +184,13 @@ export function ActivityForm({
           />
         </label>
       </div>
-      <p className="muted small">
-        В пределах мероприятия: {dateLabel(event.starts_at)}{" "}
-        {timeLabel(event.starts_at)} — {dateLabel(event.ends_at)}{" "}
-        {timeLabel(event.ends_at)} МСК.
-      </p>
+      {!compact && (
+        <p className="muted small">
+          В пределах мероприятия: {dateLabel(event.starts_at)}{" "}
+          {timeLabel(event.starts_at)} — {dateLabel(event.ends_at)}{" "}
+          {timeLabel(event.ends_at)} МСК.
+        </p>
+      )}
       <label>
         Аудитория
         <select
@@ -218,37 +262,14 @@ export function ActivityForm({
             " Событие станет гибридным, очная площадка сохранится."}
         </p>
       )}
-      <div className="form-row">
-        <label>
-          Спикер · необязательно
-          <input
-            name="speaker"
-            defaultValue={activity?.speaker}
-            placeholder="Имя и фамилия"
-          />
-        </label>
-        <label>
-          {online ? "Лимит зрителей" : "Лимит мест"}
-          <input
-            name="capacity"
-            type="number"
-            required
-            min={1}
-            max={limit}
-            value={capacity}
-            onChange={(e) => setCapacity(Number(e.target.value))}
-          />
-        </label>
-      </div>
-      <label>
-        Описание · необязательно
-        <textarea
-          name="description"
-          rows={2}
-          defaultValue={activity?.description}
-          placeholder="Что будет происходить на этом этапе?"
-        />
-      </label>
+      {compact ? (
+        <details className="program-item-extra">
+          <summary>Дополнительные настройки</summary>
+          {extraFields}
+        </details>
+      ) : (
+        extraFields
+      )}
       <p className="muted small">
         Проверим пересечения по аудитории и записи участников перед сохранением.
       </p>

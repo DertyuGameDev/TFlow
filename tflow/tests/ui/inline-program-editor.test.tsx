@@ -54,11 +54,11 @@ function server() {
         const body = JSON.parse(String(init.body));
         writes.push({ path, body });
         if (path === `activities/${first.id}`)
-          activities = activities.map((item) => ({
-            ...item,
-            ...body,
-            updated_at: item.updated_at + 1,
-          }));
+          activities = activities.map((item) =>
+            path === `activities/${item.id}`
+              ? { ...item, ...body, updated_at: item.updated_at + 1 }
+              : item,
+          );
         else activities.push({ ...first, ...body, id: "created" });
         return new Response(JSON.stringify({ id: "created" }), {
           status: init.method === "POST" ? 201 : 200,
@@ -104,32 +104,45 @@ function server() {
   return writes;
 }
 
-describe("форма над графиком программы", () => {
-  it("открывает создание над графиком без модального окна и сохраняет пункт", async () => {
+describe("программа списком с открытой формой", () => {
+  it("сразу показывает аудитории, список и форму; после добавления готова форма следующего пункта", async () => {
     const writes = server(),
       user = userEvent.setup();
     render(<TFlow user={host} />);
-    await user.click(
-      await screen.findByRole("button", { name: "Добавить пункт программы" }),
-    );
-    const editor = screen.getByRole("region", { name: "Пункт программы" });
-    const chart = screen.getByRole("region", {
-      name: "Графическое расписание",
+    const editor = await screen.findByRole("region", {
+      name: "Добавить пункт программы",
     });
+    const list = screen.getByRole("region", {
+      name: "Список пунктов программы",
+    });
+    const rooms = screen.getByRole("heading", { name: "Аудитории", level: 2 });
     expect(
-      editor.compareDocumentPosition(chart) & Node.DOCUMENT_POSITION_FOLLOWING,
+      rooms.compareDocumentPosition(list) & Node.DOCUMENT_POSITION_FOLLOWING,
     ).toBeTruthy();
+    expect(
+      list.compareDocumentPosition(editor) & Node.DOCUMENT_POSITION_FOLLOWING,
+    ).toBeTruthy();
+    expect(
+      screen.queryByRole("region", { name: "Графическое расписание" }),
+    ).not.toBeInTheDocument();
     expect(screen.queryByRole("dialog")).not.toBeInTheDocument();
-    const title = within(editor).getByLabelText("Название пункта программы");
-    expect(title).toHaveFocus();
-    await user.type(title, "Новая лекция");
+    expect(within(list).getByRole("heading", { name: "Лекция" })).toBeVisible();
+    await user.type(
+      within(editor).getByLabelText("Название пункта программы"),
+      "Новая лекция",
+    );
     await user.click(
       within(editor).getByRole("button", { name: "Добавить в программу" }),
     );
-    await waitFor(() =>
-      expect(
-        screen.queryByRole("region", { name: "Пункт программы" }),
-      ).not.toBeInTheDocument(),
+    await within(list).findByRole("heading", { name: "Новая лекция" });
+    const ready = screen.getByRole("region", {
+      name: "Добавить пункт программы",
+    });
+    expect(
+      within(ready).getByLabelText("Название пункта программы"),
+    ).toHaveValue("");
+    expect(within(ready).getByLabelText("Начало · МСК")).toHaveValue(
+      "2026-11-12T11:30",
     );
     expect(writes[0]).toEqual({
       path: `events/${event.id}/activities`,
@@ -141,7 +154,7 @@ describe("форма над графиком программы", () => {
     });
   });
 
-  it("синхронизирует минутное изменение на графике с формой и сохраняет незавершённое заполнение", async () => {
+  it("редактирует строку с точностью до минуты и возвращается к открытой форме добавления", async () => {
     const writes = server(),
       user = userEvent.setup();
     render(<TFlow user={host} />);
@@ -150,21 +163,15 @@ describe("форма над графиком программы", () => {
         name: "Изменить пункт программы Лекция",
       }),
     );
-    const editor = screen.getByRole("region", { name: "Пункт программы" });
+    const editor = screen.getByRole("region", {
+      name: "Изменить пункт программы",
+    });
     const title = within(editor).getByLabelText("Название пункта программы");
     await user.clear(title);
     await user.type(title, "Новое название");
-    fireEvent.keyDown(
-      screen.getByRole("button", { name: "Изменить окончание Лекция" }),
-      { key: "ArrowRight" },
-    );
-    await waitFor(() =>
-      expect(within(editor).getByLabelText("Окончание · МСК")).toHaveValue(
-        "2026-11-12T10:31",
-      ),
-    );
-    expect(title).toHaveValue("Новое название");
-    expect(writes[0].body.ends_at).toBe(first.ends_at + 60000);
+    fireEvent.change(within(editor).getByLabelText("Окончание · МСК"), {
+      target: { value: "2026-11-12T10:31" },
+    });
     await user.selectOptions(
       within(editor).getByLabelText("Аудитория"),
       "second",
@@ -173,13 +180,43 @@ describe("форма над графиком программы", () => {
     expect(within(editor).getByLabelText("Аудитория")).toHaveValue("second");
     expect(title).toHaveValue("Новое название");
     await user.click(
-      within(editor).getByRole("button", {
-        name: "Закрыть форму пункта программы",
+      within(editor).getByRole("button", { name: "Сохранить пункт программы" }),
+    );
+    await screen.findByRole("region", { name: "Добавить пункт программы" });
+    expect(writes[0]).toEqual({
+      path: `activities/${first.id}`,
+      body: expect.objectContaining({
+        title: "Новое название",
+        ends_at: first.ends_at + 60000,
+        room_id: "second",
+      }),
+    });
+    expect(
+      within(
+        screen.getByRole("region", { name: "Список пунктов программы" }),
+      ).getByRole("heading", { name: "Новое название" }),
+    ).toBeVisible();
+    expect(screen.getByLabelText("Начало · МСК")).toHaveValue(
+      "2026-11-12T10:31",
+    );
+  });
+
+  it("отменяет редактирование, оставляя добавление открытым", async () => {
+    server();
+    const user = userEvent.setup();
+    render(<TFlow user={host} />);
+    await user.click(
+      await screen.findByRole("button", {
+        name: "Изменить пункт программы Лекция",
       }),
     );
+    await user.click(
+      screen.getByRole("button", { name: "Отменить редактирование" }),
+    );
     expect(
-      screen.queryByRole("region", { name: "Пункт программы" }),
-    ).not.toBeInTheDocument();
+      screen.getByRole("region", { name: "Добавить пункт программы" }),
+    ).toBeVisible();
+    expect(screen.getByLabelText("Название пункта программы")).toHaveValue("");
     expect(screen.queryByRole("dialog")).not.toBeInTheDocument();
   });
 });
