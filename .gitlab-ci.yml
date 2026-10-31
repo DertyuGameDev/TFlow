@@ -32,6 +32,9 @@ frontend:
 backend:
   stage: test
   image: python:3.12-slim
+  before_script:
+    - apt-get update -qq
+    - apt-get install -y --no-install-recommends git ca-certificates
   services:
     - name: postgres:16-alpine
       alias: postgres

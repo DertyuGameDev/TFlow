@@ -70,6 +70,13 @@ def source_marker(commits):
     return None
 
 
+def synchronized_source(repo, target):
+    # Read the fetched history rather than a single API page: maintenance
+    # commits must not hide the baseline after the first 100 changes.
+    message = git("log", target, "--format=%B", "--grep=^TFLOW-GitHub-Source:", "-1", cwd=repo).stdout.decode()
+    return source_marker([{"message": message}])
+
+
 def baseline_for(repo, target, source, previous):
     baseline = previous or git("merge-base", target, source, cwd=repo).stdout.decode().strip()
     if git("merge-base", "--is-ancestor", baseline, source, cwd=repo, check=False).returncode:
@@ -165,8 +172,7 @@ def main():
             raise SyncError("Unexpected GitLab remote; refusing to send credentials")
         git("fetch", "tflow-gitlab", TARGET, cwd=repo, env=env)
         target = git("rev-parse", "FETCH_HEAD", cwd=repo).stdout.decode().strip()
-        commits = api.request("GET", "/repository/commits?" + urlencode({"ref_name": TARGET, "per_page": 100}))
-        previous = source_marker(commits)
+        previous = synchronized_source(repo, target)
         branch = f"sync/github-{source}"
         matches = api.request("GET", "/merge_requests?" + urlencode({"source_branch": branch, "target_branch": TARGET, "state": "all"}))
         mr = next((item for item in matches if item["state"] in {"opened", "merged"}), None)

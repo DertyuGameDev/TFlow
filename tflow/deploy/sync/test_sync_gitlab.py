@@ -5,7 +5,7 @@ import time
 import unittest
 from unittest.mock import Mock
 
-from sync_gitlab import SyncError, apply_delta, await_deployment, baseline_for, git, source_marker
+from sync_gitlab import SyncError, apply_delta, await_deployment, baseline_for, git, source_marker, synchronized_source
 
 
 class DeltaTests(unittest.TestCase):
@@ -70,6 +70,14 @@ class DeltaTests(unittest.TestCase):
         self.assertEqual(baseline_for(self.repo, foreign, self.base, None), self.base)
         with self.assertRaises(SyncError):
             baseline_for(self.repo, foreign, self.base, foreign)
+
+    def test_maintenance_commits_do_not_hide_the_last_github_source(self):
+        (self.repo / "synced").write_text("reviewed GitHub changes\n")
+        marker = self.commit("sync\n\nTFLOW-GitHub-Source: " + self.base)
+        (self.repo / "maintenance").write_text("new configuration\n")
+        target = self.commit("maintenance after synchronization")
+        self.assertNotEqual(marker, target)
+        self.assertEqual(synchronized_source(self.repo, target), self.base)
 
 
 class CompletionTests(unittest.TestCase):
