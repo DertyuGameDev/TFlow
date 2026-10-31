@@ -67,6 +67,9 @@ import { EventRemovalDialog } from "./ui/event-removal-dialog";
 import { NotificationCenter } from "./ui/notification-center";
 import { Clubs } from "./ui/clubs";
 import { OrganizerManage } from "./ui/organizer-manage";
+import { AccountMenu } from "./ui/account-menu";
+import { EventTimeFilterControl } from "./ui/event-time-filter";
+import { matchesEventTime, type EventTimeFilter } from "../lib/event-filters";
 import { OrganizerTutorial } from "./ui/organizer-tutorial";
 import { EventParticipants } from "./ui/event-participants";
 import { ThemeToggle } from "./ui/theme-toggle";
@@ -591,6 +594,8 @@ export function TFlow({ user }: { user: UserIdentity | null }) {
     [clubFilter, setClubFilter] = useState(""),
     [format, setFormat] = useState(""),
     [date, setDate] = useState("");
+  const [eventTime, setEventTime] = useState<EventTimeFilter>("all");
+  const [ownEventTime, setOwnEventTime] = useState<EventTimeFilter>("all");
   const latest = useRef(route),
     loadSequence = useRef(0),
     detailSequence = useRef(0);
@@ -797,9 +802,11 @@ export function TFlow({ user }: { user: UserIdentity | null }) {
     });
   };
   const own = data.events.filter((e) => e.owner_id === user?.userId);
+  const visibleOwn = own.filter((e) => matchesEventTime(e, ownEventTime));
   const visible = data.events.filter(
     (e) =>
       e.status === "published" &&
+      matchesEventTime(e, eventTime) &&
       (route.view !== "saved" || e.saved) &&
       (!query ||
         `${e.title} ${e.city} ${e.venue} ${e.topic}`
@@ -824,7 +831,7 @@ export function TFlow({ user }: { user: UserIdentity | null }) {
     format ||
     date ||
     topic ||
-    clubFilter
+    clubFilter || eventTime !== "all"
   );
   const resetFilters = () => {
     setQuery("");
@@ -833,6 +840,7 @@ export function TFlow({ user }: { user: UserIdentity | null }) {
     setDate("");
     setTopic("");
     setClubFilter("");
+    setEventTime("all");
   };
   const clubsNav = { id: "clubs", name: "Клубы", icon: Heart };
   const calendarNav = { id: "calendar", name: "Календарь", icon: CalendarDays };
@@ -971,17 +979,7 @@ export function TFlow({ user }: { user: UserIdentity | null }) {
                     </span>
                   )}
                 </a>
-                <a
-                  className="avatar"
-                  href="#profile"
-                  aria-label="Открыть профиль"
-                >
-                  {data.profile ? (
-                    <Avatar profile={data.profile} />
-                  ) : (
-                    user.displayName.slice(0, 1)
-                  )}
-                </a>
+                <AccountMenu profile={data.profile ?? {name:user.displayName, avatar_url:null}} />
               </>
             ) : (
               <a className="button secondary small-button" href="/login/">
@@ -1074,6 +1072,7 @@ export function TFlow({ user }: { user: UserIdentity | null }) {
                     )}
                   </button>
                 </div>
+                <EventTimeFilterControl value={eventTime} onChange={setEventTime} />
                 <div className="catalog-category-filter">
                   <CategorySelect value={topic} onChange={setTopic} allowAll />
                   {data.communities.length > 0 && (
@@ -1256,8 +1255,9 @@ export function TFlow({ user }: { user: UserIdentity | null }) {
                         </strong>
                       </div>
                     </div>
+                    <EventTimeFilterControl value={ownEventTime} onChange={setOwnEventTime} />
                     <div className="host-events">
-                      {own.map((e) => (
+                      {visibleOwn.map((e) => (
                         <OrganizerEvent
                           event={e}
                           key={e.id}
@@ -1267,6 +1267,9 @@ export function TFlow({ user }: { user: UserIdentity | null }) {
                           }
                         />
                       ))}
+                      {visibleOwn.length === 0 && <Empty title="Таких событий пока нет" text="Выберите другое состояние мероприятий.">
+                        <button className="button secondary" onClick={()=>setOwnEventTime("all")}>Показать все</button>
+                      </Empty>}
                     </div>
                   </>
                 ) : (

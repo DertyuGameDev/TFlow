@@ -241,6 +241,10 @@ def bootstrap(user):
                 user_id=user.pk if user.is_authenticated else "",
             )
         ),
+        subscribed=Exists(Membership.objects.filter(
+            community_id=OuterRef("pk"), notify_events=True,
+            user_id=user.pk if user.is_authenticated else "",
+        )),
     ).order_by("name")
     schedule = (
         activities_for(user).filter(registrations__user=user) if participant else []
@@ -260,6 +264,7 @@ def bootstrap(user):
                 "color": c.color,
                 "member_count": c.member_count,
                 "joined": int(c.joined),
+                "subscribed": bool(c.subscribed),
                 "owner_id": c.owner_id,
                 "event_count": c.event_count,
                 "avatar_url": (

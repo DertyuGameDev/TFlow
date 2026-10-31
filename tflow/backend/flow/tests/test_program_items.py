@@ -116,3 +116,59 @@ class ProgramItemTests(Scenario, TestCase):
         room = Activity.objects.get(pk=created["id"]).room
         self.assertEqual(room.name, "Онлайн-комната")
         self.assertEqual(room.capacity, 50000)
+
+    def test_creates_named_room_and_item_together(self):
+        result = self.request(self.path, "post", {
+            **self.body, "new_room_name": "Зал практики", "new_room_capacity": 25,
+        }, status=201)
+        activity = Activity.objects.get(pk=result["id"])
+        self.assertEqual(activity.room.name, "Зал практики")
+        self.assertEqual(activity.room.capacity, 25)
+        self.assertEqual(activity.room.event_id, self.event.pk)
+        self.assertEqual(activity.capacity, 10)
+
+    def test_named_room_creation_rolls_back_on_invalid_item(self):
+        for changes, code in [
+            ({"new_room_capacity": 9}, "ROOM_CAPACITY"),
+            ({"starts_at": milliseconds(self.start - timedelta(minutes=1))}, "EVENT_DATES"),
+        ]:
+            with self.subTest(code=code):
+                self.request(self.path, "post", {
+                    **self.body, "new_room_name": "Новый зал", "new_room_capacity": 25, **changes,
+                }, status=409, code=code)
+                self.assertFalse(self.event.rooms.exists())
+                self.assertFalse(self.event.activities.exists())
+
+    def test_cannot_combine_existing_room_and_new_room_or_omit_name(self):
+        room = Room.objects.create(event=self.event, name="Зал", capacity=20)
+        for changes in [
+            {"room_id": room.pk, "new_room_name": "Новый зал"},
+            {"new_room_capacity": 25},
+            {"new_room_name": "Новый зал", "new_room_capacity": 0},
+        ]:
+            with self.subTest(changes=changes):
+                self.request(self.path, "post", {**self.body, **changes}, status=400)
+        self.assertEqual(self.event.rooms.count(), 1)
+        self.assertFalse(self.event.activities.exists())
+
+    def test_new_room_defaults_to_item_capacity_and_is_available_for_next_item(self):
+        result = self.request(self.path, "post", {**self.body, "new_room_name": "Практика"}, status=201)
+        room = Activity.objects.get(pk=result["id"]).room
+        self.assertEqual(room.capacity, self.body["capacity"])
+        detail = self.request(f"events/{self.event.pk}")
+        self.assertEqual(detail["rooms"][0]["id"], room.pk)
+
+    def test_edit_can_move_item_into_new_room_without_changing_original_room(self):
+        result = self.request(self.path, "post", self.body, status=201)
+        original = Activity.objects.get(pk=result["id"]).room
+        self.request(f"activities/{result['id']}", "patch", {
+            **self.body, "new_room_name": "Новая практика", "new_room_capacity": 30,
+        })
+        activity = Activity.objects.get(pk=result["id"])
+        self.assertNotEqual(activity.room_id, original.pk)
+        self.assertEqual(activity.room.name, "Новая практика")
+        self.assertTrue(Room.objects.filter(pk=original.pk).exists())
+
+    def test_unauthorized_inline_creation_does_not_leave_room(self):
+        self.request(self.path, "post", {**self.body, "new_room_name": "Чужой зал"}, client=self.participant, status=403)
+        self.assertFalse(self.event.rooms.exists())

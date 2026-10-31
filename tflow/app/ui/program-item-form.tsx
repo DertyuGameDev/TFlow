@@ -28,9 +28,12 @@ export function ActivityForm({
   const [endsAt, setEndsAt] = useState(
     localInput(activity?.ends_at ?? Math.min(start + 3600000, event.ends_at)),
   );
-  const [roomId, setRoomId] = useState(activity?.room_id ?? rooms[0]?.id ?? "");
+  const [roomId, setRoomId] = useState(activity?.room_id ?? rooms[0]?.id ?? "@new");
+  const [newRoomName, setNewRoomName] = useState(event.format === "Онлайн" ? "Онлайн-комната" : "Основная площадка");
+  const [newRoomCapacity, setNewRoomCapacity] = useState(event.capacity);
+  const creatingRoom = roomId === "@new";
   const room = rooms.find((item) => item.id === roomId);
-  const limit = room?.capacity ?? event.capacity;
+  const limit = creatingRoom ? newRoomCapacity : room?.capacity ?? event.capacity;
   const [capacity, setCapacity] = useState(
     activity?.capacity ?? Math.min(event.capacity, limit),
   );
@@ -46,7 +49,8 @@ export function ActivityForm({
         title: data.get("title"),
         description: data.get("description"),
         speaker: data.get("speaker"),
-        room_id: roomId,
+        room_id: creatingRoom ? "" : roomId,
+        ...(creatingRoom ? {new_room_name: newRoomName, new_room_capacity: newRoomCapacity} : {}),
         starts_at,
         ends_at,
         capacity,
@@ -107,7 +111,7 @@ export function ActivityForm({
         {timeLabel(event.starts_at)} — {dateLabel(event.ends_at)}{" "}
         {timeLabel(event.ends_at)} МСК.
       </p>
-      {rooms.length ? (
+      {rooms.length > 0 && (
         <label>
           Аудитория
           <select
@@ -117,8 +121,7 @@ export function ActivityForm({
             onChange={(e) => {
               setRoomId(e.target.value);
               const next = rooms.find((item) => item.id === e.target.value);
-              if (next)
-                setCapacity((current) => Math.min(current, next.capacity));
+              setCapacity((current) => Math.min(current, next?.capacity ?? newRoomCapacity));
             }}
           >
             {rooms.map((item) => (
@@ -126,15 +129,19 @@ export function ActivityForm({
                 {item.name} · {item.capacity} мест
               </option>
             ))}
+            <option value="@new">Создать новую аудиторию</option>
           </select>
         </label>
-      ) : (
-        <p className="event-field-hint">
-          Место:{" "}
-          {event.format === "Онлайн" ? "Вебинар внутри ТФлоу" : event.venue}.
-          Основная площадка добавится автоматически вместе с первым пунктом.
-        </p>
       )}
+      {creatingRoom && <fieldset className="program-new-room">
+        <legend>Новая аудитория</legend>
+        <p className="event-field-hint">Сохраним аудиторию вместе с пунктом программы.</p>
+        <div className="form-row">
+          <label>Название аудитории<input name="new_room_name" required value={newRoomName} onChange={e=>setNewRoomName(e.target.value)} /></label>
+          <label>Вместимость аудитории<input name="new_room_capacity" type="number" required min={1} value={newRoomCapacity}
+            onChange={e=>{const value=Number(e.target.value);setNewRoomCapacity(value);setCapacity(current=>Math.min(current,value));}} /></label>
+        </div>
+      </fieldset>}
       <div className="form-row">
         <label>
           Спикер · необязательно

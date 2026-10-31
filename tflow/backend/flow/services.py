@@ -166,8 +166,30 @@ def update_event(user, event_id, data):
 def publish_event(user, event_id):
     with schedule_write():
         event = owned_event(event_id, user)
+        if event.status == "published":
+            return
         event.status, event.updated_at = "published", timezone.now()
         event.save(update_fields=["status", "updated_at"])
+        if event.community_id:
+            recipients = Membership.objects.filter(
+                community_id=event.community_id, notify_events=True, user__is_active=True,
+            ).exclude(user_id=user.pk).values_list("user_id", flat=True)
+            create_notifications([
+                Notification(
+                    user_id=uid, event=event, kind="club_event",
+                    message=f"В клубе «{event.community.name}» опубликовано событие «{event.title}».",
+                ) for uid in recipients
+            ])
+
+
+def set_community_subscription(user, community_id, enabled):
+    if type(enabled) is not bool:
+        raise FlowError("VALIDATION", "Укажите, включить ли уведомления", 400)
+    with schedule_write():
+        if not Community.objects.filter(pk=community_id).exists():
+            raise FlowError("NOT_FOUND", "Клуб не найден", 404)
+        if not Membership.objects.filter(user=user, community_id=community_id).update(notify_events=enabled):
+            raise FlowError("CLUB_MEMBERSHIP", "Сначала вступите в клуб", 403)
 
 
 def save_community(user, data, community_id=None):
@@ -309,6 +331,14 @@ def save_activity(user, data, *, event_id=None, activity_id=None):
         else:
             activity = Activity(event=owned_event(event_id, user))
         data = dict(data)
+        new_room_name = data.pop("new_room_name", "")
+        new_room_capacity = data.pop("new_room_capacity", None)
+        if new_room_name:
+            room = Room.objects.create(
+                event=activity.event, name=new_room_name,
+                capacity=new_room_capacity or data["capacity"],
+            )
+            data["room_id"] = room.pk
         if not data.get("room_id"):
             if activity_id:
                 data["room_id"] = activity.room_id

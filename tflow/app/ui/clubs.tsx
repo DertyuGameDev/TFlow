@@ -4,6 +4,8 @@ import {
   ArrowRight,
   CalendarDays,
   Camera,
+  Bell,
+  BellOff,
   Check,
   Heart,
   Pencil,
@@ -162,6 +164,16 @@ export function Clubs({
       </a>
     );
   }
+  async function subscription(item: Community) {
+    if (busy) return;
+    setBusy(true);
+    setError("");
+    try {
+      await send(`communities/${item.id}/subscription`, "PATCH", {enabled: !item.subscribed});
+      await onChange();
+    } catch (cause) { setError((cause as Error).message); }
+    finally { setBusy(false); }
+  }
   return (
     <section className="clubs-page">
       {clubId ? (
@@ -219,6 +231,11 @@ export function Clubs({
                 </span>
                 <div className="clubs-hero-actions">
                   {membership(club)}
+                  {!!club.joined && <button type="button" className="button secondary" disabled={busy}
+                    aria-pressed={club.subscribed} onClick={()=>void subscription(club)}>
+                    {club.subscribed ? <Bell size={17} /> : <BellOff size={17} />}
+                    {club.subscribed ? "Вы подписаны на события" : "Подписаться на события"}
+                  </button>}
                   {club.owner_id === user?.userId && (
                     <button
                       className="button secondary"
@@ -239,6 +256,9 @@ export function Clubs({
                       </button>
                     )}
                 </div>
+                {!!club.joined && <p className="club-subscription-hint">
+                  {club.subscribed ? "Новые встречи клуба появятся в ваших уведомлениях." : "Подпишитесь, чтобы узнавать о новых встречах клуба."}
+                </p>}
               </div>
               <div className="clubs-events-heading">
                 <h2>События клуба</h2>

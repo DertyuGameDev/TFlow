@@ -409,18 +409,21 @@ def dispatch_api(request, path):
             raise FlowError("NOT_FOUND", "Действие не найдено", 404)
         club = services.save_community(user, validate(CommunityInput, body), item_id)
         return JsonResponse({"id": club.pk}, status=201 if method == "POST" else 200)
+    elif resource == "communities" and item_id and action == "subscription" and method == "PATCH":
+        services.set_community_subscription(user, item_id, body.get("enabled"))
     elif (
         resource == "communities"
         and item_id
         and action == "join"
         and method in {"POST", "DELETE"}
     ):
-        if not Community.objects.filter(pk=item_id).exists():
-            raise FlowError("NOT_FOUND", "Сообщество не найдено", 404)
-        if method == "POST":
-            Membership.objects.get_or_create(user=user, community_id=item_id)
-        else:
-            Membership.objects.filter(user=user, community_id=item_id).delete()
+        with services.schedule_write():
+            if not Community.objects.filter(pk=item_id).exists():
+                raise FlowError("NOT_FOUND", "Сообщество не найдено", 404)
+            if method == "POST":
+                Membership.objects.get_or_create(user=user, community_id=item_id)
+            else:
+                Membership.objects.filter(user=user, community_id=item_id).delete()
     elif resource == "events":
         if not item_id and method == "POST":
             event = services.create_event(user, validate(EventInput, body))

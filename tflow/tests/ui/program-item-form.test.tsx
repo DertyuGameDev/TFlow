@@ -5,6 +5,35 @@ import { ActivityForm } from "../../app/ui/program-item-form";
 import { event } from "../fixtures";
 
 describe("пункты программы", () => {
+  it("создаёт именованную аудиторию вместе с программой одним запросом", async () => {
+    const user = userEvent.setup(), send = vi.fn().mockResolvedValue({ id: "item" }), done = vi.fn();
+    render(<ActivityForm event={event} rooms={[{ id: "old", event_id: event.id, name: "Старый зал", capacity: 100 }]} send={send} done={done} />);
+    await user.type(screen.getByLabelText("Название пункта программы"), "Практика");
+    await user.selectOptions(screen.getByLabelText("Аудитория"), "@new");
+    await user.clear(screen.getByLabelText("Название аудитории"));
+    await user.type(screen.getByLabelText("Название аудитории"), "Новый зал");
+    fireEvent.change(screen.getByLabelText("Вместимость аудитории"), { target: { value: "25" } });
+    expect(screen.getByLabelText("Лимит мест")).toHaveValue(25);
+    await user.click(screen.getByRole("button", { name: "Добавить в программу" }));
+    await waitFor(() => expect(done).toHaveBeenCalledOnce());
+    expect(send).toHaveBeenCalledExactlyOnceWith(`events/${event.id}/activities`, "POST", expect.objectContaining({
+      title: "Практика", room_id: "", new_room_name: "Новый зал", new_room_capacity: 25, capacity: 25,
+    }));
+  });
+
+  it("не отправляет новую аудиторию после возврата к существующей", async () => {
+    const user = userEvent.setup(), send = vi.fn().mockResolvedValue({ id: "item" });
+    render(<ActivityForm event={event} rooms={[{ id: "old", event_id: event.id, name: "Старый зал", capacity: 10 }]} send={send} done={vi.fn()} />);
+    await user.type(screen.getByLabelText("Название пункта программы"), "Практика");
+    await user.selectOptions(screen.getByLabelText("Аудитория"), "@new");
+    await user.selectOptions(screen.getByLabelText("Аудитория"), "old");
+    expect(screen.queryByLabelText("Название аудитории")).not.toBeInTheDocument();
+    await user.click(screen.getByRole("button", { name: "Добавить в программу" }));
+    await waitFor(() => expect(send).toHaveBeenCalledOnce());
+    expect(send.mock.calls[0][2]).not.toHaveProperty("new_room_name");
+    expect(send.mock.calls[0][2]).toHaveProperty("room_id", "old");
+  });
+
   it("принимает короткое название и наследует вместимость без ограничения в 10000", async () => {
     const user = userEvent.setup(), send = vi.fn().mockResolvedValue({ id: "large-item" });
     render(<ActivityForm event={{ ...event, capacity: 500001 }} rooms={[]} send={send} done={vi.fn()} />);

@@ -73,12 +73,18 @@ class ActivityInput(forms.Form):
     description = forms.CharField(required=False)
     speaker = forms.CharField(required=False)
     room_id = forms.CharField(required=False)
+    new_room_name = forms.CharField(required=False)
+    new_room_capacity = forms.IntegerField(required=False, min_value=1, max_value=2**53 - 1)
     starts_at = MillisecondsField()
     ends_at = MillisecondsField()
     capacity = forms.IntegerField(min_value=1, max_value=2**53 - 1)
 
     def clean(self):
         data = super().clean()
+        if data.get("new_room_name") and data.get("room_id"):
+            self.add_error("room_id", "Выберите существующую аудиторию или создайте новую")
+        if data.get("new_room_capacity") and not data.get("new_room_name"):
+            self.add_error("new_room_name", "Укажите название новой аудитории")
         if (
             data.get("starts_at")
             and data.get("ends_at")

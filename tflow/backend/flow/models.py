@@ -287,6 +287,7 @@ class Bookmark(models.Model):
 
 
 class Membership(models.Model):
+    notify_events = models.BooleanField(default=True)
     user = models.ForeignKey(User, on_delete=models.CASCADE, related_name="memberships")
     community = models.ForeignKey(
         Community, on_delete=models.CASCADE, related_name="memberships"
@@ -308,7 +309,7 @@ class Notification(models.Model):
     event = models.ForeignKey(Event, on_delete=models.SET_NULL, null=True, blank=True)
     kind = models.CharField(
         max_length=24,
-        choices=[("info", "Обновление"), ("event_cancelled", "Отмена мероприятия")],
+        choices=[("info", "Обновление"), ("event_cancelled", "Отмена мероприятия"), ("club_event", "Новое событие клуба")],
         default="info",
     )
     message = models.TextField(max_length=1000)
