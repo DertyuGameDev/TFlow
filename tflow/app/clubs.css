@@ -21,6 +21,7 @@
 .clubs-card .clubs-match{margin-top:7px;color:var(--theme-green-text,#548567)}
 .club-photo-heading{display:flex;flex-direction:column;align-items:flex-start;gap:12px;margin-bottom:20px}
 .club-photo-heading>.text-button{font-size:14px;min-height:32px}
+.clubs-hero>.clubs-topic{font-size:18px;font-weight:500;line-height:1.5}
 .club-avatar-edit{position:relative}
 .club-avatar-camera{position:absolute;right:0;bottom:0;display:grid;place-items:center;width:31px;height:31px;border:3px solid var(--theme-warm,#fff9dc);border-radius:50%;background:#ffdd2d;color:#272514}
 @media(max-width:760px){.profile-avatar.club-avatar{width:80px;height:80px;font-size:31px}.profile-avatar.club-avatar-large{width:96px;height:96px;font-size:36px}}
