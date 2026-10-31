@@ -603,6 +603,14 @@ def build_schema():
         result={"type": "object"},
         description="Организатор запускает (start) и завершает (end) свой эфир; зарегистрированный участник получает доступ через join. После подключения confirm с session проверяет присутствие на LiveKit и учитывает посещение. Выдача токена сама по себе посещение не подтверждает.",
     )
+    for method in ("get", "post"):
+        add(
+            "/activities/{activity_id}/webinar", method,
+            "Состояние вебинара флоу" if method == "get" else "Управление отдельным вебинаром флоу",
+            "Вебинары", result={"type": "object"},
+            body=object_schema({"operation": {"type": "string", "enum": ["start", "join", "end"]}}, ["operation"]) if method == "post" else None,
+            description="Изолированный эфир онлайн-активности. Владелец события запускает и завершает только этот эфир. Для просмотра нужна регистрация на событие и эту активность. Параллельные флоу имеют разные комнаты, видео, звук и чат.",
+        )
     add(
         "/communities",
         "post",

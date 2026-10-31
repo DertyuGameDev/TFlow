@@ -283,10 +283,11 @@ def dispatch_api(request, path):
             return JsonResponse({"ok": True})
         return HttpResponseNotAllowed(["GET", "POST", "DELETE"])
     if method == "GET":
-        if resource == "events" and item_id and action == "webinar":
+        if resource in {"events", "activities"} and item_id and action == "webinar":
             from .webinars import status
 
-            return JsonResponse(status(require_user(request), item_id))
+            return JsonResponse(status(require_user(request), item_id if resource == "events" else None,
+                                       activity_id=item_id if resource == "activities" else None))
         if path == "notifications":
             return JsonResponse(
                 notification_page(
@@ -499,7 +500,7 @@ def dispatch_api(request, path):
         elif item_id and action == "webinar" and method == "POST":
             from .webinars import operate
 
-            return JsonResponse(operate(user, item_id, body.get("operation"), body.get("session")))
+            return JsonResponse(operate(user, item_id, body.get("operation"), session=body.get("session")))
         elif item_id and action == "check-in" and method == "POST":
             person, entry, repeated = services.check_in(
                 user, item_id, body.get("qr", "")
@@ -529,6 +530,9 @@ def dispatch_api(request, path):
             from .program_schedule import swap_activities
 
             return JsonResponse(swap_activities(user, item_id, **validate(SwapActivitiesInput, body)))
+        elif action == "webinar" and method == "POST":
+            from .webinars import operate
+            return JsonResponse(operate(user, None, body.get("operation"), session=body.get("session"), activity_id=item_id))
         elif action == "registration" and method == "POST":
             if services.register(user, item_id, body) is False:
                 raise FlowError(

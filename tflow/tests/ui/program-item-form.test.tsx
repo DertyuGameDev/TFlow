@@ -5,6 +5,32 @@ import { ActivityForm } from "../../app/ui/program-item-form";
 import { event } from "../fixtures";
 
 describe("пункты программы", () => {
+  it("создаёт второй онлайн-поток вместе с одновременной активностью", async () => {
+    const send = vi.fn().mockResolvedValue({}), user = userEvent.setup();
+    render(<ActivityForm event={{ ...event, format: "Онлайн" }} rooms={[
+      { id: "first", event_id: event.id, name: "Первый поток", capacity: 100, is_online: true },
+    ]} send={send} done={vi.fn()} />);
+    await user.type(screen.getByLabelText("Название пункта программы"), "Параллельная лекция");
+    await user.selectOptions(screen.getByLabelText("Аудитория"), screen.getByRole("option", { name: "Создать онлайн-поток" }));
+    expect(screen.getByLabelText("Название аудитории")).toHaveValue("Онлайн-поток 2");
+    await user.click(screen.getByRole("button", { name: "Добавить в программу" }));
+    await waitFor(() => expect(send).toHaveBeenCalledWith(`events/${event.id}/activities`, "POST", expect.objectContaining({
+      room_id: "", online_room: true, new_room_name: "Онлайн-поток 2", starts_at: event.starts_at,
+    })));
+  });
+
+  it("при редактировании сохраняет вторую онлайн-аудиторию и её вместимость", async () => {
+    const send = vi.fn().mockResolvedValue({}), user = userEvent.setup();
+    render(<ActivityForm event={{ ...event, format: "Онлайн" }} rooms={[
+      { id: "first", event_id: event.id, name: "Python", capacity: 50, is_online: true },
+      { id: "second", event_id: event.id, name: "Django", capacity: 30, is_online: true },
+    ]} initialRoomId="second" send={send} done={vi.fn()} />);
+    expect(screen.getByLabelText("Аудитория")).toHaveValue("second");
+    expect(screen.getByLabelText("Лимит зрителей")).toHaveValue(30);
+    await user.type(screen.getByLabelText("Название пункта программы"), "Django");
+    await user.click(screen.getByRole("button", { name: "Добавить в программу" }));
+    await waitFor(() => expect(send).toHaveBeenCalledWith(expect.any(String), "POST", expect.objectContaining({ room_id: "second", online_room: true, capacity: 30 })));
+  });
   it("сохраняет время и аудиторию, выбранные на графике", async () => {
     const user = userEvent.setup(),
       send = vi.fn().mockResolvedValue({});
@@ -309,7 +335,7 @@ describe("пункты программы", () => {
     );
   });
 
-  it("повторно использует онлайн-аудиторию и её лимит без второго варианта в списке", async () => {
+  it("повторно использует именованную онлайн-аудиторию и её лимит", async () => {
     const user = userEvent.setup(),
       send = vi.fn().mockResolvedValue({});
     render(
@@ -330,7 +356,7 @@ describe("пункты программы", () => {
     );
     expect(screen.getByLabelText("Аудитория")).toHaveValue("virtual");
     expect(
-      screen.getAllByRole("option", { name: "Онлайн · Вебинар внутри ТФлоу" }),
+      screen.getAllByRole("option", { name: "Онлайн · Наш эфир · 25 мест" }),
     ).toHaveLength(1);
     expect(
       screen.getByRole("option", { name: "Создать новую аудиторию" }),
