@@ -136,6 +136,8 @@ export default function Webinar({
     }
   }
   async function loadStatus() {
+    // A slow start/join may overlap polling on the VM. Ignore status until connected.
+    if (connecting.current) return;
     const sequence = ++statusSequence.current;
     try {
       const next = (await send(`events/${event.id}/webinar`, "GET")) as Status;

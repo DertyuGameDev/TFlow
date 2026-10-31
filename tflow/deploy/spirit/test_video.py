@@ -33,3 +33,12 @@ class OwnedVideoConfigTests(unittest.TestCase):
         self.assertIn("'clear':clear",DNS_HOOK)
         self.assertIn("X-TFlow-Hook-Signature",DNS_HOOK)
         self.assertNotIn("values['dns_token']",DNS_HOOK)
+
+    def test_invalid_credential_names_are_reported_without_values(self):
+        for key in ("api_key", "api_secret", "relay_secret"):
+            with self.subTest(key=key):
+                value = "private invalid credential"
+                with self.assertRaises(ValueError) as error:
+                    validate({**self.values, key: value})
+                self.assertIn(key, str(error.exception))
+                self.assertNotIn(value, str(error.exception))
