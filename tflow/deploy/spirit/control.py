@@ -17,6 +17,7 @@ HOST = "hack-mmk-25-vm1-162f2c.vm.prodcontest.com"
 VM_PATH = f"/api/v2/tenants/hack-mmk-25/vmgroup/b9c06327-85dd-4ac8-adf6-3c5fcffb52e1/vm/{VM_ID}"
 CLI_URL = f"{BASE}/static/cli/tedu/14.1.3/linux/dp"
 CLI_SIZE = 22098082
+CLI_SHA256 = "f740fd005d7f51723e0d85bcd7582a35dd8d24de51da522bfbbfd3dcb7333cb9"
 
 
 class ControlError(Exception):
@@ -46,8 +47,10 @@ def cli_binary():
     with binary.open("rb") as stream:
         if stream.read(4) != b"\x7fELF":
             raise ControlError("Spirit CLI is not a Linux executable")
+    if hashlib.sha256(binary.read_bytes()).hexdigest() != CLI_SHA256:
+        raise ControlError("Spirit CLI checksum does not match the reviewed version")
     binary.chmod(0o700)
-    print("Spirit CLI SHA256:", hashlib.sha256(binary.read_bytes()).hexdigest(), flush=True)
+    print("Spirit CLI 14.1.3 checksum verified", flush=True)
     return binary
 
 
