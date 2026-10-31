@@ -19,6 +19,7 @@ export type FlowDay = {
   height: number;
   ticks: { time: number; top: number }[];
   gaps: { start: number; end: number; top: number; height: number }[];
+  points?: { time: number; top: number }[];
 };
 
 export function flowDuration(milliseconds: number) {

@@ -10,16 +10,13 @@ import {
 } from "react";
 import { ArrowLeft, Check, Clock3, Minus, Pencil, Plus, X } from "lucide-react";
 import { flowMarkers } from "../../lib/flow-markers";
+import { readableFlow } from "../../lib/readable-flow";
 import {
   FLOW_PAGE_SCROLL_QUERY,
   flowOffsetAtTime,
   flowTimeAtOffset,
 } from "../../lib/flow-navigation";
-import {
-  FLOW_DAY_HEADING,
-  flowDuration,
-  layoutFlow,
-} from "../../lib/flow-layout";
+import { flowDuration, layoutFlow } from "../../lib/flow-layout";
 import type { Activity } from "../../lib/types";
 import { dateKey, dateLabel, timeLabel } from "../../lib/time";
 import "../flow-schedule.css";
@@ -58,7 +55,7 @@ function colorFor(room: string) {
   for (const char of room) hash = (hash * 31 + char.charCodeAt(0)) >>> 0;
   return COLORS[hash % COLORS.length];
 }
-const SCALES = [3, 5, 8, 12, 20, 32];
+const SCALES = [3, 5, 8, 12, 20, 32, 64];
 
 export function FlowSchedule({
   activities,
@@ -93,11 +90,10 @@ export function FlowSchedule({
       offset: number;
       pageScroll: number;
     } | null>(null);
-  const layout = useMemo(
-    () => layoutFlow(activities, SCALES[zoom]),
-    [activities, zoom],
-  );
-  const markers = useMemo(() => flowMarkers(layout.placements), [layout]);
+  const { layout, markers } = useMemo(() => {
+    const base = layoutFlow(activities, SCALES[zoom]);
+    return readableFlow(base, flowMarkers(base.placements));
+  }, [activities, zoom]);
   const markerByActivity = new Map(
     markers.flatMap((marker) =>
       marker.items.map((item) => [item.activity.id, marker] as const),
@@ -111,11 +107,7 @@ export function FlowSchedule({
   const detailsAnchor =
     openItem ?? (openMarker && { ...openMarker.items[0], top: openMarker.top });
   const nowDay = layout.days.find((day) => day.start <= now && now < day.end);
-  const nowY = nowDay
-    ? nowDay.top +
-      FLOW_DAY_HEADING +
-      ((now - nowDay.start) / 60000) * SCALES[zoom]
-    : null;
+  const nowY = nowDay ? flowOffsetAtTime(layout.days, now, SCALES[zoom]) : null;
   const minimumWidth =
     layout.maximumLanes > 2 ? 64 + layout.maximumLanes * 160 : undefined;
   const height = Math.max(
@@ -278,7 +270,12 @@ export function FlowSchedule({
       {activities.length > 0 && (
         <div className="flow-map-tools" ref={tools}>
           <p>
-            Время по МСК <span>Высота полосы — длительность</span>
+            Время по МСК{" "}
+            <span>
+              {markers.length
+                ? "Короткие пункты показаны крупнее"
+                : "Высота полосы — длительность"}
+            </span>
           </p>
           <div className="flow-map-controls">
             {nowY !== null && (
@@ -390,19 +387,20 @@ export function FlowSchedule({
               const marked = markerByActivity.has(a.id);
               const color = live ? "#e0bb27" : colorFor(a.room_id),
                 duration = flowDuration(a.ends_at - a.starts_at);
-              const progress = live
-                ? Math.max(
-                    0,
-                    Math.min(
-                      100,
-                      ((now - a.starts_at) / (a.ends_at - a.starts_at)) * 100,
-                    ),
-                  )
-                : 0;
+              const progress =
+                live && nowY !== null
+                  ? Math.max(
+                      0,
+                      Math.min(
+                        100,
+                        ((nowY - placement.top) / placement.height) * 100,
+                      ),
+                    )
+                  : 0;
               return (
                 <li
                   key={a.id}
-                  className={`flow-event ${live ? "is-live" : ""} ${past ? "is-past" : ""} ${open ? "is-open" : ""} ${marked ? "has-short-marker" : ""} ${placement.height < 68 ? "is-brief" : placement.height < 112 ? "is-medium" : ""} ${placement.lanes > 1 ? "is-parallel" : ""} ${onEdit ? "is-editable" : ""} ${a.registered || a.waitlisted ? "has-status" : ""}`}
+                  className={`flow-event ${live ? "is-live" : ""} ${past ? "is-past" : ""} ${open ? "is-open" : ""} ${marked ? "has-short-marker" : ""} ${placement.height < 88 ? "is-brief" : placement.height < 176 ? "is-medium" : ""} ${placement.lanes > 1 ? "is-parallel" : ""} ${onEdit ? "is-editable" : ""} ${a.registered || a.waitlisted ? "has-status" : ""}`}
                   aria-current={live && !marked ? "step" : undefined}
                   aria-hidden={marked || undefined}
                   data-activity-id={a.id}
@@ -421,6 +419,7 @@ export function FlowSchedule({
                 >
                   <div className="flow-ribbon">
                     <div className="flow-ribbon-summary" aria-hidden={open}>
+                      <h3 id={`${id}-${a.id}-title`}>{a.title}</h3>
                       <div className="flow-ribbon-meta">
                         <span className="flow-ribbon-time">
                           {timeLabel(a.starts_at)}–{timeLabel(a.ends_at)}
@@ -432,7 +431,6 @@ export function FlowSchedule({
                           {duration}
                         </span>
                       </div>
-                      <h3 id={`${id}-${a.id}-title`}>{a.title}</h3>
                       <span className="flow-ribbon-room">{a.room_name}</span>
                       {live && <span className="flow-ribbon-live">Сейчас</span>}
                     </div>
@@ -506,6 +504,7 @@ export function FlowSchedule({
                   style={
                     {
                       top: marker.top,
+                      height: marker.height,
                       left: `calc(var(--flow-gutter) + (100% - var(--flow-gutter)) * ${marker.left} + 4px)`,
                       width: `calc((100% - var(--flow-gutter)) * ${marker.right - marker.left} - 8px)`,
                       "--flow-color": color,

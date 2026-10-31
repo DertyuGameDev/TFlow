@@ -205,10 +205,12 @@
   position: relative;
   grid-column: 1;
   grid-row: 1;
-  display: flex;
-  flex-direction: column;
-  gap: 8px;
-  padding: 16px 16px 16px 20px;
+  display: grid;
+  grid-template-columns: minmax(0, 1fr);
+  grid-auto-rows: max-content;
+  align-content: start;
+  gap: 6px;
+  padding: 12px 16px 12px 20px;
   min-width: 0;
   min-height: 0;
   overflow: hidden;
@@ -272,6 +274,7 @@
   white-space: nowrap;
 }
 .flow-ribbon-live {
+  justify-self: start;
   margin: 0;
   align-self: flex-start;
   font-size: 12px;
@@ -347,7 +350,6 @@
   width: 100%;
   height: var(--flow-progress);
   background: color-mix(in srgb, #ffdd2d 9%, transparent);
-  border-bottom: 1px solid color-mix(in srgb, #ffdd2d 32%, transparent);
 }
 .flow-event.is-past .flow-ribbon {
   background: color-mix(in srgb, var(--flow-color) 8%, var(--theme-bg, #fff));
@@ -357,42 +359,30 @@
 }
 .flow-event.is-medium .flow-ribbon-summary {
   display: grid;
-  grid-template-columns: minmax(0, 1fr) auto;
+  grid-template-columns: minmax(0, 1fr);
+  grid-auto-rows: max-content;
   align-content: start;
-  padding-block: 10px;
-  gap: 5px;
+  padding-block: 6px;
+  gap: 4px;
 }
 .flow-event.is-medium .flow-ribbon h3 {
   grid-row: 1;
   grid-column: 1;
   font-size: 16px;
+  line-height: 22px;
   -webkit-line-clamp: 1;
 }
 .flow-event.is-medium .flow-ribbon-meta {
-  grid-column: 2;
-  grid-row: 1;
-  align-self: start;
-}
-.flow-event.is-medium .flow-ribbon-time {
-  display: none;
-}
-.flow-event.is-medium .flow-ribbon-room {
-  grid-column: 1 / -1;
+  grid-column: 1;
   grid-row: 2;
 }
+.flow-event.is-medium .flow-ribbon-room {
+  grid-column: 1;
+  grid-row: 3;
+}
+.flow-event.is-medium .flow-ribbon-time,
 .flow-event.is-medium .flow-ribbon-live {
   display: none;
-}
-.flow-event.is-medium.is-editable .flow-ribbon-summary {
-  display: flex;
-  flex-direction: column;
-  gap: 4px;
-  padding-block: 8px;
-}
-.flow-event.is-medium.is-editable .flow-ribbon h3 {
-  font-size: 14px;
-  line-height: 18px;
-  -webkit-line-clamp: 1;
 }
 .flow-event.is-brief .flow-ribbon-actions,
 .flow-event.has-short-marker .flow-ribbon-actions {
@@ -413,7 +403,7 @@
   order: 0;
   min-width: 0;
   font-size: 14px;
-  line-height: 14px;
+  line-height: 18px;
   letter-spacing: 0;
   -webkit-line-clamp: 1;
 }
@@ -443,12 +433,9 @@
   :is(.flow-ribbon-summary, .flow-select, .flow-quick-edit) {
   display: none;
 }
-.flow-event.has-short-marker .flow-ribbon {
-  inset: 0;
-  border-radius: 2px;
-  background: var(--flow-color);
-  box-shadow: none;
-  opacity: 0.65;
+.flow-event.has-short-marker {
+  visibility: hidden;
+  pointer-events: none;
 }
 .flow-short-marker {
   position: absolute;
@@ -456,30 +443,22 @@
   z-index: 3;
   list-style: none;
 }
-.flow-short-marker::before {
-  content: "";
-  position: absolute;
-  inset: 15px 0 auto;
-  height: 2px;
-  background: var(--flow-color);
-  pointer-events: none;
-}
 .flow-short-chip {
   position: relative;
   display: flex;
-  align-items: center;
+  align-items: flex-start;
   gap: 10px;
-  width: fit-content;
-  max-width: min(360px, 100%);
-  min-width: min(180px, 100%);
-  height: 32px;
-  padding: 0 10px;
-  border-radius: 7px;
+  width: 100%;
+  min-width: 0;
+  height: 100%;
+  padding: 8px 12px;
+  border-radius: 4px 10px 10px 4px;
   background: color-mix(in srgb, var(--flow-color) 24%, var(--theme-bg, #fff));
   box-shadow: inset 0 0 0 1px var(--flow-color);
   color: var(--theme-text, #222329);
 }
 .flow-short-chip::before {
+  margin-top: 7px;
   content: "";
   flex-shrink: 0;
   width: 6px;
@@ -775,13 +754,10 @@
   }
   .flow-event.is-brief .flow-ribbon h3 {
     font-size: 14px;
-    line-height: 14px;
+    line-height: 18px;
   }
   .flow-event.is-brief .flow-ribbon-duration {
     font-size: 12px;
-  }
-  .flow-event.is-medium .flow-ribbon h3 {
-    -webkit-line-clamp: 2;
   }
   .flow-event.is-medium .flow-ribbon-room {
     grid-column: 1 / -1;
@@ -875,5 +851,18 @@
         var(--flow-header-bottom, 68px) + var(--flow-tools-height, 60px) + 12px
       )
       100px;
+  }
+}
+
+@container flow-activity (max-width: 160px) {
+  .flow-ribbon-time,
+  .flow-ribbon-live {
+    display: none;
+  }
+}
+
+@container flow-activity (min-width: 280px) {
+  .flow-event.is-medium .flow-ribbon-time {
+    display: inline;
   }
 }
