@@ -357,6 +357,9 @@ describe("вертикальный флоу организатора", () => {
     expect(
       await within(flow).findByRole("heading", { name: "Название остаётся" }),
     ).toBeVisible();
+    await user.click(
+      within(flow).getByRole("button", { name: /^Название остаётся/ }),
+    );
     expect(
       within(flow).getByRole("button", {
         name: "Поменять местами Название остаётся",

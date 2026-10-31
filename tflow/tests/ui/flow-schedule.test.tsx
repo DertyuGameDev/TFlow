@@ -68,7 +68,9 @@ describe("общая вертикальная линия флоу", () => {
       "two",
     );
     expect(
-      screen.getAllByRole("heading", { level: 4 }).map((el) => el.textContent),
+      screen
+        .getAllByRole("heading", { name: /^(Доклад|Практика)$/ })
+        .map((el) => el.textContent),
     ).toEqual(["Доклад", "Практика"]);
   });
 
@@ -87,7 +89,7 @@ describe("общая вертикальная линия флоу", () => {
         renderActivity={(a) => <h4>{a.title}</h4>}
       />,
     );
-    const titles = screen.getAllByRole("heading", { level: 4 });
+    const titles = screen.getAllByRole("heading", { name: /^Пункт / });
     expect(titles).toHaveLength(160);
     expect(titles[0]).toHaveTextContent("Пункт 0");
     expect(titles[159]).toHaveTextContent("Пункт 159");

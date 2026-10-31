@@ -117,13 +117,20 @@ describe("флоу на странице мероприятия", () => {
       expect(
         within(section).getByRole("heading", { name: lecture.title }),
       ).toBeVisible();
-      const first = within(section).getAllByRole("article")[0];
+      await userEvent
+        .setup()
+        .click(
+          within(section).getByRole("button", {
+            name: new RegExp(lecture.title),
+          }),
+        );
+      const first = within(section).getByRole("article");
       expect(within(first).getByText(lecture.speaker)).toBeVisible();
       expect(within(first).getByText(lecture.room_name)).toBeVisible();
       expect(within(first).getByText("10:00")).toBeVisible();
       expect(
         within(section).getAllByText("15 из 20 мест свободно"),
-      ).toHaveLength(2);
+      ).toHaveLength(1);
       expect(
         screen.queryByRole("region", { name: /Участники/ }),
       ).not.toBeInTheDocument();
@@ -141,11 +148,11 @@ describe("флоу на странице мероприятия", () => {
     mount();
     const person = userEvent.setup();
     const section = await screen.findByRole("region", { name: /Флоу/ });
-    expect(
-      within(section)
-        .getAllByRole("article")
-        .map((item) => within(item).getByRole("heading").textContent),
-    ).toEqual([lecture.title, workshop.title]);
+    const activityButtons = within(section).getAllByRole("button", {
+      name: /Знакомство с Python|Практика Django/,
+    });
+    expect(activityButtons[0]).toHaveAccessibleName(new RegExp(lecture.title));
+    expect(activityButtons[1]).toHaveAccessibleName(new RegExp(workshop.title));
     await person.type(
       within(section).getByRole("textbox", { name: "Найти активность" }),
       "Иван Петров",
@@ -175,8 +182,9 @@ describe("флоу на странице мероприятия", () => {
     const fetch = mount(participant, [lecture]);
     const person = userEvent.setup();
     await person.click(
-      await screen.findByRole("button", { name: "Записаться" }),
+      await screen.findByRole("button", { name: new RegExp(lecture.title) }),
     );
+    await person.click(screen.getByRole("button", { name: "Записаться" }));
     expect(
       await screen.findByText("Вы записаны", { exact: true }),
     ).toBeVisible();
@@ -196,9 +204,11 @@ describe("флоу на странице мероприятия", () => {
 
   it("при отсутствии мест предлагает очередь активности", async () => {
     const fetch = mount(participant, [{ ...lecture, taken: lecture.capacity }]);
-    await userEvent
-      .setup()
-      .click(await screen.findByRole("button", { name: "В лист ожидания" }));
+    const person = userEvent.setup();
+    await person.click(
+      await screen.findByRole("button", { name: new RegExp(lecture.title) }),
+    );
+    await person.click(screen.getByRole("button", { name: "В лист ожидания" }));
     expect(await screen.findByText("Вы в очереди · № 1")).toBeVisible();
     expect(fetch).toHaveBeenCalledWith(
       `/api/activities/${lecture.id}/waitlist`,
@@ -230,6 +240,9 @@ describe("разделы участника", () => {
     expect(
       within(panel).queryByRole("heading", { name: workshop.title }),
     ).not.toBeInTheDocument();
+    await user.click(
+      within(panel).getByRole("button", { name: new RegExp(lecture.title) }),
+    );
     await user.click(
       within(panel).getByRole("button", { name: "Отменить запись" }),
     );

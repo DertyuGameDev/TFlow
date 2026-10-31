@@ -82,6 +82,7 @@ export function OrganizerFlow({
         activities={items}
         now={now}
         selectedId={editor?.item.id}
+        onEdit={onEdit}
         renderActivity={(a) =>
           editor?.item.id === a.id ? (
             editor.content
