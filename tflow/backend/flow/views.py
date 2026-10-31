@@ -1,6 +1,7 @@
 import json
 import logging
 from pathlib import Path
+from urllib.parse import urlsplit
 from django.conf import settings
 from django.contrib.auth import login, logout
 from django.core.exceptions import RequestDataTooBig
@@ -87,10 +88,20 @@ def login_view(request):
 def register_view(request):
     if request.user.is_authenticated:
         return redirect(safe_next(request))
+    next_url = safe_next(request)
+    destination = urlsplit(next_url)
+    view, _, event_id = destination.fragment.partition("/")
+    participant_signup = (
+        destination.path == "/" and view in {"event", "webinar"} and bool(event_id)
+    )
     initial_role = (
         "organizer" if request.GET.get("role") == "organizer" else "participant"
     )
-    form = RegisterForm(request.POST or None, initial={"role": initial_role})
+    form = RegisterForm(
+        request.POST or None,
+        initial={"role": initial_role},
+        participant_only=participant_signup,
+    )
     if request.method == "POST" and form.is_valid():
         try:
             user = form.save()
@@ -98,11 +109,16 @@ def register_view(request):
             form.add_error("email", "Этот адрес уже зарегистрирован")
         else:
             login(request, user)
-            return redirect(safe_next(request))
+            return redirect(next_url)
     return render(
         request,
         "auth.html",
-        {"form": form, "mode": "register", "next": safe_next(request)},
+        {
+            "form": form,
+            "mode": "register",
+            "next": next_url,
+            "participant_signup": participant_signup,
+        },
     )
 
 
