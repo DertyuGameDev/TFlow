@@ -72,9 +72,11 @@ export function FlowSchedule({
   const [zoom, setZoom] = useState(0),
     [opened, setOpened] = useState("");
   const [viewportWidth, setViewportWidth] = useState(0),
-    [scrollX, setScrollX] = useState(0);
+    [scrollX, setScrollX] = useState(0),
+    [detailsHeight, setDetailsHeight] = useState(0);
   const id = useId(),
     viewport = useRef<HTMLDivElement>(null),
+    details = useRef<HTMLDivElement>(null),
     zoomAnchor = useRef<number | null>(null);
   const layout = useMemo(
     () => layoutFlow(activities, SCALES[zoom]),
@@ -92,7 +94,20 @@ export function FlowSchedule({
     : null;
   const minimumWidth =
     layout.maximumLanes > 2 ? 64 + layout.maximumLanes * 160 : undefined;
-  const height = Math.max(layout.height, openItem ? openItem.top + 420 : 0);
+  const height = Math.max(
+    layout.height,
+    openItem ? openItem.top + detailsHeight + 8 : 0,
+  );
+  useLayoutEffect(() => {
+    const element = details.current;
+    if (!element) return;
+    const measure = () => setDetailsHeight(element.offsetHeight);
+    measure();
+    if (typeof ResizeObserver === "undefined") return;
+    const observer = new ResizeObserver(measure);
+    observer.observe(element);
+    return () => observer.disconnect();
+  }, [openItem?.activity.id]);
   useEffect(() => {
     const element = viewport.current;
     if (!element) return;
@@ -307,26 +322,29 @@ export function FlowSchedule({
                     {
                       top: placement.top,
                       height: placement.height,
-                      left: `calc(var(--flow-gutter) + (100% - var(--flow-gutter)) * ${placement.lane / placement.lanes} + 5px)`,
-                      width: `calc((100% - var(--flow-gutter)) * ${placement.span / placement.lanes} - 12px)`,
+                      left: `calc(var(--flow-gutter) + (100% - var(--flow-gutter)) * ${placement.lane / placement.lanes} + 4px)`,
+                      width: `calc((100% - var(--flow-gutter)) * ${placement.span / placement.lanes} - 8px)`,
                       "--flow-color": color,
+                      "--flow-item-inset": `${Math.min(4, Math.max(0.5, (placement.height - 18) / 2))}px`,
                       "--flow-progress": `${progress}%`,
                     } as CSSProperties
                   }
                 >
                   <div className="flow-ribbon">
                     <div className="flow-ribbon-summary" aria-hidden={open}>
-                      <span className="flow-ribbon-time">
-                        {timeLabel(a.starts_at)}–{timeLabel(a.ends_at)}
-                      </span>
+                      <div className="flow-ribbon-meta">
+                        <span className="flow-ribbon-time">
+                          {timeLabel(a.starts_at)}–{timeLabel(a.ends_at)}
+                        </span>
+                        <span
+                          className="flow-ribbon-duration"
+                          id={`${id}-${a.id}-duration`}
+                        >
+                          {duration}
+                        </span>
+                      </div>
                       <h3 id={`${id}-${a.id}-title`}>{a.title}</h3>
                       <span className="flow-ribbon-room">{a.room_name}</span>
-                      <span
-                        className="flow-ribbon-duration"
-                        id={`${id}-${a.id}-duration`}
-                      >
-                        {duration}
-                      </span>
                       {live && <span className="flow-ribbon-live">Сейчас</span>}
                       {!!a.registered && (
                         <Check
@@ -369,11 +387,19 @@ export function FlowSchedule({
           </ol>
           {openItem && (
             <div
+              ref={details}
               className="flow-details"
+              role="region"
+              aria-label={
+                selectedId
+                  ? "Редактирование активности"
+                  : "Сведения об активности"
+              }
               id={`${id}-details-${openItem.activity.id}`}
               style={
                 {
                   top: openItem.top,
+                  left: `clamp(calc(var(--flow-gutter) + 4px), calc(var(--flow-gutter) + (100% - var(--flow-gutter)) * ${openItem.lane / openItem.lanes} - ${scrollX}px + 4px), calc(var(--flow-viewport-width, 100%) - var(--flow-details-width) - 4px))`,
                   transform: `translateX(${scrollX}px)`,
                   "--flow-color": colorFor(openItem.activity.room_id),
                 } as CSSProperties
