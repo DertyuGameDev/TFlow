@@ -283,8 +283,9 @@ function DiscoveryCard({
   onSave: () => void;
   userId?: string;
 }) {
+  const ended = matchesEventTime(event, "past");
   return (
-    <article className="discovery-card">
+    <article className={`discovery-card${ended ? " is-past" : ""}`}>
       <div className="discovery-cover">
         <button
           className="cover-open"
@@ -312,11 +313,13 @@ function DiscoveryCard({
         {event.enrolled > 0 && (
           <span className="registered-tag">
             <Check size={12} />
-            {event.checked_in ? "Вы вошли" : "Вы идёте"}
+            {ended
+              ? event.checked_in ? "Вы посетили" : "Вы были записаны"
+              : event.checked_in ? "Вы вошли" : "Вы идёте"}
           </span>
         )}
         {!event.enrolled && !!event.event_waitlisted && <span className="registered-tag event-waitlist-tag">
-          <Clock3 size={12} />В очереди · №{event.event_waitlist_position}
+          <Clock3 size={12} />{ended ? "Были в очереди" : "В очереди"} · №{event.event_waitlist_position}
         </span>}
       </div>
       <div className="discovery-copy">
@@ -331,7 +334,9 @@ function DiscoveryCard({
             ? "Онлайн"
             : `${event.city} · ${event.venue}`}
         </span>
-        <strong>Бесплатно</strong>
+        {ended ? (
+          <span className="event-ended-label"><Clock3 size={14} aria-hidden="true" />Завершено</span>
+        ) : <strong>Бесплатно</strong>}
         {canEnterWebinar(event, userId) && (
           <button
             className="button secondary webinar-card-entry"
@@ -908,10 +913,11 @@ export function TFlow({ user }: { user: UserIdentity | null }) {
   const own = data.events.filter((e) => e.owner_id === user?.userId);
   const ownSections = splitOrganizerEvents(own);
   const visibleOwn = ownSections[ownEventSection];
+  const catalogNow = Date.now();
   const visible = data.events.filter(
     (e) =>
       e.status === "published" &&
-      matchesEventTime(e, eventTime) &&
+      matchesEventTime(e, eventTime, catalogNow) &&
       (route.view !== "saved" || e.saved) &&
       (!query ||
         `${e.title} ${e.city} ${e.venue} ${e.topic}`
@@ -929,7 +935,9 @@ export function TFlow({ user }: { user: UserIdentity | null }) {
       (!date ||
         new Date(e.starts_at + 3 * 3600000).toISOString().slice(0, 10) ===
           date),
-  );
+  ).sort((a, b) => eventTime === "all"
+    ? Number(a.ends_at <= catalogNow) - Number(b.ends_at <= catalogNow)
+    : 0);
   const hasFilters = !!(
     query.trim() ||
     city ||

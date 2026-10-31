@@ -125,6 +125,8 @@ TIME_ZONE = "Europe/Moscow"
 USE_I18N = True
 USE_TZ = True
 LIVEKIT_URL = os.environ.get("LIVEKIT_URL", "ws://127.0.0.1:7880" if DEBUG else "")
+# Public WSS for browsers and private HTTP for the VM's RoomService may differ.
+LIVEKIT_API_URL = os.environ.get("LIVEKIT_API_URL", "")
 LIVEKIT_API_KEY = os.environ.get("LIVEKIT_API_KEY", "devkey" if DEBUG else "")
 LIVEKIT_API_SECRET = os.environ.get("LIVEKIT_API_SECRET", "secret" if DEBUG else "")
 EMAIL_BACKEND = "django.core.mail.backends.smtp.EmailBackend"

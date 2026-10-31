@@ -17,21 +17,23 @@ h1{font-size:28px;line-height:1.2;letter-spacing:-.8px;margin:0 0 8px}
 .field>label{font-size:13px;font-weight:500}
 .field input{width:100%;min-width:0;min-height:44px;padding:10px 12px;border:1px solid #dfe3e9;background:#fafbfc;border-radius:10px;color:#303640;font-size:16px;line-height:1.35}
 .field input:focus{background:#fff}
-.organizer-setting{margin-bottom:18px;padding:12px 14px 14px;border:1px solid #dfe3e9;border-radius:14px;background:#f6f7f8}
-.organizer-setting:has(input:checked){background:#fff8d8;border-color:#d8b72b}
-.organizer-switch{display:flex;align-items:center;justify-content:space-between;gap:12px;min-height:44px;cursor:pointer}
-.role-choice{font-size:16px;font-weight:600;line-height:1.4;min-width:0;overflow-wrap:anywhere}
-.role-description{margin:5px 0 0;min-height:3.1em;font-size:13px;line-height:1.55;color:#626b78}
-.organizer-copy{display:none}
-.organizer-setting:has(input:checked) .participant-copy{display:none}
-.organizer-setting:has(input:checked) .organizer-copy{display:inline}
-.toggle-control{--toggle-travel:30px;position:relative;display:block;width:64px;height:44px;flex-shrink:0}
-.toggle-control input{position:absolute;inset:0;width:100%;height:100%;margin:0;opacity:0;z-index:1;cursor:pointer}
-.toggle-track{position:absolute;left:0;right:0;top:5px;height:34px;border-radius:999px;background:linear-gradient(#35373b,#202124);box-shadow:inset 0 2px 4px #0007;pointer-events:none}
-.toggle-track:before{content:'';position:absolute;width:28px;height:28px;left:3px;top:3px;border-radius:50%;background:#fff;box-shadow:0 1px 4px #0005;transition:transform .16s ease}
-.toggle-control input:checked+.toggle-track{background:#ffdd2d;box-shadow:inset 0 0 0 1px #ac8c00}
-.toggle-control input:checked+.toggle-track:before{transform:translateX(var(--toggle-travel));background:#24272d}
-.toggle-control input:focus-visible+.toggle-track{outline:3px solid #1769e8;outline-offset:3px}
+.registration-role{min-width:0;border:0;padding:0;margin:0 0 20px}
+.registration-role>legend{padding:0;margin-bottom:10px;font-size:13px;font-weight:500}
+.registration-role-options{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:10px}
+.registration-role-option{position:relative;min-width:0;cursor:pointer}
+.registration-role-option>input{position:absolute;width:1px;height:1px;margin:0;padding:0;opacity:0}
+.registration-role-card{display:flex;flex-direction:column;gap:8px;height:100%;padding:14px 12px;border:1px solid var(--theme-border,#dfe3e9);border-radius:14px;background:var(--theme-field,#fafbfc);color:var(--theme-text,#303640);transition:border-color .15s,background .15s,box-shadow .15s}
+.registration-role-top{display:flex;align-items:center;justify-content:space-between;gap:8px;margin-bottom:2px}
+.registration-role-icon{display:grid;place-items:center;width:34px;height:34px;border-radius:10px;background:var(--theme-panel,#fff);color:var(--theme-muted,#626b78)}
+.registration-role-check{display:grid;place-items:center;width:20px;height:20px;border-radius:50%;background:#ffdd2d;color:#24272d;font-size:12px;font-weight:700;visibility:hidden}
+.registration-role-card>strong{font-size:14px;line-height:1.4;font-weight:600;overflow-wrap:anywhere}
+.registration-role-caption{font-size:12px;line-height:1.5;color:var(--theme-muted,#626b78)}
+.registration-role-option:hover .registration-role-card{border-color:#b59625}
+.registration-role-option>input:checked+.registration-role-card{background:var(--theme-warm,#fff9df);border-color:#c5a522;box-shadow:inset 0 0 0 1px #c5a522;color:var(--theme-warm-text,#63521b)}
+.registration-role-option>input:checked+.registration-role-card .registration-role-check{visibility:visible}
+.registration-role-option>input:checked+.registration-role-card .registration-role-icon{background:#ffdd2d;color:#24272d}
+.registration-role-option>input:focus-visible+.registration-role-card{outline:3px solid #1769e8;outline-offset:3px}
+.registration-role-note{margin:10px 0 0;font-size:12px;line-height:1.5;color:var(--theme-muted,#626b78)}
 .primary{width:100%;min-height:48px;padding:11px 16px;border:0;border-radius:11px;font-size:15px;font-weight:600;display:flex;justify-content:space-between;align-items:center;background:#ffdd2d;color:#24272d;margin-top:16px}
 .primary:hover{background:#f3cf22}
 .switch{font-size:13px;text-align:center;margin:16px 0 0;color:#626b78}
@@ -41,9 +43,11 @@ h1{font-size:28px;line-height:1.2;letter-spacing:-.8px;margin:0 0 8px}
 ul.errorlist{list-style:none;margin:0;padding:0}
 .password-help{font-size:12px;color:#626b78;line-height:1.5;margin:2px 0 0}
 footer{text-align:center;font-size:var(--font-size-min);color:#626b78;margin-top:16px}
-@media(max-width:350px){.auth-shell{padding-inline:14px}.auth-card{padding:20px 18px}h1{font-size:25px}.intro{font-size:12px}.organizer-setting{padding:12px}.organizer-switch{gap:8px}.role-choice{font-size:14px}.toggle-control{--toggle-travel:22px;width:56px}}
-@media(prefers-reduced-motion:reduce){*{scroll-behavior:auto!important}.toggle-track:before{transition:none}}
-@media(forced-colors:active){.toggle-track{background:CanvasText;border:1px solid ButtonText;box-shadow:none}.toggle-track:before{background:Canvas;border:1px solid ButtonText;box-shadow:none}}
+@media(max-width:350px){.auth-shell{padding-inline:14px}.auth-card{padding:20px 18px}h1{font-size:25px}.intro{font-size:12px}.registration-role-options{gap:8px}.registration-role-card{padding:12px 9px}.registration-role-card>strong{font-size:13px}}
+@media(prefers-reduced-motion:reduce){*{scroll-behavior:auto!important}.registration-role-card{transition:none}}
+@media(forced-colors:active){.registration-role-option>input:checked+.registration-role-card{outline:2px solid Highlight;outline-offset:-3px}.registration-role-check{background:Highlight;color:HighlightText}}
+@media(max-width:310px){.registration-role-options{grid-template-columns:1fr}}
+
 
 .interest-field{border:0;padding:0;margin:0 0 22px;min-width:0}
 .interest-field legend{padding:0;font-size:12px;font-weight:500}
@@ -69,3 +73,5 @@ footer{text-align:center;font-size:var(--font-size-min);color:#626b78;margin-top
 .registration-interests>summary>span{font-size:12px;font-weight:400;opacity:.65;margin-left:7px}
 .registration-interests[open]>.interest-field{margin-top:10px}
 .registration-interests>summary:focus-visible{outline:2px solid #c3a500;outline-offset:4px;border-radius:4px}
+.registration-interests .interest-field>legend{position:absolute;width:1px;height:1px;padding:0;margin:-1px;overflow:hidden;clip-path:inset(50%);white-space:nowrap}
+.registration-interests[open]>.interest-field{margin-top:4px;margin-bottom:6px}

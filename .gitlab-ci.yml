@@ -69,3 +69,25 @@ package:
     paths:
       - release/tflow-release.tar.gz
       - release/manifest.json
+
+# Configure protected FILE variables TFLOW_VM_SSH_KEY and TFLOW_VM_KNOWN_HOSTS.
+# Set TFLOW_CONFIGURE_VIDEO=1 for the managed same-VM LiveKit installation.
+deploy_vm:
+  stage: deploy
+  image: python:3.12-slim
+  interruptible: false
+  resource_group: tflow-production-vm
+  needs:
+    - job: package
+      artifacts: true
+  environment:
+    name: production-vm
+    url: https://hack-mmk-25-vm1-162f2c.vm.prodcontest.com
+  rules:
+    - if: '$CI_COMMIT_BRANCH == $CI_DEFAULT_BRANCH'
+      when: manual
+  before_script:
+    - apt-get update -qq
+    - apt-get install -y --no-install-recommends openssh-client ca-certificates
+  script:
+    - python tflow/deploy/spirit/deploy-ci.py

@@ -1,21 +1,40 @@
 import json
+import logging
 import time
 import uuid
 from urllib.error import HTTPError, URLError
 from urllib.request import Request, urlopen
+from urllib.parse import urlsplit
 import jwt
 from django.conf import settings
 from django.utils import timezone
 from .contracts import FlowError
 from .models import Event, Webinar
 
+logger = logging.getLogger(__name__)
+
+
+def configuration_error():
+    if not all((settings.LIVEKIT_URL, settings.LIVEKIT_API_KEY, settings.LIVEKIT_API_SECRET)):
+        return "На сервере не настроены адрес и ключи LiveKit. Администратору нужно подключить видеосервер."
+    try:
+        public = urlsplit(settings.LIVEKIT_URL)
+        internal = urlsplit(settings.LIVEKIT_API_URL or settings.LIVEKIT_URL)
+        if public.scheme not in {"ws", "wss"} or not public.hostname or public.username is not None or public.query or public.fragment:
+            return "Публичный адрес LiveKit должен быть WebSocket-адресом без ключей и параметров."
+        if internal.scheme not in {"http", "https", "ws", "wss"} or not internal.hostname or internal.username is not None or internal.query or internal.fragment:
+            return "Некорректный внутренний адрес LiveKit API."
+        # Accessing .port also rejects malformed/out-of-range ports early.
+        _ = public.port, internal.port
+        if not settings.DEBUG and (public.scheme != "wss" or public.hostname in {"localhost", "127.0.0.1", "::1"}):
+            return "Для опубликованного сайта нужен публичный WSS-адрес LiveKit. Адрес localhost доступен только самому серверу."
+    except ValueError:
+        return "Некорректный адрес видеосервера LiveKit."
+    return ""
+
 
 def configured():
-    return bool(
-        settings.LIVEKIT_URL
-        and settings.LIVEKIT_API_KEY
-        and settings.LIVEKIT_API_SECRET
-    )
+    return not configuration_error()
 
 
 def event_for_webinar(user, event_id):
@@ -44,6 +63,7 @@ def status(user, event_id):
     webinar = getattr(event, "webinar", None)
     return {
         "configured": configured(),
+        "configuration_error": configuration_error(),
         "host": owner,
         "active": bool(webinar and webinar.active),
         "session": str(webinar.room) if webinar else None,
@@ -75,14 +95,13 @@ def room_name(webinar):
 
 def room_api(method, room, **values):
     url = (
-        settings.LIVEKIT_URL.replace("wss://", "https://", 1)
+        (settings.LIVEKIT_API_URL or settings.LIVEKIT_URL).replace("wss://", "https://", 1)
         .replace("ws://", "http://", 1)
         .rstrip("/")
     )
-    token = signed_token(
-        "tflow-server", "ТФлоу", {"roomCreate": True, "roomAdmin": True, "room": room}
-    )
-    body = {"name" if method == "CreateRoom" else "room": room, **values}
+    grants = {"roomList": True} if method == "ListRooms" else {"roomCreate": True, "roomAdmin": True, "room": room}
+    token = signed_token("tflow-server", "ТФлоу", grants)
+    body = {**values} if method == "ListRooms" else {"name" if method == "CreateRoom" else "room": room, **values}
     request = Request(
         f"{url}/twirp/livekit.RoomService/{method}",
         data=json.dumps(body).encode(),
@@ -98,12 +117,16 @@ def room_api(method, room, **values):
     except HTTPError as error:
         if error.code == 404 and method in {"DeleteRoom", "RemoveParticipant"}:
             return {}
+        logger.warning("LiveKit %s returned HTTP %s", method, error.code)
         raise FlowError(
             "VIDEO_UNAVAILABLE",
-            "Сервер трансляций временно недоступен. Повторите попытку",
+            "Ключи приложения не приняты видеосервером. Администратору нужно проверить настройку LiveKit."
+            if error.code in {401, 403}
+            else "Сервер трансляций временно недоступен. Повторите попытку",
             503,
         ) from error
     except (URLError, TimeoutError, ValueError, OSError) as error:
+        logger.warning("LiveKit %s failed: %s", method, type(error).__name__)
         raise FlowError(
             "VIDEO_UNAVAILABLE",
             "Не удалось подключиться к серверу трансляций. Повторите попытку",
@@ -149,7 +172,7 @@ def operate(user, event_id, operation):
         if not configured():
             raise FlowError(
                 "VIDEO_NOT_CONFIGURED",
-                "Организатор ещё не подключил сервер трансляций",
+                configuration_error(),
                 503,
             )
         if operation == "end":

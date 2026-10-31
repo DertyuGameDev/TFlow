@@ -100,3 +100,97 @@ sudo journalctl -u caddy -n 30 --no-pager
 ```sh
 curl --fail -H 'Host: hack-mmk-25-vm1-162f2c.vm.prodcontest.com' -H 'X-Forwarded-Proto: https' http://127.0.0.1:8000/api/health
 ```
+
+## Вебинары на VM
+
+Сайт Django и LiveKit — разные службы. `npm run dev` запускает видеосервер только
+локально; production-служба `tflow` не делает этого автоматически.
+
+После установки текущего кода, поддерживающего `LIVEKIT_API_URL`, настройте видео:
+
+```sh
+sudo python3 configure-video.py \
+  --hostname hack-mmk-25-vm1-162f2c.vm.prodcontest.com \
+  --public-ip 158.160.209.13
+# Команда выше показывает план. Для применения на VM:
+sudo python3 configure-video.py \
+  --hostname hack-mmk-25-vm1-162f2c.vm.prodcontest.com \
+  --public-ip 158.160.209.13 --apply
+```
+
+Скрипт скачивает LiveKit 1.13.11 из официального GitHub release и проверяет SHA-256.
+Создаёт отдельную службу `tflow-livekit`, сохраняет исходные настройки в
+`/var/backups/tflow/video-*`, настраивает Caddy `/livekit/*` и добавляет в защищённый
+`/etc/tflow/app.env` четыре параметра. Существующий внешний видеосервер он
+автоматически не заменяет. Произвольный пользовательский Caddyfile требует
+ручного объединения. База данных не изменяется.
+
+```dotenv
+LIVEKIT_URL=wss://hack-mmk-25-vm1-162f2c.vm.prodcontest.com/livekit
+LIVEKIT_API_URL=http://127.0.0.1:7880
+# Ключ и секрет создаёт скрипт; не публиковать их.
+```
+
+Браузер получает только публичный адрес. Django обращается к RoomService по
+loopback, поэтому управление эфиром не зависит от маршрутизации VM к своему
+внешнему IP. Административный порт 7880 слушает только loopback, а файлы с
+секретами недоступны обычным пользователям. systemd передаёт YAML службе через
+`LoadCredential`.
+
+Для этого варианта нужны публичный HTTPS с действующим сертификатом, TCP 443
+для сигнализации, **TCP 8001** и желательно **UDP 8002** для медиа. Проверьте
+правила как в Spirit, так и в гостевом firewall. Скрипт не изменяет сетевую политику
+Spirit и не отключает firewall. TCP fallback помогает при закрытом UDP, но для
+ограничивающих корпоративных сетей может понадобиться отдельный TURN/TLS.
+Только reverse proxy HTTP не обеспечивает доставку аудио/видео.
+
+Проверка API с тем же окружением, что у приложения:
+
+```sh
+sudo systemd-run --quiet --wait --pipe --collect \
+  --property=User=tflow --property=Group=tflow \
+  --property=EnvironmentFile=/etc/tflow/app.env \
+  --property=WorkingDirectory=/srv/tflow/current/tflow/backend \
+  /srv/tflow/current/.venv/bin/python manage.py check_webinars
+sudo systemctl status tflow-livekit tflow caddy
+sudo journalctl -u tflow-livekit -u tflow -n 60 --no-pager
+```
+
+`check_webinars` проверяет настройки и авторизованный `ListRooms`, не создавая
+комнат и не выводя ключи/список людей. Успех этой команды ещё не доказывает
+доступность публичного WSS и медиапортов из браузера. Для итоговой проверки нужны
+две независимые сессии ведущего и зарегистрированного участника, вход, чат,
+аудиодорожка и выход/завершение.
+
+Документация LiveKit: [порты](https://docs.livekit.io/transport/self-hosting/ports-firewall/),
+[публичный адрес и TLS](https://docs.livekit.io/transport/self-hosting/deployment/).
+
+### Состояние проверки 31 октября 2026
+
+Изменения клиентского подключения, внутреннего API и генерации VM-конфигурации
+проверяются автоматическими тестами. Локальный `check_webinars` прошёл с настоящим
+LiveKit. На момент подготовки исправления HTTPS VM завершался таймаутом TLS,
+а два SSH-подключения к `158.160.209.13:22` — таймаутом до авторизации. Поэтому
+установка службы и проверка эфира на самой VM пока не подтверждены.
+
+## Деплой из GitLab
+
+В `.gitlab-ci.yml` есть ручная задача `deploy_vm` после успешного `package`.
+Она проверяет SHA коммита и SHA-256 артефакта, загружает ровно этот релиз на VM,
+запускает существующий установщик с резервной копией БД и проверяет LiveKit API.
+Задачи деплоя сериализуются `resource_group`, чтобы два релиза не переключали
+`current` одновременно.
+
+Нужны protected **File** variables проекта:
+
+- `TFLOW_VM_SSH_KEY`: SSH-ключ пользователя ubuntu.
+- `TFLOW_VM_KNOWN_HOSTS`: заранее проверенная запись ключа хоста VM в формате
+  OpenSSH known_hosts. Получать/сверять fingerprint нужно по доверенному каналу,
+  а не отключать проверку ключа сервера.
+
+Для установки управляемой видеослужбы задайте `TFLOW_CONFIGURE_VIDEO=1`.
+Для внешнего LiveKit оставьте `0` и настройте его адрес/ключи в `/etc/tflow/app.env`.
+Не сохраняйте ключи в YAML, исходниках или выводе job. GitLab сам по себе
+не устанавливает релиз только от наличия подключённой VM: задача должна иметь
+рабочий сетевой маршрут и полномочия SSH. Успех GitLab-тестов/упаковки также
+не означает, что задача `deploy_vm` запускалась или что WebRTC доступен снаружи.

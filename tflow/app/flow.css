@@ -54,6 +54,11 @@ body{font-size:16px;color:#222329;background:#fff}
 .discovery-copy h2 button{display:block;text-align:left;padding:0;border:0;background:none;font:inherit;font-weight:650!important;overflow-wrap:anywhere}
 .discovery-copy>span{display:block;font-size:14px;color:#626b78;white-space:normal;overflow-wrap:anywhere}
 .discovery-copy>strong{display:block;font-size:14px;font-weight:600;margin-top:10px}
+.discovery-card.is-past .event-art{filter:grayscale(1);opacity:.7}
+.discovery-card.is-past .discovery-copy h2 button{color:var(--theme-muted,#626b78)}
+.discovery-card.is-past .registered-tag{background:var(--theme-panel,#f1f2f4);color:var(--theme-muted,#626b78)}
+.discovery-copy>.event-ended-label{display:inline-flex;align-items:center;gap:6px;margin-top:12px;padding:4px 9px;border-radius:7px;background:var(--theme-raised,#f1f2f4);color:var(--theme-muted,#626b78);font-size:12px;line-height:1.5;font-weight:500}
+.event-ended-label>svg{flex-shrink:0}
 .big-signup{width:100%;max-width:360px;justify-content:space-between;margin:0 0 24px}
 .quiet-empty{padding:52px 20px;text-align:center;display:flex;align-items:center;flex-direction:column;gap:13px;border-radius:18px;background:#fafbfc;margin:15px 0 35px}
 .quiet-empty>svg{color:#626b78;margin-bottom:8px}
@@ -538,15 +543,6 @@ body{font-size:16px;color:#222329;background:#fff}
 .flow-form .interest-picker { border: 0; padding: 0; margin: 0; min-width: 0; }
 .interest-picker legend { padding: 0; font-size: 13px; font-weight: 500; }
 .interest-picker>p { font-size: 12px; line-height: 1.7; color: #626d7d; margin: 7px 0 13px; }
-.interest-options { display: flex; flex-wrap: wrap; gap: 8px; }
-.flow-form .interest-option { position: relative; display: inline-flex; margin: 0; cursor: pointer; max-width: 100%; }
-.flow-form .interest-option input { position: absolute; width: 1px; height: 1px; padding: 0; margin: 0; opacity: 0; }
-.interest-option>span { display: inline-flex; align-items: center; gap: 7px; border: 1px solid #dfe3e9; border-radius: 12px; padding: 10px 12px; background: #fff; color: #626d7d; font-size: 12px; line-height: 1.5; overflow-wrap: anywhere; min-height: 44px; }
-.interest-option>span::before { content: '+'; font-size: 16px; line-height: 1; width: 14px; text-align: center; flex-shrink: 0; }
-.interest-option:has(input:checked)>span { background: #fff6cf; border-color: #dfbf37; color: #63521b; }
-.interest-option:has(input:checked)>span::before { content: '✓'; font-size: 13px; }
-.interest-option:has(input:focus-visible)>span { outline: 3px solid #1769e8; outline-offset: 3px; }
-.interest-picker:disabled { opacity: .65; }
 .personal-info dd.personal-interest-tags { display: flex; flex-wrap: wrap; gap: 7px; }
 .personal-interest-tags>span { padding: 5px 9px; border-radius: 8px; font-size: var(--font-size-min); background: #fff6cf; color: #796123; }
 .profile-avatar { display: inline-flex; align-items: center; justify-content: center; width: 56px; height: 56px; border-radius: 50%; overflow: hidden; background: #fff5c6; color: #90752b; font-size: 23px; flex-shrink: 0; }
@@ -633,13 +629,6 @@ body{font-size:16px;color:#222329;background:#fff}
 @media(max-width:350px){.flow-app{--mobile-nav-height:84px}}
 
 @media(min-width:761px){.organizer-app .personal-layout{grid-template-columns:minmax(0,1fr);max-width:900px}}
-
-/* Grouped interests stay compact as the catalogue grows. */
-.interest-picker .interest-search{display:grid;gap:7px;margin:10px 0 0;font-size:14px}
-.interest-picker .interest-selection-count{font-size:12px;margin:10px 0;color:var(--flow-muted)}
-.interest-group-list{max-height:330px;overflow:auto;overscroll-behavior:contain;padding:2px 5px 5px 2px;scrollbar-gutter:stable}
-.interest-category-group+ .interest-category-group{margin-top:20px}
-.interest-category-group h3{font-size:13px;font-weight:600;color:#414a57;margin:0 0 10px;line-height:1.5}
 
 .discovery-copy .webinar-card-entry{margin-top:16px;min-height:44px;font-size:14px;justify-content:flex-start}
 .webinar-room-page{width:100%;min-width:0;margin-bottom:32px}

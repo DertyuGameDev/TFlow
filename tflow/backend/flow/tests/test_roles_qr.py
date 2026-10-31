@@ -125,21 +125,23 @@ class RoleAndPassTests(Scenario, TestCase):
         self.assertEqual(response.status_code, 302)
         self.assertEqual(client.get("/api/auth/me").json()["user"]["role"], "organizer")
 
-    def test_organizer_switch_initial_state(self):
-        for query, checked in [("", False), ("?role=organizer", True)]:
+    def test_role_buttons_initial_selection(self):
+        for query, selected in [("", "participant"), ("?role=organizer", "organizer")]:
             with self.subTest(query=query):
                 response = Client().get(f"/register/{query}")
                 widget = str(response.context["form"]["role"])
-                self.assertIn('type="checkbox"', widget)
-                self.assertIn('role="switch"', widget)
-                self.assertIn('value="organizer"', widget)
-                self.assertEqual(" checked" in widget, checked)
+                self.assertEqual(widget.count('type="radio"'), 2)
+                self.assertNotIn('role="switch"', widget)
+                self.assertEqual(
+                    {option.data["value"]: option.data["selected"] for option in response.context["form"]["role"]},
+                    {"participant": selected == "participant", "organizer": selected == "organizer"},
+                )
 
-    def test_organizer_switch_survives_validation_error_and_can_be_disabled(self):
+    def test_role_buttons_keep_selection_on_error_and_default_to_participant(self):
         client = Client()
         data = {
             "role": "organizer",
-            "email": "switch@example.test",
+            "email": "role-buttons@example.test",
             "first_name": "Новый",
             "last_name": "участник",
             "password1": "Unrelated-new-strong-44!",
@@ -147,10 +149,13 @@ class RoleAndPassTests(Scenario, TestCase):
         }
         response = client.post("/register/", data)
         self.assertEqual(response.status_code, 200)
-        self.assertIn(" checked", str(response.context["form"]["role"]))
+        self.assertEqual(
+            [option.data["value"] for option in response.context["form"]["role"] if option.data["selected"]],
+            ["organizer"],
+        )
         self.assertFalse(User.objects.filter(email=data["email"]).exists())
 
-        # Unchecking a native checkbox removes its name from the browser POST.
+        # Clients that omit the role still register as participants.
         del data["role"]
         data["password2"] = data["password1"]
         response = client.post("/register/", data)
