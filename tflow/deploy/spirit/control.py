@@ -5,6 +5,7 @@ import hashlib
 import json
 import os
 from pathlib import Path
+import re
 import subprocess
 import tempfile
 import time
@@ -18,6 +19,7 @@ VM_PATH = f"/api/v2/tenants/hack-mmk-25/vmgroup/b9c06327-85dd-4ac8-adf6-3c5fcffb
 CLI_URL = f"{BASE}/static/cli/tedu/14.1.3/linux/dp"
 CLI_SIZE = 22098082
 CLI_SHA256 = "f740fd005d7f51723e0d85bcd7582a35dd8d24de51da522bfbbfd3dcb7333cb9"
+IMAGE_ID = "957802ff-637a-4dc2-b645-8bd9d605dfb6"
 
 
 class ControlError(Exception):
@@ -86,10 +88,14 @@ class Spirit:
     def __init__(self, token):
         self.token = token
 
-    def request(self, method, action=""):
+    def request(self, method, action="", payload=None, operation=None):
+        if operation is not None and not re.fullmatch(r"[0-9a-f-]{36}", operation):
+            raise ControlError("Invalid operation identifier")
+        path = f"/api/v2/cloud-operations/{operation}" if operation else VM_PATH + action
         request = urllib.request.Request(
-            BASE + VM_PATH + action, method=method,
-            headers={"Authorization": "Bearer " + self.token, "Accept": "application/json"},
+            BASE + path, method=method,
+            data=json.dumps(payload).encode() if payload is not None else None,
+            headers={"Authorization": "Bearer " + self.token, "Accept": "application/json", "Content-Type": "application/json"},
         )
         try:
             with urllib.request.urlopen(request, timeout=35) as response:
@@ -165,15 +171,52 @@ def power_cycle(api):
             print("After:", json.dumps(public_state(after)), flush=True)
 
 
+def rebuild(api, confirmation):
+    # This destructive action is intentionally separate from routine recovery.
+    # The owner approved a single rebuild after off-VM backup verification.
+    if confirmation != VM_ID:
+        raise ControlError("Explicit VM identifier confirmation is required for rebuild")
+    before = api.vm()
+    image = before.get("image", {}).get("attributes", {}).get("id")
+    if before.get("status") != "active" or before.get("existPrevious") or image != IMAGE_ID:
+        raise ControlError("Rebuild requires the reviewed active VM, image and no previous instance")
+    print("Before rebuild:", json.dumps(public_state(before)), flush=True)
+    payload = {"kind": "CloudVm", "attributes": {
+        "image": {"kind": "Reference", "resourceKind": "CloudImage", "identifier": {"name": "id", "value": IMAGE_ID}},
+        "withoutBackup": False,
+    }}
+    # Never retry a potentially accepted rebuild after a lost response.
+    result = api.request("PUT", payload=payload)
+    operation = result.get("id") or result.get("attributes", {}).get("id")
+    if not operation:
+        raise ControlError("Rebuild response has no operation ID; inspect Spirit before any retry")
+    print("Rebuild operation:", operation, flush=True)
+    deadline = time.monotonic() + 900
+    while time.monotonic() < deadline:
+        state = api.request("GET", operation=operation)
+        state = state.get("attributes", state)
+        if state.get("done") or state.get("status") in {"failed", "completed", "success"}:
+            if state.get("error") or state.get("status") == "failed":
+                raise ControlError("Spirit rebuild operation failed; inspect the retained previous VM")
+            after = api.wait("active", 180)
+            print("After rebuild:", json.dumps(public_state(after)), flush=True)
+            print("Previous instance retained:", bool(after.get("existPrevious")), flush=True)
+            return
+        time.sleep(5)
+    raise ControlError("Rebuild operation timed out; inspect Spirit before any retry")
+
+
 def main():
     parser = argparse.ArgumentParser()
-    parser.add_argument("action", choices=("inspect", "power-cycle"))
+    parser.add_argument("action", choices=("inspect", "power-cycle", "rebuild"))
     args = parser.parse_args()
     os.umask(0o077)
     with tempfile.TemporaryDirectory(prefix="tflow-spirit-") as private:
         api = Spirit(authenticate(Path(private)))
         if args.action == "inspect":
             print(json.dumps(public_state(api.vm())), flush=True)
+        elif args.action == "rebuild":
+            rebuild(api, os.environ.get("SPIRIT_REBUILD_CONFIRM", ""))
         else:
             power_cycle(api)
 

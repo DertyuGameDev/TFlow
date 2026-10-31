@@ -99,3 +99,14 @@ spirit-recover-network:
       artifacts: true
   script:
     - python tflow/deploy/spirit/control.py power-cycle
+
+# Requires an explicit SPIRIT_REBUILD_CONFIRM=<vm1 UUID> when starting the job.
+# An off-VM backup and owner consent must exist before this destructive action.
+spirit-rebuild-authorized:
+  extends: .spirit-control
+  timeout: 20m
+  needs:
+    - job: spirit-readiness
+      artifacts: true
+  script:
+    - python tflow/deploy/spirit/control.py rebuild
