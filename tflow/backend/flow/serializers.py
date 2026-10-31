@@ -194,6 +194,7 @@ def activity_json(activity, schedule=False):
         ends_at=milliseconds(activity.ends_at),
         updated_at=milliseconds(activity.updated_at),
         room_name=activity.room.name,
+        room_is_online=activity.room.is_online,
         taken=activity.taken,
         registered=int(activity.registered),
         waiting_count=activity.waiting_count,
@@ -207,8 +208,8 @@ def activity_json(activity, schedule=False):
     if schedule:
         data.update(
             event_title=activity.event.title,
-            city=activity.event.city,
-            venue=activity.event.venue,
+            city="Онлайн" if activity.room.is_online else activity.event.city,
+            venue="ТФлоу" if activity.room.is_online else activity.event.venue,
             event_cover=activity.event.cover,
         )
     return data

@@ -344,7 +344,9 @@ def dispatch_api(request, path):
                     {
                         "event": event_json(event),
                         "rooms": list(
-                            event.rooms.values("id", "event_id", "name", "capacity")
+                            event.rooms.values(
+                                "id", "event_id", "name", "capacity", "is_online"
+                            )
                         ),
                         "activities": [
                             activity_json(a)

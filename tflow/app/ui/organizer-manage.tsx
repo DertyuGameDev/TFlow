@@ -394,37 +394,47 @@ export function OrganizerManage({
             onEdit={onActivity}
           />
         )}
-        {detail.rooms.length > 0 && (
-          <section className="management-card management-rooms">
-            <header className="management-section-heading">
-              <div>
-                <h3>Аудитории</h3>
-                <p>
-                  Где проходят пункты программы и сколько человек помещается.
-                </p>
-              </div>
-              <button className="text-button" onClick={() => onRoom()}>
-                <Plus size={17} />
-                Добавить аудиторию
-              </button>
-            </header>
-            <div className="management-room-list">
-              {detail.rooms.map((room) => (
-                <button
-                  key={room.id}
-                  onClick={() => onRoom(room)}
-                  aria-label={`Изменить аудиторию ${room.name}`}
-                >
-                  <span>
-                    <strong>{room.name}</strong>
-                    <small>{room.capacity} мест</small>
-                  </span>
-                  <Pencil size={16} />
-                </button>
-              ))}
+        <section className="management-card management-rooms">
+          <header className="management-section-heading">
+            <div>
+              <h3>Аудитории</h3>
+              <p>
+                Очные залы и онлайн-поток могут работать параллельно. «Онлайн»
+                доступен при добавлении пункта программы.
+              </p>
             </div>
-          </section>
-        )}
+            <button className="text-button" onClick={() => onRoom()}>
+              <Plus size={17} />
+              Добавить аудиторию
+            </button>
+          </header>
+          <div className="management-room-list">
+            {detail.rooms.map((room) => (
+              <button
+                key={room.id}
+                onClick={() => onRoom(room)}
+                aria-label={`Изменить аудиторию ${room.name}`}
+              >
+                <span>
+                  <strong>{room.name}</strong>
+                  <small>
+                    {room.is_online
+                      ? `Вебинар · ${room.capacity} зрителей`
+                      : `${room.capacity} мест`}
+                  </small>
+                </span>
+                {room.is_online ? <Video size={16} /> : <Pencil size={16} />}
+              </button>
+            ))}
+          </div>
+          {detail.rooms.some((room) => room.is_online) &&
+              hasWebinar(e) &&
+            e.status === "published" && (
+              <button className="text-button" onClick={onOpenWebinar}>
+                <Video size={17} /> Открыть студию онлайн-аудитории
+              </button>
+            )}
+        </section>
       </section>
       <section
         role="tabpanel"

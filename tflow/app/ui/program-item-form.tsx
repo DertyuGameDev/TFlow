@@ -8,6 +8,9 @@ import {
 } from "../../lib/time";
 import { FormError, Submit, useSubmit, type Send } from "./forms";
 
+const ONLINE_ROOM = "__online__";
+const MAIN_ROOM = "__main__";
+
 export function ActivityForm({
   event,
   rooms,
@@ -28,8 +31,17 @@ export function ActivityForm({
   const [endsAt, setEndsAt] = useState(
     localInput(activity?.ends_at ?? Math.min(start + 3600000, event.ends_at)),
   );
-  const [roomId, setRoomId] = useState(activity?.room_id ?? rooms[0]?.id ?? "");
+  const onlineRoom = rooms.find((item) => item.is_online);
+  const [roomId, setRoomId] = useState(
+    activity?.room_id ??
+      (event.format === "Онлайн"
+        ? (onlineRoom?.id ?? ONLINE_ROOM)
+        : (rooms.find((item) => !item.is_online)?.id ??
+          onlineRoom?.id ??
+          MAIN_ROOM)),
+  );
   const room = rooms.find((item) => item.id === roomId);
+  const online = roomId === ONLINE_ROOM || !!room?.is_online;
   const limit = room?.capacity ?? event.capacity;
   const [capacity, setCapacity] = useState(
     activity?.capacity ?? Math.min(event.capacity, limit),
@@ -46,7 +58,8 @@ export function ActivityForm({
         title: data.get("title"),
         description: data.get("description"),
         speaker: data.get("speaker"),
-        room_id: roomId,
+        room_id: roomId === ONLINE_ROOM || roomId === MAIN_ROOM ? "" : roomId,
+        online_room: online,
         starts_at,
         ends_at,
         capacity,
@@ -107,34 +120,43 @@ export function ActivityForm({
         {timeLabel(event.starts_at)} — {dateLabel(event.ends_at)}{" "}
         {timeLabel(event.ends_at)} МСК.
       </p>
-      {rooms.length ? (
-        <label>
-          Аудитория
-          <select
-            name="room_id"
-            required
-            value={roomId}
-            onChange={(e) => {
-              setRoomId(e.target.value);
-              const next = rooms.find((item) => item.id === e.target.value);
-              if (next)
-                setCapacity((current) => Math.min(current, next.capacity));
-            }}
-          >
-            {rooms.map((item) => (
+      <label>
+        Аудитория
+        <select
+          name="room_id"
+          required
+          value={roomId}
+          onChange={(e) => {
+            setRoomId(e.target.value);
+            const next = rooms.find((item) => item.id === e.target.value);
+            setCapacity((current) =>
+              Math.min(current, next?.capacity ?? event.capacity),
+            );
+          }}
+        >
+          {rooms.length === 0 && event.format !== "Онлайн" && (
+            <option value={MAIN_ROOM}>Основная площадка · {event.venue}</option>
+          )}
+          {rooms
+            .filter((item) => !item.is_online)
+            .map((item) => (
               <option key={item.id} value={item.id}>
                 {item.name} · {item.capacity} мест
               </option>
             ))}
-          </select>
-        </label>
-      ) : (
+          <option value={onlineRoom?.id ?? ONLINE_ROOM}>
+            Онлайн · Вебинар внутри ТФлоу
+          </option>
+        </select>
+      </label>
+      {online ? (
         <p className="event-field-hint">
-          Место:{" "}
-          {event.format === "Онлайн" ? "Вебинар внутри ТФлоу" : event.venue}.
-          Основная площадка добавится автоматически вместе с первым пунктом.
+          Один онлайн-поток внутри ТФлоу. Может идти одновременно с занятиями в
+          очных аудиториях.
+          {event.format === "Очно" &&
+            " Событие станет гибридным, очная площадка сохранится."}
         </p>
-      )}
+      ) : null}
       <div className="form-row">
         <label>
           Спикер · необязательно
@@ -145,7 +167,7 @@ export function ActivityForm({
           />
         </label>
         <label>
-          Лимит мест
+          {online ? "Лимит зрителей" : "Лимит мест"}
           <input
             name="capacity"
             type="number"

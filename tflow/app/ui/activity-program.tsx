@@ -1,5 +1,5 @@
 import { useId, useState } from "react";
-import { AlertCircle, Check, Clock3, MapPin, Search, Users } from "lucide-react";
+import { AlertCircle, Check, Clock3, MapPin, Search, Users, Video } from "lucide-react";
 import type { Activity } from "../../lib/types";
 import { dateKey, dateLabel, overlaps, timeLabel } from "../../lib/time";
 import { activityAvailability } from "../../lib/activities";
@@ -17,7 +17,7 @@ export function ActivityCard({ activity: a, schedule, organizer, pending, onActi
     <div className="program-copy">
       {personal && <a className="program-event" href={`#event/${a.event_id}`}>{a.event_title}</a>}
       <h3>{a.title}</h3>
-      <div className="program-meta"><span><MapPin size={14}/>{personal && a.venue ? `${a.venue} · ` : ""}{a.room_name}</span>{a.speaker && <span>{a.speaker}</span>}</div>
+      <div className="program-meta"><span>{a.room_is_online ? <Video size={14}/> : <MapPin size={14}/>} {a.room_is_online ? "Онлайн · ТФлоу" : `${personal && a.venue ? `${a.venue} · ` : ""}${a.room_name}`}</span>{a.speaker && <span>{a.speaker}</span>}</div>
       {a.description && <p>{a.description}</p>}
       <div className="program-badges">
         <span className={`program-badge ${full ? "is-full" : ""}`}><Users size={13}/>{full ? "Мест нет" : `${free} из ${a.capacity} мест свободно`}</span>

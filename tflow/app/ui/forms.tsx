@@ -37,5 +37,14 @@ export function EventForm({event,communities,send,done}:{event?:FlowEvent;commun
 }
 export function RoomForm({eventId,room,send,done}:{eventId:string;room?:Room}&Props){
   const {submit,error,busy}=useSubmit(async d=>{await send(room?`rooms/${room.id}`:`events/${eventId}/rooms`,room?"PATCH":"POST",{name:d.get("name"),capacity:Number(d.get("capacity"))});done();});
-  return <form className="flow-form" onSubmit={submit}><label>Название аудитории<input name="name" required placeholder="Например, Главный зал" defaultValue={room?.name}/></label><label>Вместимость<input type="number" name="capacity" min={1} required defaultValue={room?.capacity??30}/></label><p className="muted small">Лимит активности не сможет превышать вместимость аудитории.</p><FormError error={error}/><div className="form-footer"><Submit busy={busy} label="Сохранить аудиторию"/></div></form>;
+  return (
+    <form className="flow-form" onSubmit={submit}>
+      {room?.is_online && <p className="event-field-hint">Онлайн-аудитория — один вебинар внутри ТФлоу. Очные аудитории могут работать в это же время.</p>}
+      <label>Название аудитории<input name="name" required placeholder="Например, Главный зал" defaultValue={room?.name}/></label>
+      <label>{room?.is_online ? "Лимит зрителей" : "Вместимость"}<input type="number" name="capacity" min={1} required defaultValue={room?.capacity??30}/></label>
+      <p className="muted small">Лимит активности не сможет превышать вместимость аудитории.</p>
+      <FormError error={error}/>
+      <div className="form-footer"><Submit busy={busy} label="Сохранить аудиторию"/></div>
+    </form>
+  );
 }
