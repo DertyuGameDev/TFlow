@@ -320,8 +320,8 @@ export function OrganizerTutorial({
               </section>
             </div>
             <div className="tutorial-practice">
-              <div>
-                <strong>Попробуйте на своём событии</strong>
+              <strong>Попробуйте на своём событии</strong>
+              <div className="tutorial-practice-controls">
                 {needsEvent && events.length > 1 ? (
                   <label>
                     <span className="sr-only">Событие для обучения</span>
@@ -341,22 +341,22 @@ export function OrganizerTutorial({
                 ) : (
                   <p>Обучение можно продолжить после сохранения черновика.</p>
                 )}
-                {entryLocked && (
-                  <small>
-                    Проверка входа и эфир доступны после публикации.
-                  </small>
-                )}
+                <button
+                  className="button secondary"
+                  onClick={() => {
+                    setOpen(false);
+                    onAction(action, target);
+                  }}
+                >
+                  {actionLabel}
+                  <ArrowRight size={16} />
+                </button>
               </div>
-              <button
-                className="button secondary"
-                onClick={() => {
-                  setOpen(false);
-                  onAction(action, target);
-                }}
-              >
-                {actionLabel}
-                <ArrowRight size={16} />
-              </button>
+              {entryLocked && (
+                <small>
+                  Проверка входа и эфир доступны после публикации.
+                </small>
+              )}
             </div>
             <footer className="tutorial-footer">
               <button
