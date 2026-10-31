@@ -735,3 +735,9 @@ body{font-size:16px;color:#222329;background:#fff}
 .program-new-room>.event-field-hint{margin:0 0 14px}
 .club-subscription-hint{font-size:13px!important;color:var(--flow-muted);margin-top:14px!important}
 @media(max-width:600px){.event-time-filter button{white-space:nowrap}}
+
+/* Completed visits remain visible in the catalog without a separate filter. */
+.discovery-card.is-visited .discovery-cover{outline:2px solid var(--theme-green-text,#32825a);outline-offset:-2px}
+.discovery-card.is-past .registered-tag.event-visited-tag{background:var(--theme-green,#e3f4e9);color:var(--theme-green-text,#236743);font-weight:600}
+
+.discovery-card.is-past:not(.is-visited) .registered-tag{background:var(--theme-panel,#f1f2f4);color:var(--theme-muted,#626b78)}
