@@ -18,8 +18,8 @@
 :root[data-theme="dark"] :is(.button.secondary:hover,.icon-button:hover,.cal-icon:hover,.cal-today:hover,.cal-date-picker:hover,.theme-toggle:hover){background:#383838;color:var(--theme-text)}
 :root[data-theme="dark"] .theme-toggle{color:var(--theme-muted);border-color:var(--theme-border)}
 .brand-logo,.auth-brand{position:relative;isolation:isolate}
-/* Preserve the shield's T; recolour only the wordmark through its alpha mask. */
-:root[data-theme="dark"] :is(.brand-logo img,.auth-brand img){filter:contrast(1.5) sepia(1) saturate(20) hue-rotate(-30deg)}
+/* Keep the same yellow shield in both themes; only the wordmark changes colour. */
+:is(.brand-logo img,.auth-brand img){filter:contrast(1.5) sepia(1) saturate(20) hue-rotate(-30deg)}
 :root[data-theme="dark"] :is(.brand-logo,.auth-brand)::after{content:"";position:absolute;inset:0;background:#f5f5f5;mask:url('logo.svg') center/contain no-repeat;clip-path:inset(0 0 0 28%);pointer-events:none}
 :root[data-theme="dark"] :is(.desktop-navigation a.active,.discovery-topics button.active,.mobile-bottom-nav a.active,.flow-heading h1,.flow-form label,.camera-placeholder h2,.cal-empty-day strong,.cal-day-heading strong){color:var(--theme-text)}
 :root[data-theme="dark"] .discovery-topics button.active{border-bottom-color:#ffdd2d}
@@ -85,7 +85,7 @@
 @media(max-width:760px){.flow-app .flow-account .theme-toggle{min-width:36px;min-height:38px;padding:7px}.flow-app .flow-topbar-inner{column-gap:12px}}
 @media(max-width:420px){.flow-app .flow-topbar .brand-logo{width:124px;height:36px}}
 @media(max-width:350px){.flow-app .flow-topbar .brand-logo{width:44px;height:40px}.flow-topbar .brand-logo::after{display:none}}
-@media(forced-colors:active){.theme-toggle{border:1px solid ButtonText}:root[data-theme="dark"] :is(.brand-logo img,.auth-brand img){filter:none}:root[data-theme="dark"] :is(.brand-logo,.auth-brand)::after{display:none}}
+@media(forced-colors:active){.theme-toggle{border:1px solid ButtonText}:is(.brand-logo img,.auth-brand img){filter:none}:root[data-theme="dark"] :is(.brand-logo,.auth-brand)::after{display:none}}
 
 :root[data-theme="dark"] :is(button,a,input,select,textarea):focus-visible{outline-color:#ffdd2d}
 
