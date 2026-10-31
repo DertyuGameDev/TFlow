@@ -308,6 +308,30 @@ def save_activity(user, data, *, event_id=None, activity_id=None):
             owned_event(activity.event_id, user)
         else:
             activity = Activity(event=owned_event(event_id, user))
+        data = dict(data)
+        if not data.get("room_id"):
+            if activity_id:
+                data["room_id"] = activity.room_id
+            else:
+                rooms = list(activity.event.rooms.all()[:2])
+                if len(rooms) > 1:
+                    raise FlowError(
+                        "VALIDATION", "Выберите аудиторию для пункта программы", 400
+                    )
+                room = (
+                    rooms[0]
+                    if rooms
+                    else Room.objects.create(
+                        event=activity.event,
+                        name=(
+                            "Онлайн-комната"
+                            if activity.event.format == "Онлайн"
+                            else "Основная площадка"
+                        ),
+                        capacity=min(activity.event.capacity, 10000),
+                    )
+                )
+                data["room_id"] = room.pk
         for key, value in data.items():
             setattr(activity, key, value)
         validate_activity(activity)

@@ -72,7 +72,7 @@ class ActivityInput(forms.Form):
     title = forms.CharField(min_length=3, max_length=160)
     description = forms.CharField(required=False, max_length=5000)
     speaker = forms.CharField(required=False, max_length=160)
-    room_id = forms.CharField(max_length=100)
+    room_id = forms.CharField(required=False, max_length=100)
     starts_at = MillisecondsField()
     ends_at = MillisecondsField()
     capacity = forms.IntegerField(min_value=1, max_value=10000)

@@ -299,7 +299,7 @@ export function OrganizerManage({
             </div>
             <button className="button secondary" onClick={onSchedule}>
               <Settings2 size={17} />
-              Настроить расписание
+              Изменить время и место
             </button>
           </header>
           <dl className="management-facts management-schedule-facts">
@@ -342,44 +342,28 @@ export function OrganizerManage({
         </section>
         <header className="management-section-heading">
           <div>
-            <h2>Активности</h2>
+            <h2>Пункты программы</h2>
             <p>
-              Лекции, выступления и другие активности, на которые можно
-              записаться.
+              Составьте расписание: укажите, что будет происходить и во сколько.
             </p>
           </div>
-          {detail.activities.length > 0 && (
-            <button className="button primary" onClick={() => onActivity()}>
-              <Plus size={18} />
-              Добавить активность
-            </button>
-          )}
+          <button className="button primary" onClick={() => onActivity()}>
+            <Plus size={18} />
+            Добавить пункт программы
+          </button>
         </header>
         {detail.activities.length === 0 ? (
           <div className="management-empty">
             <CalendarDays size={30} />
-            <h3>
-              {detail.rooms.length
-                ? "Добавьте первую активность"
-                : "Начните с аудитории"}
-            </h3>
+            <h3>Что запланировано на встречу?</h3>
             <p>
-              {detail.rooms.length
-                ? "Укажите название, время и место выступления или встречи — они появятся в программе для участников."
-                : "Аудитория — это зал, кабинет или онлайн-комната. Добавьте её, а затем запланируйте активности."}
+              Например: открытие в 10:00, лекция в 10:30 и практикум в 12:00.
+              Добавьте пункты с временем начала и окончания — участники увидят
+              их на странице события.
             </p>
-            <button
-              className="button primary"
-              onClick={() => (detail.rooms.length ? onActivity() : onRoom())}
-            >
-              <Plus size={18} />
-              {detail.rooms.length
-                ? "Добавить активность"
-                : "Добавить аудиторию"}
-            </button>
             <small>
               Для одной встречи можно оставить событие без отдельных
-              активностей.
+              пунктов программы.
             </small>
           </div>
         ) : (
@@ -421,7 +405,7 @@ export function OrganizerManage({
                     <button
                       className="button secondary small-button"
                       onClick={() => onActivity(activity)}
-                      aria-label={`Изменить активность ${activity.title}`}
+                      aria-label={`Изменить пункт программы ${activity.title}`}
                     >
                       <Pencil size={16} />
                       <span>Изменить</span>
@@ -437,7 +421,7 @@ export function OrganizerManage({
             <header className="management-section-heading">
               <div>
                 <h3>Аудитории</h3>
-                <p>Где проходят активности и сколько человек помещается.</p>
+                <p>Где проходят пункты программы и сколько человек помещается.</p>
               </div>
               <button className="text-button" onClick={() => onRoom()}>
                 <Plus size={17} />

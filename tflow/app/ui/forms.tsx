@@ -1,7 +1,7 @@
 "use client";
 import { useState, type FormEvent } from "react";
 import { AlertCircle, ArrowRight, LoaderCircle } from "lucide-react";
-import { CITIES, type Activity, type Community, type FlowEvent, type Profile, type Room } from "../../lib/types";
+import { CITIES, type Community, type FlowEvent, type Profile, type Room } from "../../lib/types";
 import { fromLocalInput, localInput } from "../../lib/time";
 import { InterestPicker } from "./interest-picker";
 import { CityPicker } from "./city-picker";
@@ -38,16 +38,4 @@ export function EventForm({event,communities,send,done}:{event?:FlowEvent;commun
 export function RoomForm({eventId,room,send,done}:{eventId:string;room?:Room}&Props){
   const {submit,error,busy}=useSubmit(async d=>{await send(room?`rooms/${room.id}`:`events/${eventId}/rooms`,room?"PATCH":"POST",{name:d.get("name"),capacity:Number(d.get("capacity"))});done();});
   return <form className="flow-form" onSubmit={submit}><label>Название аудитории<input name="name" required minLength={2} maxLength={120} placeholder="Например, Главный зал" defaultValue={room?.name}/></label><label>Вместимость<input type="number" name="capacity" min={1} max={10000} required defaultValue={room?.capacity??30}/></label><p className="muted small">Лимит активности не сможет превышать вместимость аудитории.</p><FormError error={error}/><div className="form-footer"><Submit busy={busy} label="Сохранить аудиторию"/></div></form>;
-}
-export function ActivityForm({event,rooms,activity,send,done}:{event:FlowEvent;rooms:Room[];activity?:Activity}&Props){
-  const {submit,error,busy}=useSubmit(async d=>{await send(activity?`activities/${activity.id}`:`events/${event.id}/activities`,activity?"PATCH":"POST",{title:d.get("title"),description:d.get("description"),speaker:d.get("speaker"),room_id:d.get("room_id"),starts_at:fromLocalInput(String(d.get("starts_at"))),ends_at:fromLocalInput(String(d.get("ends_at"))),capacity:Number(d.get("capacity"))});done();});
-  return <form className="flow-form" onSubmit={submit}>
-    <label>Название активности<input name="title" required minLength={3} maxLength={160} defaultValue={activity?.title} placeholder="Например, Практикум по продуктовой аналитике"/></label>
-    <label>Описание<textarea name="description" rows={3} maxLength={5000} defaultValue={activity?.description}/></label>
-    <label>Спикер<input name="speaker" maxLength={160} defaultValue={activity?.speaker} placeholder="Имя и фамилия"/></label>
-    <div className="form-row"><label>Начало · МСК<input name="starts_at" type="datetime-local" required min={localInput(event.starts_at)} max={localInput(event.ends_at)} defaultValue={localInput(activity?.starts_at??event.starts_at)}/></label><label>Окончание · МСК<input name="ends_at" type="datetime-local" required min={localInput(event.starts_at)} max={localInput(event.ends_at)} defaultValue={localInput(activity?.ends_at??Math.min(event.starts_at+3600000,event.ends_at))}/></label></div>
-    <div className="form-row"><label>Аудитория<select name="room_id" required defaultValue={activity?.room_id??rooms[0]?.id}>{rooms.map(r=><option key={r.id} value={r.id}>{r.name} · {r.capacity} мест</option>)}</select></label><label>Лимит участников<input name="capacity" type="number" required min={1} max={10000} defaultValue={activity?.capacity??rooms[0]?.capacity??30}/></label></div>
-    <p className="muted small">При переносе проверим занятость аудитории и расписания всех записанных участников. Изменение с конфликтами будет отклонено.</p>
-    <FormError error={error}/><div className="form-footer"><Submit busy={busy} label={activity?"Сохранить изменения":"Добавить активность"}/></div>
-  </form>;
 }
