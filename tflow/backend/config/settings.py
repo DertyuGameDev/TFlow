@@ -143,6 +143,10 @@ TFLOW_DNS_HOOK_SECRET = os.environ.get("TFLOW_DNS_HOOK_SECRET", "")
 TFLOW_DUCKDNS_TOKEN = os.environ.get("TFLOW_DUCKDNS_TOKEN", "")
 LIVEKIT_API_KEY = os.environ.get("LIVEKIT_API_KEY", "devkey" if DEBUG else "")
 LIVEKIT_API_SECRET = os.environ.get("LIVEKIT_API_SECRET", "secret" if DEBUG else "")
+HTTP_BROADCAST_ENABLED = os.environ.get("TFLOW_HTTP_BROADCAST", "0") == "1" and not IS_VERCEL
+HTTP_BROADCAST_ROOT = Path(os.environ.get("TFLOW_HTTP_BROADCAST_ROOT", str(DATA_DIR / "broadcasts")))
+HTTP_BROADCAST_MAX_STREAMS = 2
+HTTP_BROADCAST_FFMPEG = os.environ.get("TFLOW_FFMPEG", "ffmpeg")
 EMAIL_BACKEND = "django.core.mail.backends.smtp.EmailBackend"
 EMAIL_HOST = os.environ.get("EMAIL_HOST", "smtp.yandex.ru")
 EMAIL_PORT = int(os.environ.get("EMAIL_PORT", "465"))

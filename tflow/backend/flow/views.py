@@ -227,6 +227,9 @@ def dispatch_api(request, path):
     if path == "version" and method == "GET":
         from .release_info import release_info
         return JsonResponse(release_info())
+    if path == "broadcast-health" and method == "GET":
+        from .broadcasts import worker_ready
+        return JsonResponse({"enabled": settings.HTTP_BROADCAST_ENABLED, "ready": worker_ready()})
     if path == "profile/qr" and method == "GET":
         from io import BytesIO
         import qrcode

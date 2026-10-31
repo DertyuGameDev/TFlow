@@ -16,6 +16,7 @@ jobs:
         with:
           python-version: '3.12'
       - run: python -m pip install -r tflow/backend/requirements.lock.txt
+      - run: sudo apt-get update -qq && sudo apt-get install -y --no-install-recommends ffmpeg
       - run: npm ci
         working-directory: tflow
       - run: npm run check && npm run test:frontend && npm run build

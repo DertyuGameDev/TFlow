@@ -12,9 +12,12 @@ import tarfile
 import time
 import urllib.request
 from runtime_check import verify_runtime
+from broadcast_service import prepare_service, enabled_environment, ensure_no_live_broadcast
 
 if os.geteuid() != 0 or len(sys.argv) != 3:
     raise SystemExit("Usage: sudo python3 install-release.py <manifest.json> <tflow-release.tar.gz>")
+# A deployment must never restart an encoder during a live webinar.
+ensure_no_live_broadcast()
 manifest = json.loads(Path(sys.argv[1]).read_text())
 archive = Path(sys.argv[2])
 sha = manifest.get("commit", "")
@@ -70,6 +73,17 @@ with os.fdopen(fd, "wb") as stream:
     run("runuser", "-u", "postgres", "--", "pg_dump", "--format=custom", "tflow", stdout=stream)
 as_app(python, app / "manage.py", "migrate", "--noinput")
 as_app(python, app / "manage.py", "collectstatic", "--noinput")
+# Prepare dependencies before changing the running release. Failure here leaves
+# the existing application and all its services running.
+prepare_service()
+env_path = Path("/etc/tflow/app.env")
+env_before = env_path.read_text()
+env_backup = Path("/var/backups/tflow") / f"{stamp}-{sha[:8]}-app.env"
+descriptor = os.open(env_backup, os.O_WRONLY | os.O_CREAT | os.O_EXCL, 0o600)
+with os.fdopen(descriptor, "w") as stream:
+    stream.write(env_before)
+env_path.write_text(enabled_environment(env_before)); env_path.chmod(0o600)
+environment["TFLOW_HTTP_BROADCAST"] = "1"
 run("chown", "-hR", "root:root", str(release))
 run("chmod", "-R", "go-w", str(release))
 
@@ -79,22 +93,36 @@ candidate = root / "current.next"
 candidate.unlink(missing_ok=True)
 candidate.symlink_to(release, target_is_directory=True)
 candidate.replace(current)
-run("systemctl", "restart", "tflow")
-host = environment["DJANGO_ALLOWED_HOSTS"].split(",")[0]
-for attempt in range(30):
-    try:
-        req = urllib.request.Request("http://127.0.0.1:8000/api/health", headers={"Host": host, "X-Forwarded-Proto": "https"})
-        with urllib.request.urlopen(req, timeout=2) as response:
-            if response.status == 200:
-                verify_runtime(manifest, host)
-                (root / "deployed.json").write_text(json.dumps(manifest, indent=2) + "\n")
-                print(f"Release {sha} is healthy at https://{host}")
-                break
-    except Exception:
-        time.sleep(1)
-else:
-    if previous:
-        candidate.symlink_to(previous, target_is_directory=True)
-        candidate.replace(current)
-        run("systemctl", "restart", "tflow")
-    raise SystemExit("Health check failed; previous application release restored when available. Database backup retained.")
+healthy = False
+try:
+    run("systemctl", "restart", "tflow-broadcast")
+    run("systemctl", "restart", "tflow")
+    host = environment["DJANGO_ALLOWED_HOSTS"].split(",")[0]
+    for attempt in range(30):
+        try:
+            req = urllib.request.Request("http://127.0.0.1:8000/api/health", headers={"Host": host, "X-Forwarded-Proto": "https"})
+            with urllib.request.urlopen(req, timeout=2) as response:
+                if response.status == 200:
+                    verify_runtime(manifest, host)
+                    heartbeat = Path("/var/lib/tflow/broadcasts/worker")
+                    if not heartbeat.exists() or time.time() - heartbeat.stat().st_mtime > 10:
+                        raise RuntimeError("HTTPS encoder worker is not ready")
+                    (root / "deployed.json").write_text(json.dumps(manifest, indent=2) + "\n")
+                    print(f"Release {sha} is healthy at https://{host}")
+                    healthy = True
+                    break
+        except Exception:
+            time.sleep(1)
+finally:
+    if not healthy:
+        if previous:
+            subprocess.run(["systemctl", "stop", "tflow-broadcast"], check=False)
+            env_path.write_text(env_before); env_path.chmod(0o600)
+            candidate.symlink_to(previous, target_is_directory=True)
+            candidate.replace(current)
+            run("systemctl", "restart", "tflow")
+            if (previous / "tflow/backend/flow/management/commands/run_broadcast_worker.py").exists():
+                run("systemctl", "restart", "tflow-broadcast")
+            else:
+                subprocess.run(["systemctl", "disable", "tflow-broadcast"], check=False)
+        raise SystemExit("Health check failed; previous application release restored when available. Database backup retained.")

@@ -88,6 +88,9 @@ def event_for_webinar(user, event_id, *, activity_id=None, access_key=None):
 
 
 def status(user, event_id, *, activity_id=None, access_key=None):
+    if settings.HTTP_BROADCAST_ENABLED:
+        from .broadcasts import status as http_status
+        return http_status(user, event_id, activity_id=activity_id, access_key=access_key)
     event, owner, activity = event_for_webinar(user, event_id, activity_id=activity_id, access_key=access_key)
     webinar = Webinar.objects.filter(event=event, activity=activity).first()
     return {
@@ -170,6 +173,11 @@ def room_api(method, room, **values):
 
 
 def stop_webinar(event, *, activity_id=None, all_rooms=False):
+    from .models import HttpBroadcast
+    broadcasts = HttpBroadcast.objects.filter(event=event, active=True)
+    if not all_rooms:
+        broadcasts = broadcasts.filter(activity_id=activity_id)
+    broadcasts.update(active=False, publisher_hash="")
     webinars = Webinar.objects.filter(event=event, active=True)
     if not all_rooms:
         webinars = webinars.filter(activity_id=activity_id)

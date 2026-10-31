@@ -3,6 +3,7 @@
 from datetime import timedelta
 from ipaddress import ip_address, ip_network
 from math import ceil
+import re
 
 from django.conf import settings
 from django.core.files.uploadhandler import FileUploadHandler, StopUpload
@@ -51,6 +52,8 @@ class RequestLimitsMiddleware:
             limit = None
             if avatar:
                 limit = MAX_AVATAR_BODY
+            elif re.fullmatch(r"/api/broadcasts/[0-9a-f-]{36}/chunks/[0-9]+", path):
+                limit = 2 * 1024 * 1024
             elif path.startswith("/api/"):
                 configured = settings.DATA_UPLOAD_MAX_MEMORY_SIZE
                 limit = (

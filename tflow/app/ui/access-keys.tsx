@@ -102,7 +102,7 @@ export function KeyAccessPage({ user, send }: { user: UserIdentity | null; send:
       </header>
       {scope.purpose === "scan" ? <QRScanner event={scope.event} events={[]} activities={scope.scan_activities??[]} endpoint="access-keys/check-in" send={delegatedSend} onScan={() => {}}/>
         : user && scope.activity && <><p className="access-key-help">Вы можете вести только этот флоу. Для входа в другом браузере откройте «Доступ по ключу» и введите тот же ключ.</p>
-          <Suspense fallback={<p role="status">Открываем студию…</p>}><Webinar key={credential} event={scope.event} activity={scope.activity} user={user} send={delegatedSend} delegated/></Suspense></>}
+          <Suspense fallback={<p role="status">Открываем студию…</p>}><Webinar key={credential} event={scope.event} activity={scope.activity} user={user} send={delegatedSend} delegated broadcastAccessKey={credential}/></Suspense></>}
     </>}
   </section>;
 }

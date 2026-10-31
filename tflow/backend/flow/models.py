@@ -174,6 +174,31 @@ class Webinar(models.Model):
         )]
 
 
+class HttpBroadcast(models.Model):
+    event = models.ForeignKey(Event, on_delete=models.CASCADE, related_name="http_broadcasts")
+    activity = models.OneToOneField("Activity", on_delete=models.CASCADE, null=True, blank=True)
+    session = models.UUIDField(default=uuid.uuid4, unique=True)
+    active = models.BooleanField(default=False)
+    started_at = models.DateTimeField(null=True)
+    last_chunk_at = models.DateTimeField(null=True)
+    received_seq = models.IntegerField(default=-1)
+    last_digest = models.CharField(max_length=64, blank=True)
+    publisher_hash = models.CharField(max_length=64, blank=True)
+    mime = models.CharField(max_length=24, default="video/webm")
+    failure = models.CharField(max_length=32, blank=True)
+
+    class Meta:
+        constraints = [models.UniqueConstraint(fields=["event"], condition=Q(activity__isnull=True), name="one_http_broadcast_per_event")]
+
+
+class BroadcastMessage(models.Model):
+    broadcast = models.ForeignKey(HttpBroadcast, on_delete=models.CASCADE, related_name="messages")
+    session = models.UUIDField()
+    author = models.ForeignKey(User, on_delete=models.CASCADE)
+    text = models.CharField(max_length=1000)
+    created_at = models.DateTimeField(auto_now_add=True)
+
+
 class Room(models.Model):
     id = models.CharField(primary_key=True, max_length=100, default=new_id)
     event = models.ForeignKey(Event, on_delete=models.CASCADE, related_name="rooms")

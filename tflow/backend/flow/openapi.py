@@ -358,6 +358,23 @@ def build_schema():
 
     add("/health", "get", "Проверка сервера", "Общее", public=True)
     add("/version", "get", "Версия запущенного приложения", "Общее", public=True)
+    add("/broadcast-health", "get", "Готовность HTTPS-трансляции", "Общее", public=True)
+    for resource, identifier in [("events", "event_id"), ("activities", "activity_id")]:
+        endpoint = f"/{resource}/{{{identifier}}}/broadcast"
+        add(endpoint, "get", "Состояние HTTPS-эфира", "Вебинары", result={"type":"object"},
+            description="Нужна регистрация на событие и, когда предусмотрено, на активность. Ключ ведущего передаётся в X-TFlow-Access-Key, не в URL.")
+        add(endpoint, "post", "Запустить или завершить HTTPS-эфир", "Вебинары",
+            body=object_schema({"operation":{"type":"string","enum":["start","end"]},"mime":{"type":"string","enum":["video/webm","video/mp4"]},"session":{"type":"string","format":"uuid"}}, ["operation"]),
+            description="Только ведущий; CSRF обязателен. При start возвращается приватный publisher для заголовка X-TFlow-Publisher. end требует текущую session.")
+    add("/broadcasts/{session}/chunks/{sequence}", "post", "Передать очередной видеофрагмент", "Вебинары",
+        body={"type":"string","format":"binary"}, content_type="application/octet-stream",
+        description="Только активная студия ведущего: CSRF и X-TFlow-Publisher. До 2 MiB, строгий порядок с 0, точный повтор последнего фрагмента идемпотентен. 429 означает заполненный буфер.")
+    add("/broadcasts/{session}/media/{filename}", "get", "Получить приватный HLS-плейлист или сегмент", "Вебинары", binary="application/octet-stream",
+        description="Доступ проверяется при каждом запросе. Только index.m3u8 и segment-NNNNNNNNN.ts. Получение медиасегмента подтверждает посещение; один запрос статуса этого не делает.")
+    for method in ("get", "post"):
+        add("/broadcasts/{session}/chat", method, "Чат HTTPS-эфира", "Вебинары",
+            body=object_schema({"text":{"type":"string","maxLength":1000}}, ["text"]) if method == "post" else None,
+            description="Сообщения текущей сессии, максимум 100. Автор берётся из аккаунта; отправка не чаще раза в секунду.")
     add(
         "/auth/me",
         "get",

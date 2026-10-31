@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState } from "react";
+import { lazy, Suspense, useEffect, useRef, useState } from "react";
 import {
   LogOut,
   Copy,
@@ -32,8 +32,10 @@ import { webinarConnectionIssue } from "../../lib/webinars";
 import { FormError, type Send } from "./forms";
 import { Modal } from "./dialog";
 import "../webinar.css";
+const HttpWebinar = lazy(() => import("./http-webinar"));
 
 type Status = {
+  transport?: string;
   configured: boolean;
   configuration_error?: string;
   host: boolean;
@@ -77,12 +79,14 @@ export default function Webinar({
   event,
   activity,
   delegated = false,
+  broadcastAccessKey,
   user,
   send,
 }: {
   event: FlowEvent;
   activity?: Activity;
   delegated?: boolean;
+  broadcastAccessKey?: string;
   user: UserIdentity;
   send: Send;
 }) {
@@ -446,6 +450,7 @@ export default function Webinar({
     return () => { current = false; room.off(RoomEvent.MediaDevicesChanged, load); };
   }, [room, host, microphoneEnabled]);
   void tick;
+  if (status?.transport === "https") return <Suspense fallback={<p role="status">Открываем трансляцию…</p>}><HttpWebinar event={event} activity={activity} initialStatus={status} accessKey={broadcastAccessKey}/></Suspense>;
   return (
     <section
       id={`webinar-${activity?.id ?? event.id}`}
