@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useRef, useState } from "react";
 import type { FlowEvent } from "../../lib/types";
 import { Modal } from "./dialog";
 import { FormError } from "./forms";
@@ -16,6 +16,7 @@ export function EventRemovalDialog({
 }) {
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState("");
+  const cancelButton = useRef<HTMLButtonElement>(null);
   async function confirm() {
     if (busy) return;
     setBusy(true);
@@ -32,6 +33,7 @@ export function EventRemovalDialog({
       title={deleting ? "Удалить мероприятие?" : "Отменить регистрацию?"}
       dismissible={!busy}
       onClose={onClose}
+      initialFocusRef={cancelButton}
     >
       <p className="confirmation-event-name">{event.title}</p>
       <p className="confirmation-copy">
@@ -50,7 +52,7 @@ export function EventRemovalDialog({
           className="button secondary"
           disabled={busy}
           onClick={onClose}
-          autoFocus
+          ref={cancelButton}
         >
           {deleting ? "Оставить мероприятие" : "Оставить регистрацию"}
         </button>

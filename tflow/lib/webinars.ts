@@ -10,6 +10,6 @@ export const canEnterWebinar = (
 ) =>
   hasWebinar(event) &&
   event.status === "published" &&
-  event.ends_at >= now &&
+  event.ends_at > now &&
   !!userId &&
   (event.enrolled > 0 || event.owner_id === userId);

@@ -26,6 +26,7 @@ import {
 } from "livekit-client";
 import type { FlowEvent, UserIdentity } from "../../lib/types";
 import { publishScreenShare, screenShareContext, screenShareError, screenShareUnavailable } from "../../lib/screen-share";
+import { microphoneError, microphoneSignal } from "../../lib/audio-level";
 import { FormError, type Send } from "./forms";
 import { Modal } from "./dialog";
 import "../webinar.css";
@@ -99,6 +100,8 @@ export default function Webinar({
   const [screenPending, setScreenPending] = useState(false);
   const [screenFailed, setScreenFailed] = useState(false);
   const [copyFeedback, setCopyFeedback] = useState("");
+  const [microphones, setMicrophones] = useState<MediaDeviceInfo[]>([]);
+  const [microphoneId, setMicrophoneId] = useState("default");
   const screenOperation = useRef<symbol | null>(null);
   const screenUnavailable = screenShareUnavailable(captureContext);
   const roomUrl = `${location.origin}/#webinar/${encodeURIComponent(event.id)}`;
@@ -196,11 +199,13 @@ export default function Webinar({
     statusSequence.current++;
     let room: Room | null = null;
     try {
+      // Unlock playback during the click, before token and connection requests.
+      room = new Room({ adaptiveStream: true, dynacast: true });
+      void room.startAudio().catch(() => {});
       const access = (await send(`events/${event.id}/webinar`, "POST", {
         operation: host ? "start" : "join",
       })) as Access;
-      if (!alive.current) return;
-      room = new Room({ adaptiveStream: true, dynacast: true });
+      if (!alive.current) { await room.disconnect(); return; }
       roomRef.current = room;
       session.current = access.session;
       room
@@ -214,6 +219,7 @@ export default function Webinar({
         .on(RoomEvent.TrackUnmuted, update)
         .on(RoomEvent.ParticipantConnected, update)
         .on(RoomEvent.ParticipantDisconnected, update)
+        .on(RoomEvent.ActiveSpeakersChanged, update)
         .on(RoomEvent.TrackSubscriptionFailed, () => setError("Не удалось получить видео ведущего. Выйдите из комнаты и подключитесь снова."))
         .on(RoomEvent.DataReceived, receive)
         .on(RoomEvent.AudioPlaybackStatusChanged, () =>
@@ -236,6 +242,7 @@ export default function Webinar({
         return;
       }
       setConnected(true);
+      setAudioBlocked(!room.canPlaybackAudio);
       setStatus({
         configured: true,
         host,
@@ -278,14 +285,25 @@ export default function Webinar({
         await local.setCameraEnabled(!local.isCameraEnabled);
       else
         await local.setMicrophoneEnabled(!local.isMicrophoneEnabled);
-    } catch {
+    } catch (cause) {
       setError(
-        "Не удалось включить устройство или показ экрана. Проверьте разрешения браузера.",
+        kind === "microphone" ? microphoneError(cause) : "Не удалось включить камеру. Проверьте разрешение браузера.",
       );
     } finally {
       setDeviceBusy(false);
       update();
     }
+  }
+  async function selectMicrophone(deviceId: string) {
+    const room = roomRef.current;
+    if (!room || !host || deviceBusy) return;
+    setDeviceBusy(true);
+    setError("");
+    try {
+      await room.switchActiveDevice("audioinput", deviceId);
+      if (roomRef.current === room) setMicrophoneId(deviceId);
+    } catch (cause) { setError(microphoneError(cause)); }
+    finally { setDeviceBusy(false); update(); }
   }
   async function shareScreen() {
     const room = roomRef.current;
@@ -381,6 +399,20 @@ export default function Webinar({
     : [...(presenter?.audioTrackPublications.values() ?? [])]
         .map((publication) => publication.track)
         .filter((track): track is NonNullable<typeof track> => !!track);
+  const microphoneEnabled = !!presenter?.isMicrophoneEnabled;
+  const signal = microphoneSignal(microphoneEnabled, presenter?.audioLevel ?? 0, presenter?.isSpeaking ?? false);
+  useEffect(() => {
+    if (!room || !host || !microphoneEnabled) return;
+    let current = true;
+    const load = () => {
+      void Room.getLocalDevices("audioinput", false).then(devices => {
+        if (current) setMicrophones(devices.filter(device => device.deviceId && device.deviceId !== "default"));
+      }).catch(() => {});
+    };
+    load();
+    room.on(RoomEvent.MediaDevicesChanged, load);
+    return () => { current = false; room.off(RoomEvent.MediaDevicesChanged, load); };
+  }, [room, host, microphoneEnabled]);
   void tick;
   return (
     <section
@@ -494,6 +526,15 @@ export default function Webinar({
               {audio.map((track) => (
                 <Media key={track.sid} track={track} />
               ))}
+              <div className={`webinar-audio-status ${signal.active ? "is-speaking" : ""}`}>
+                {microphoneEnabled ? <Mic size={16} /> : <MicOff size={16} />}
+                <span>{!microphoneEnabled
+                  ? host ? "Микрофон выключен" : "Микрофон ведущего выключен"
+                  : signal.active ? host ? "Ваш голос передаётся" : "Ведущий говорит" : "Микрофон включён"}</span>
+                <span className="webinar-audio-meter" role="meter" aria-label={host ? "Уровень микрофона" : "Уровень голоса ведущего"} aria-valuemin={0} aria-valuemax={5} aria-valuenow={signal.bars}>
+                  {[1, 2, 3, 4, 5].map(bar => <i key={bar} className={bar <= signal.bars ? "active" : ""} />)}
+                </span>
+              </div>
               <button
                 className="webinar-fullscreen"
                 aria-label="На весь экран"
@@ -513,7 +554,7 @@ export default function Webinar({
             {audioBlocked && (
               <button
                 className="button secondary"
-                onClick={() => void room?.startAudio()}
+                onClick={() => void room?.startAudio().catch(() => setError("Браузер не разрешил воспроизвести звук. Проверьте, что звук вкладки включён, и попробуйте ещё раз."))}
               >
                 <Volume2 size={18} />
                 Включить звук
@@ -523,7 +564,8 @@ export default function Webinar({
               {host && (
                 <>
                   <button
-                    className="button secondary"
+                    className={`button secondary webinar-microphone ${microphoneEnabled ? "is-enabled" : ""} ${signal.active ? "is-speaking" : ""}`}
+                    aria-pressed={microphoneEnabled}
                     disabled={busy || deviceBusy}
                     onClick={() => void control("microphone")}
                   >
@@ -587,6 +629,13 @@ export default function Webinar({
                 </button>
               )}
             </div>
+            {host && microphoneEnabled && <div className="webinar-microphone-settings">
+              <label>Микрофон<select aria-label="Выбрать микрофон" value={microphoneId} disabled={deviceBusy} onChange={event => void selectMicrophone(event.target.value)}>
+                <option value="default">По умолчанию в системе</option>
+                {microphones.map((device, index) => <option key={device.deviceId} value={device.deviceId}>{device.label || `Микрофон ${index + 1}`}</option>)}
+              </select></label>
+              <p>При разговоре индикатор становится зелёным. Если он не реагирует, проверьте выбранный микрофон и его громкость в системе.</p>
+            </div>}
             {host && <div className="webinar-screen-help">
               <p>{screenUnavailable ?? (screenPending
                 ? "Выберите окно или вкладку в окне браузера. Если выбор не появился в предпросмотре VS Code, откройте комнату в обычном браузере."
