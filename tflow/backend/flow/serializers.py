@@ -64,7 +64,7 @@ def profile(user):
 
 def visible_events(user):
     condition = Q(status="published")
-    if user.is_authenticated:
+    if user.is_authenticated and user.role == "organizer":
         condition |= Q(owner=user)
     return (
         Event.objects.filter(condition)
@@ -225,6 +225,7 @@ def notice_json(notice):
 
 
 def bootstrap(user):
+    participant = user.is_authenticated and user.role == "participant"
     communities = Community.objects.annotate(
         member_count=Count("memberships", distinct=True),
         event_count=Count("event", filter=Q(event__status="published"), distinct=True),
@@ -237,12 +238,12 @@ def bootstrap(user):
     ).order_by("name")
     schedule = (
         activities_for(user).filter(registrations__user=user)
-        if user.is_authenticated
+        if participant
         else []
     )
     waitlist = (
         activities_for(user).filter(waitlist__user=user)
-        if user.is_authenticated
+        if participant
         else []
     )
     notifications = user.notifications.all()[:50] if user.is_authenticated else []
@@ -276,7 +277,7 @@ def bootstrap(user):
                 event_json(event)
                 for event in visible_events(user).filter(enrollments__user=user)
             ]
-            if user.is_authenticated
+            if participant
             else []
         ),
     }

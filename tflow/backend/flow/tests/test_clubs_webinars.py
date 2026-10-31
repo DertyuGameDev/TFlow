@@ -153,6 +153,22 @@ class WebinarTests(Scenario, TestCase):
             self.path, "post", {"operation": "start"}, client=self.stranger, status=403
         )
 
+    def test_legacy_ticket_does_not_let_organizer_enter_as_viewer(self):
+        self.other.role = "organizer"
+        self.other.save(update_fields=["role"])
+        EventRegistration.objects.create(user=self.other, event=self.event)
+        self.request(self.path, client=self.stranger, status=403, code="FORBIDDEN")
+        for operation in ["join", "start", "end"]:
+            self.request(self.path, "post", {"operation": operation},
+                         client=self.stranger, status=403, code="FORBIDDEN")
+
+    def test_participant_does_not_get_host_rights_from_event_ownership(self):
+        self.event.owner = self.person
+        self.event.save(update_fields=["owner"])
+        self.assertFalse(self.request(self.path, client=self.participant)["host"])
+        self.request(self.path, "post", {"operation": "start", "host": True},
+                     client=self.participant, status=403, code="FORBIDDEN")
+
     @patch("flow.webinars.room_api", return_value={})
     def test_start_is_idempotent_end_disconnects_and_restart_has_new_room(self, media):
         first = self.request(self.path, "post", {"operation": "start"})

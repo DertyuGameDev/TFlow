@@ -83,6 +83,7 @@ export default function Webinar({
   const [status, setStatus] = useState<Status | null>(null),
     [connected, setConnected] = useState(false),
     [busy, setBusy] = useState(false),
+    [deviceBusy, setDeviceBusy] = useState(false),
     [error, setError] = useState(""),
     [tick, setTick] = useState(0),
     [confirmEnd, setConfirmEnd] = useState(false);
@@ -90,7 +91,7 @@ export default function Webinar({
     [draft, setDraft] = useState(""),
     [chatBusy, setChatBusy] = useState(false),
     [audioBlocked, setAudioBlocked] = useState(false);
-  const host = event.owner_id === user.userId;
+  const host = user.role === "organizer" && event.owner_id === user.userId;
   function update() {
     if (alive.current) setTick((value) => value + 1);
   }
@@ -225,20 +226,6 @@ export default function Webinar({
         published: true,
       });
       update();
-      if (host) {
-        const results = await Promise.allSettled([
-          room.localParticipant.setCameraEnabled(true),
-          room.localParticipant.setMicrophoneEnabled(true),
-        ]);
-        if (
-          alive.current &&
-          results.some((result) => result.status === "rejected")
-        )
-          setError(
-            "Не удалось включить камеру или микрофон. Разрешите доступ в браузере или включите устройство кнопкой ниже.",
-          );
-        update();
-      }
     } catch (cause) {
       if (room) await room.disconnect();
       if (alive.current) {
@@ -263,8 +250,8 @@ export default function Webinar({
   }
   async function control(kind: "camera" | "microphone" | "screen") {
     const room = roomRef.current;
-    if (!room || busy) return;
-    setBusy(true);
+    if (!room || busy || deviceBusy || !host) return;
+    setDeviceBusy(true);
     setError("");
     try {
       const local = room.localParticipant;
@@ -281,7 +268,7 @@ export default function Webinar({
         "Не удалось включить устройство или показ экрана. Проверьте разрешения браузера.",
       );
     } finally {
-      setBusy(false);
+      setDeviceBusy(false);
       update();
     }
   }
@@ -398,7 +385,7 @@ export default function Webinar({
                         ? "Предыдущий эфир завершён. Вы можете начать новую трансляцию."
                         : "Ведущий завершил эфир."
                       : host
-                        ? "Камеру и микрофон можно включать и выключать во время выступления."
+                        ? "Вы войдёте с выключенными камерой и микрофоном. Включите их кнопками, когда будете готовы."
                         : status?.active
                           ? "Ваши камера и микрофон останутся выключенными."
                           : "Когда организатор начнёт эфир, кнопка входа станет доступна."}
@@ -486,7 +473,7 @@ export default function Webinar({
                 <>
                   <button
                     className="button secondary"
-                    disabled={busy}
+                    disabled={busy || deviceBusy}
                     onClick={() => void control("microphone")}
                   >
                     {room?.localParticipant.isMicrophoneEnabled ? (
@@ -502,7 +489,7 @@ export default function Webinar({
                   </button>
                   <button
                     className="button secondary"
-                    disabled={busy}
+                    disabled={busy || deviceBusy}
                     onClick={() => void control("camera")}
                   >
                     {room?.localParticipant.isCameraEnabled ? (
@@ -518,7 +505,7 @@ export default function Webinar({
                   </button>
                   <button
                     className="button secondary"
-                    disabled={busy}
+                    disabled={busy || deviceBusy}
                     onClick={() => void control("screen")}
                   >
                     <MonitorUp size={18} />

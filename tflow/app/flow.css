@@ -634,7 +634,7 @@ body{font-size:16px;color:#222329;background:#fff}
 
 @media(max-width:350px){.flow-app{--mobile-nav-height:84px}}
 
-@media(min-width:761px){.organizer-app .personal-layout{grid-template-columns:minmax(0,370px) minmax(0,1fr)}}
+@media(min-width:761px){.organizer-app .personal-layout{grid-template-columns:minmax(0,1fr);max-width:900px}}
 
 /* Grouped interests stay compact as the catalogue grows. */
 .interest-picker .interest-search{display:grid;gap:7px;margin:10px 0 0;font-size:14px}
@@ -739,3 +739,5 @@ body{font-size:16px;color:#222329;background:#fff}
     gap: 0 18px;
   }
 }
+
+.registration-card>.registration-role-note{display:block;font-size:14px;line-height:1.6}

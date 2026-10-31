@@ -84,6 +84,8 @@ def login_view(request):
 
 @never_cache
 def register_view(request):
+    if request.user.is_authenticated:
+        return redirect(safe_next(request))
     initial_role = (
         "organizer" if request.GET.get("role") == "organizer" else "participant"
     )
@@ -186,6 +188,7 @@ def dispatch_api(request, path):
         import qrcode
 
         user = require_user(request)
+        services.require_participant(user)
         output = BytesIO()
         qrcode.make(
             request.build_absolute_uri(f"/#pass/{user.pass_token}"),
@@ -236,6 +239,7 @@ def dispatch_api(request, path):
             )
         if path == "schedule/calendar":
             user = require_user(request)
+            services.require_participant(user)
             activities = Activity.objects.filter(
                 registrations__user=user
             ).select_related("event", "room")
@@ -352,8 +356,7 @@ def dispatch_api(request, path):
                 "VALIDATION", "Поля формы должны содержать простые значения", 400
             )
     if path == "profile/become-organizer" and method == "POST":
-        services.become_organizer(user)
-        return JsonResponse({"user": identity(user)})
+        raise FlowError("ROLE_FIXED", "Роль выбирается при регистрации и не может быть изменена", 403)
     elif path == "profile" and method == "PATCH":
         services.save_profile(user, body)
     elif path == "notifications" and method == "PATCH":

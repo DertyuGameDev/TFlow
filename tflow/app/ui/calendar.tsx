@@ -92,7 +92,7 @@ function SourceFilters({
   return (
     <div className="cal-sources">
       {sources
-        .filter((source) => source.id !== "owned" || showOwned)
+        .filter((source) => showOwned ? source.id === "owned" : source.id !== "owned")
         .map((source) => (
           <label
             className={`cal-source cal-source-${source.id}`}
@@ -157,7 +157,7 @@ export function Calendar({
   const [enabled, setEnabled] = useState(
     () =>
       new Set<CalendarSource>(
-        canCreate ? ["ticket", "activity", "owned"] : ["ticket", "activity"],
+        canCreate ? ["owned"] : ["ticket", "activity"],
       ),
   );
   const [selectedId, setSelectedId] = useState<string | null>(null);
@@ -390,8 +390,7 @@ export function Calendar({
           <div className="cal-sidebar-note">
             <CalendarDays size={20} />
             <p>
-              Здесь ваши записи на события. Прошедшие встречи остаются на своих
-              датах. Время и место обновляются автоматически.
+              {canCreate ? "Здесь события, которые вы организуете." : "Здесь ваши записи на события."} Прошедшие встречи остаются на своих датах. Время и место обновляются автоматически.
             </p>
           </div>
           <span className="cal-timezone">

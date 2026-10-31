@@ -52,11 +52,9 @@ def require_organizer(user):
         raise FlowError("FORBIDDEN", "Это действие доступно только организатору", 403)
 
 
-def become_organizer(user):
-    """Enable event creation on the current account, preserving all other data."""
-    User.objects.filter(pk=user.pk).update(role="organizer")
-    user.role = "organizer"
-    return user
+def require_participant(user):
+    if not user.is_authenticated or user.role != "participant":
+        raise FlowError("FORBIDDEN", "Запись на события доступна только участникам", 403)
 
 
 def profile_updates(user, data):
@@ -379,7 +377,11 @@ def promote_waitlist_locked(activity):
     if free <= 0:
         return
     for entry in activity.waitlist.select_related("user").order_by("id"):
-        if not entry.user.is_active or participant_conflict(entry.user, activity):
+        if (
+            not entry.user.is_active
+            or entry.user.role != "participant"
+            or participant_conflict(entry.user, activity)
+        ):
             continue
         if not EventRegistration.objects.filter(
             user=entry.user, event=activity.event
@@ -413,6 +415,7 @@ def retry_user_waitlists_locked(user):
 
 
 def join_waitlist(user, activity_id, profile_data=None):
+    require_participant(user)
     with schedule_write():
         activity = registration_activity(activity_id)
         if activity.registrations.filter(user=user).exists():
@@ -438,6 +441,7 @@ def leave_waitlist(user, activity_id):
 
 
 def register(user, activity_id, profile_data=None):
+    require_participant(user)
     with schedule_write():
         activity = registration_activity(activity_id)
         if Registration.objects.filter(user=user, activity=activity).exists():
@@ -476,6 +480,7 @@ def cancel(user, activity_id):
 
 
 def enroll_locked(user, event, profile_data=None):
+    require_participant(user)
     if event.status != "published":
         raise FlowError("NOT_PUBLISHED", "Регистрация ещё не открыта")
     if event.ends_at <= timezone.now():
@@ -631,7 +636,7 @@ def attendee_by_qr(user, event_id, raw):
         token = uuid.UUID(value)
     except (ValueError, AttributeError) as error:
         raise FlowError("INVALID_QR", "Это не QR-код участника ТФлоу", 400) from error
-    person = User.objects.filter(pass_token=token, is_active=True).first()
+    person = User.objects.filter(pass_token=token, is_active=True, role="participant").first()
     if not person or not event.enrollments.filter(user=person).exists():
         raise FlowError(
             "NOT_REGISTERED", "Нет регистрации на это мероприятие. Вход не подтверждён"
