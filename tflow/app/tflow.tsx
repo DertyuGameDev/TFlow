@@ -78,7 +78,6 @@ import { OrganizerTutorial } from "./ui/organizer-tutorial";
 import { ProfileUpcomingEvents } from "./ui/profile-upcoming-events";
 import { EventFlows } from "./ui/event-flows";
 import { EventPage } from "./ui/event-page";
-import { CatalogActivities } from "./ui/catalog-activities";
 import { WebinarChannels } from "./ui/webinar-channels";
 import { ThemeToggle } from "./ui/theme-toggle";
 const Webinar = lazy(() => import("./ui/webinar"));
@@ -278,12 +277,10 @@ function EventMeta({ event }: { event: FlowEvent }) {
 }
 function DiscoveryCard({
   event,
-  activities,
   onSave,
   userId,
 }: {
   event: FlowEvent;
-  activities?: Activity[];
   onSave: () => void;
   userId?: string;
 }) {
@@ -341,7 +338,6 @@ function DiscoveryCard({
         {ended ? (
           <span className="event-ended-label"><Clock3 size={14} aria-hidden="true" />Завершено</span>
         ) : <strong>Бесплатно</strong>}
-        {activities && <CatalogActivities activities={activities} />}
         {canEnterWebinar(event, userId) && (
           <button
             className="button secondary webinar-card-entry"
@@ -919,12 +915,6 @@ export function TFlow({ user }: { user: UserIdentity | null }) {
     />
   ) : null;
   const own = data.events.filter((e) => e.owner_id === user?.userId);
-  const catalogActivities = new Map<string, Activity[]>();
-  for (const activity of data.activities ?? []) {
-    const items = catalogActivities.get(activity.event_id) ?? [];
-    items.push(activity);
-    catalogActivities.set(activity.event_id, items);
-  }
   const ownSections = splitOrganizerEvents(own);
   const visibleOwn = ownSections[ownEventSection];
   const catalogNow = eventTime === "now" ? feedNow : Date.now();
@@ -1296,7 +1286,6 @@ export function TFlow({ user }: { user: UserIdentity | null }) {
                     {visible.map((e) => (
                       <DiscoveryCard
                         event={e}
-                        activities={user?.role === "participant" ? catalogActivities.get(e.id) ?? [] : undefined}
                         key={e.id}
                         onSave={() => save(e)}
                         userId={user?.userId}
