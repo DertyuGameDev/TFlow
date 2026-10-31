@@ -153,7 +153,12 @@ provision-owned-video:
   timeout: 15m
   before_script:
     - apt-get update -qq
-    - apt-get install -y --no-install-recommends openssh-client ca-certificates
+    - apt-get install -y --no-install-recommends openssh-client ca-certificates certbot
+  rules:
+    - if: '$CI_PIPELINE_SOURCE == "schedule" && $TFLOW_MEDIA_RENEWAL == "1"'
+      when: on_success
+    - if: '$CI_COMMIT_BRANCH == $CI_DEFAULT_BRANCH'
+      when: manual
   script:
     - python tflow/deploy/spirit/provision_video.py
 
