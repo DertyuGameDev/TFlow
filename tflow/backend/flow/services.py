@@ -128,6 +128,14 @@ def update_event(user, event_id, data):
             raise FlowError(
                 "WEBINAR_ACTIVE", "Завершите эфир перед сменой формата на очный"
             )
+        if (
+            data["format"] == "Очно"
+            and event.activities.filter(room__is_online=True).exists()
+        ):
+            raise FlowError(
+                "ONLINE_PROGRAM",
+                "В программе есть онлайн-пункты. Выберите гибридный формат или перенесите их в очную аудиторию",
+            )
         if event.enrollments.count() > data.get("capacity", event.capacity):
             raise FlowError(
                 "BELOW_REGISTERED",
@@ -333,12 +341,33 @@ def save_activity(user, data, *, event_id=None, activity_id=None):
         data = dict(data)
         new_room_name = data.pop("new_room_name", "")
         new_room_capacity = data.pop("new_room_capacity", None)
+        online_room = data.pop("online_room", False)
         if new_room_name:
             room = Room.objects.create(
                 event=activity.event, name=new_room_name,
                 capacity=new_room_capacity or data["capacity"],
             )
             data["room_id"] = room.pk
+        if online_room:
+            if data.get("room_id"):
+                if not Room.objects.filter(
+                    pk=data["room_id"], event=activity.event, is_online=True
+                ).exists():
+                    raise FlowError(
+                        "INVALID_REFERENCE",
+                        "Выберите онлайн-аудиторию этого мероприятия",
+                        400,
+                    )
+            else:
+                room, _ = Room.objects.get_or_create(
+                    event=activity.event,
+                    is_online=True,
+                    defaults={
+                        "name": "Онлайн",
+                        "capacity": activity.event.capacity,
+                    },
+                )
+                data["room_id"] = room.pk
         if not data.get("room_id"):
             if activity_id:
                 data["room_id"] = activity.room_id
@@ -359,6 +388,7 @@ def save_activity(user, data, *, event_id=None, activity_id=None):
                             else "Основная площадка"
                         ),
                         capacity=activity.event.capacity,
+                        is_online=activity.event.format == "Онлайн",
                     )
                 )
                 data["room_id"] = room.pk
@@ -368,6 +398,11 @@ def save_activity(user, data, *, event_id=None, activity_id=None):
         validate_activity(activity)
         activity.updated_at = timezone.now()
         activity.save()
+        if activity.room.is_online and activity.event.format == "Очно":
+            # Adding the virtual room enables the existing event webinar, while
+            # retaining the physical venue and the rest of the program.
+            activity.event.format = "Гибрид"
+            activity.event.save(update_fields=["format"])
         Event.objects.filter(pk=activity.event_id).update(
             updated_at=activity.updated_at
         )

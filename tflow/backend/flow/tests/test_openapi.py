@@ -36,6 +36,8 @@ class OpenApiTests(TestCase):
         models = schema["components"]["schemas"]
         self.assertIn("new_room_name", models["ActivityInput"]["properties"])
         self.assertNotIn("new_room_name", models["Activity"]["properties"])
+        self.assertEqual(models["ActivityInput"]["properties"]["online_room"]["type"], "boolean")
+        self.assertIn("is_online", models["Room"]["properties"])
         self.assertEqual(models["Subscription"]["properties"]["enabled"]["type"], "boolean")
         self.assertIn("subscribed", models["Community"]["properties"])
         self.assertNotIn("minLength", models["RegisterForm"]["properties"]["first_name"])

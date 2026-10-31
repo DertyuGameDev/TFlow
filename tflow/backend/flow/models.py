@@ -163,14 +163,20 @@ class Room(models.Model):
     event = models.ForeignKey(Event, on_delete=models.CASCADE, related_name="rooms")
     name = models.TextField()
     capacity = models.PositiveBigIntegerField()
+    is_online = models.BooleanField(default=False)
 
     class Meta:
         ordering = ["name", "id"]
         constraints = [
+            models.UniqueConstraint(
+                fields=["event"],
+                condition=Q(is_online=True),
+                name="one_online_room_per_event",
+            ),
             models.CheckConstraint(
                 condition=Q(capacity__gte=1),
                 name="room_valid_capacity",
-            )
+            ),
         ]
 
 

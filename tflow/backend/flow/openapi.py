@@ -50,6 +50,8 @@ def form_schema(form_type):
             value = {"type": "array", "items": {"type": "string", "enum": choice_values(field.choices)}}
         elif isinstance(field, forms.ChoiceField):
             value = {"type": "string", "enum": choice_values(field.choices)}
+        elif isinstance(field, forms.BooleanField):
+            value = {"type": "boolean"}
         elif isinstance(field, forms.IntegerField):
             value = {"type": "integer", "format": "int64"}
             if field.min_value is not None:
@@ -102,9 +104,9 @@ def build_schema():
             "required_profile_fields": schemas["RequirementsInput"]["properties"]["required_profile_fields"],
             "status": {"type": "string", "enum": ["draft", "published"]},
             **{name: number for name in ("participant_count", "checked_in_count", "activity_count", "saved", "enrolled", "checked_in", "updated_at")}}),
-        "Room": object_schema({"id": text, "event_id": text, "name": text, "capacity": number}),
+        "Room": object_schema({"id": text, "event_id": text, "name": text, "capacity": number, "is_online": {"type": "boolean"}}),
         "Activity": object_schema({**schemas["ActivityInput"]["properties"],
-            "id": text, "event_id": text, "room_name": text,
+            "id": text, "event_id": text, "room_name": text, "room_is_online": {"type": "boolean"},
             **{name: number for name in ("taken", "registered", "waiting_count", "waitlisted", "waitlist_position", "updated_at")}}),
         "Community": object_schema({**schemas["CommunityInput"]["properties"],
             "id": text, "owner_id": {"type": "string", "nullable": True}, "color": text,
@@ -123,6 +125,7 @@ def build_schema():
     # Room creation fields are input-only; stored activities reference the saved room.
     schemas["Activity"]["properties"].pop("new_room_name")
     schemas["Activity"]["properties"].pop("new_room_capacity")
+    schemas["Activity"]["properties"].pop("online_room")
     array = lambda name: {"type": "array", "items": ref(name)}
     schemas["EventDetail"] = object_schema({"event": ref("Event"), "rooms": array("Room"), "activities": array("Activity")})
     schemas["Bootstrap"] = object_schema({"events": array("Event"), "tickets": array("Event"),
@@ -185,7 +188,7 @@ def build_schema():
     add("/events/{event_id}/rooms", "post", "Создать аудиторию", "Программа", body="RoomInput", result="Created", status="201")
     add("/rooms/{room_id}", "patch", "Изменить аудиторию", "Программа", body="RoomInput")
     add("/events/{event_id}/activities", "post", "Создать пункт программы и аудиторию", "Программа", body="ActivityInput", result="Created", status="201",
-        description="Владелец события. Для новой аудитории передайте new_room_name и new_room_capacity вместо room_id. При ошибке откатываются оба объекта.")
+        description="Владелец события. Для новой очной аудитории передайте new_room_name и new_room_capacity вместо room_id. Для единственного онлайн-потока передайте online_room=true. При ошибке откатываются все изменения.")
     add("/activities/{activity_id}", "patch", "Изменить пункт программы", "Программа", body="ActivityInput")
     add("/events/{event_id}/attendance", "get", "Участники и анкеты", "Участники", result=array("Attendance"), description="Только владелец события. Данные, переданные при записи.")
     add("/events/{event_id}/participants", "get", "Записи участников на активности", "Участники", result={"type": "array", "items": {"type": "object"}})

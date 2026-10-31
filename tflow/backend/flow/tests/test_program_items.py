@@ -172,3 +172,22 @@ class ProgramItemTests(Scenario, TestCase):
     def test_unauthorized_inline_creation_does_not_leave_room(self):
         self.request(self.path, "post", {**self.body, "new_room_name": "Чужой зал"}, client=self.participant, status=403)
         self.assertFalse(self.event.rooms.exists())
+
+    def test_named_rooms_and_single_online_room_can_coexist_in_same_time_slot(self):
+        first = self.request(self.path, "post", {**self.body, "new_room_name": "Практика"}, status=201)
+        online = self.request(self.path, "post", {**self.body, "online_room": True}, status=201)
+        second = self.request(self.path, "post", {**self.body, "new_room_name": "Обсуждение"}, status=201)
+        self.assertFalse(Activity.objects.get(pk=first["id"]).room.is_online)
+        self.assertTrue(Activity.objects.get(pk=online["id"]).room.is_online)
+        self.assertFalse(Activity.objects.get(pk=second["id"]).room.is_online)
+        self.assertEqual(self.event.rooms.filter(is_online=True).count(), 1)
+        self.assertEqual(self.event.rooms.count(), 3)
+        self.event.refresh_from_db()
+        self.assertEqual(self.event.format, "Гибрид")
+
+    def test_online_stream_and_named_physical_room_cannot_be_requested_together(self):
+        self.request(self.path, "post", {
+            **self.body, "new_room_name": "Новый зал", "online_room": True,
+        }, status=400, code="VALIDATION")
+        self.assertFalse(self.event.rooms.exists())
+        self.assertFalse(self.event.activities.exists())

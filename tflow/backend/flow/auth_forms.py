@@ -108,9 +108,13 @@ class RegisterForm(UserCreationForm):
             "password2",
         ]
 
-    def __init__(self, *args, **kwargs):
+    def __init__(self, *args, participant_only=False, **kwargs):
         super().__init__(*args, **kwargs)
         self.demo_mode = settings.DEMO_MODE
+        if participant_only:
+            self.fields["role"].widget = forms.HiddenInput()
+            self.fields["role"].disabled = True
+            self.initial["role"] = "participant"
 
     def save(self, commit=True):
         user = super().save(commit=False)

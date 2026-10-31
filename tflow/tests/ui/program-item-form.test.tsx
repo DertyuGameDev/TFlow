@@ -35,17 +35,34 @@ describe("пункты программы", () => {
   });
 
   it("принимает короткое название и наследует вместимость без ограничения в 10000", async () => {
-    const user = userEvent.setup(), send = vi.fn().mockResolvedValue({ id: "large-item" });
-    render(<ActivityForm event={{ ...event, capacity: 500001 }} rooms={[]} send={send} done={vi.fn()} />);
+    const user = userEvent.setup(),
+      send = vi.fn().mockResolvedValue({ id: "large-item" });
+    render(
+      <ActivityForm
+        event={{ ...event, capacity: 500001 }}
+        rooms={[]}
+        send={send}
+        done={vi.fn()}
+      />,
+    );
     const title = screen.getByLabelText("Название пункта программы");
     expect(title).not.toHaveAttribute("minlength");
     expect(title).not.toHaveAttribute("maxlength");
     await user.type(title, "А");
     expect(screen.getByLabelText("Лимит мест")).toHaveValue(500001);
-    await user.click(screen.getByRole("button", { name: "Добавить в программу" }));
-    await waitFor(() => expect(send).toHaveBeenCalledWith(`events/${event.id}/activities`, "POST", expect.objectContaining({
-      title: "А", capacity: 500001,
-    })));
+    await user.click(
+      screen.getByRole("button", { name: "Добавить в программу" }),
+    );
+    await waitFor(() =>
+      expect(send).toHaveBeenCalledWith(
+        `events/${event.id}/activities`,
+        "POST",
+        expect.objectContaining({
+          title: "А",
+          capacity: 500001,
+        }),
+      ),
+    );
   });
 
   it("добавляет первый пункт одним запросом без предварительного создания аудитории", async () => {
@@ -143,5 +160,108 @@ describe("пункты программы", () => {
     await user.selectOptions(screen.getByLabelText("Аудитория"), "small");
     expect(screen.getByLabelText("Лимит мест")).toHaveValue(10);
     expect(screen.getByLabelText("Лимит мест")).toHaveAttribute("max", "10");
+  });
+
+  it("предлагает отдельный онлайн-поток рядом с очными аудиториями", async () => {
+    const user = userEvent.setup(),
+      send = vi.fn().mockResolvedValue({ id: "online" });
+    render(
+      <ActivityForm
+        event={event}
+        rooms={[
+          {
+            id: "hall",
+            event_id: event.id,
+            name: "Большой зал",
+            capacity: 100,
+          },
+        ]}
+        send={send}
+        done={vi.fn()}
+      />,
+    );
+    await user.type(
+      screen.getByLabelText("Название пункта программы"),
+      "Онлайн-лекция",
+    );
+    await user.selectOptions(
+      screen.getByLabelText("Аудитория"),
+      screen.getByRole("option", { name: "Онлайн · Вебинар внутри ТФлоу" }),
+    );
+    expect(screen.getByText(/Может идти одновременно/)).toHaveTextContent(
+      "Событие станет гибридным",
+    );
+    expect(screen.getByLabelText("Лимит зрителей")).toHaveValue(100);
+    await user.click(
+      screen.getByRole("button", { name: "Добавить в программу" }),
+    );
+    await waitFor(() => expect(send).toHaveBeenCalledOnce());
+    expect(send).toHaveBeenCalledWith(
+      `events/${event.id}/activities`,
+      "POST",
+      expect.objectContaining({
+        room_id: "",
+        online_room: true,
+        starts_at: event.starts_at,
+      }),
+    );
+  });
+
+  it("не возвращает старый потолок мест для новой онлайн-аудитории", () => {
+    render(
+      <ActivityForm
+        event={{ ...event, format: "Онлайн", capacity: 50000 }}
+        rooms={[]}
+        send={vi.fn()}
+        done={vi.fn()}
+      />,
+    );
+    expect(screen.getByLabelText("Лимит зрителей")).toHaveValue(50000);
+    expect(screen.getByLabelText("Лимит зрителей")).toHaveAttribute(
+      "max",
+      "50000",
+    );
+  });
+
+  it("повторно использует онлайн-аудиторию и её лимит без второго варианта в списке", async () => {
+    const user = userEvent.setup(),
+      send = vi.fn().mockResolvedValue({});
+    render(
+      <ActivityForm
+        event={{ ...event, format: "Онлайн" }}
+        rooms={[
+          {
+            id: "virtual",
+            event_id: event.id,
+            name: "Наш эфир",
+            capacity: 25,
+            is_online: true,
+          },
+        ]}
+        send={send}
+        done={vi.fn()}
+      />,
+    );
+    expect(screen.getByLabelText("Аудитория")).toHaveValue("virtual");
+    expect(screen.getAllByRole("option", { name: "Онлайн · Вебинар внутри ТФлоу" })).toHaveLength(1);
+    expect(screen.getByRole("option", { name: "Создать новую аудиторию" })).toBeInTheDocument();
+    expect(screen.getByLabelText("Лимит зрителей")).toHaveValue(25);
+    await user.type(
+      screen.getByLabelText("Название пункта программы"),
+      "Следующий эфир",
+    );
+    await user.click(
+      screen.getByRole("button", { name: "Добавить в программу" }),
+    );
+    await waitFor(() => expect(send).toHaveBeenCalledOnce());
+    expect(send).toHaveBeenCalledWith(
+      expect.any(String),
+      "POST",
+      expect.objectContaining({
+        room_id: "virtual",
+        online_room: true,
+        capacity: 25,
+      }),
+    );
   });
 });

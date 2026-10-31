@@ -75,6 +75,7 @@ class ActivityInput(forms.Form):
     room_id = forms.CharField(required=False)
     new_room_name = forms.CharField(required=False)
     new_room_capacity = forms.IntegerField(required=False, min_value=1, max_value=2**53 - 1)
+    online_room = forms.BooleanField(required=False)
     starts_at = MillisecondsField()
     ends_at = MillisecondsField()
     capacity = forms.IntegerField(min_value=1, max_value=2**53 - 1)
@@ -85,6 +86,8 @@ class ActivityInput(forms.Form):
             self.add_error("room_id", "Выберите существующую аудиторию или создайте новую")
         if data.get("new_room_capacity") and not data.get("new_room_name"):
             self.add_error("new_room_name", "Укажите название новой аудитории")
+        if data.get("online_room") and (data.get("new_room_name") or data.get("new_room_capacity")):
+            self.add_error("new_room_name", "Выберите онлайн-поток или создайте новую очную аудиторию")
         if (
             data.get("starts_at")
             and data.get("ends_at")
