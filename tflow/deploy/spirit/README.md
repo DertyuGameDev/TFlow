@@ -140,3 +140,14 @@ sudo journalctl -u caddy -n 30 --no-pager
 ```sh
 curl --fail -H 'Host: hack-mmk-25-vm1-162f2c.vm.prodcontest.com' -H 'X-Forwarded-Proto: https' http://127.0.0.1:8000/api/health
 ```
+
+
+### Повторная настройка видеосервера
+
+`provision-owned-video` сохраняет API-ключи в приватной конфигурации LiveKit на VM,
+а ключ DNS-релея — в `/etc/tflow-video/dns.json`. При повторном запуске без
+`TFLOW_VIDEO_KEY`, `TFLOW_VIDEO_SECRET`, `TFLOW_DNS_HOOK_SECRET` установщик
+использует эти файлы на самой VM: секреты не возвращаются в CI. При первой
+установке нужно передать все три значения; для смены API-ключей передаются
+оба значения вместе. Ключ DNS-релея должен совпадать с production-переменной
+`TFLOW_DNS_HOOK_SECRET` проекта Vercel `tflow`.
