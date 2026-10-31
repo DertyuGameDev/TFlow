@@ -82,7 +82,7 @@ def event_for_webinar(user, event_id, *, activity_id=None, access_key=None):
         raise FlowError(
             "NOT_REGISTERED", "Сначала зарегистрируйтесь на это событие", 403
         )
-    if activity and not owner and not activity.registrations.filter(user=user).exists():
+    if activity and activity.registration_required and not owner and not activity.registrations.filter(user=user).exists():
         raise FlowError("NOT_REGISTERED", "Сначала запишитесь на эту онлайн-активность", 403)
     return event, owner, activity
 

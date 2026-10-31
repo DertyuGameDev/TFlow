@@ -94,11 +94,11 @@ export function OrganizerProgramList({
                     </p>
                   )}
                   <small>
-                    {item.taken} занято ·{" "}
+                    {item.registration_required === false ? <>Без отдельной записи · в расписании у {item.taken}</> : <>{item.taken} занято ·{" "}
                     {Math.max(0, item.capacity - item.taken)} свободно
                     {item.waiting_count
                       ? ` · в очереди: ${item.waiting_count}`
-                      : ""}
+                      : ""}</>}
                   </small>
                 </div>
                 <div className="management-program-actions">

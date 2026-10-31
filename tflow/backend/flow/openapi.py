@@ -187,6 +187,7 @@ def build_schema():
                     "event_id": text,
                     "room_name": text,
                     "room_is_online": {"type": "boolean"},
+                    "event_enrolled": {"type": "boolean"},
                     **{
                         name: number
                         for name in (

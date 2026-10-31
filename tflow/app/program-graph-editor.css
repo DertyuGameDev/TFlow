@@ -20,6 +20,9 @@
   top: 22px;
 }
 .program-graph-swap { justify-self: start; min-height: 44px; font-size: 13px; }
+.program-graph-registration { display: flex; align-items: center; gap: 8px; min-height: 44px; font-size: 13px; }
+.program-graph-editor .program-graph-registration input { width: 18px; min-height: 18px; height: 18px; flex: none; accent-color: #ffdd2d; }
+.program-graph-editor > small { line-height: 1.5; }
 .timeline-inline-content {
   position: absolute;
   top: 20px;

@@ -17,6 +17,8 @@ export type FlowEvent = {
 };
 export type Room = { id: string; event_id: string; name: string; capacity: number; is_online?: boolean };
 export type Activity = {
+  registration_required?: boolean;
+  event_enrolled?: boolean;
   id: string; event_id: string; room_id: string; title: string; description: string; speaker: string;
   starts_at: number; ends_at: number; capacity: number; updated_at: number; room_name: string;
   taken: number; registered: number; waiting_count: number; waitlisted: number; waitlist_position: number;

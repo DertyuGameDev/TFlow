@@ -203,6 +203,7 @@ class Activity(models.Model):
     starts_at = models.DateTimeField()
     ends_at = models.DateTimeField()
     capacity = models.PositiveBigIntegerField()
+    registration_required = models.BooleanField(default=True)
     updated_at = models.DateTimeField(default=timezone.now)
 
     class Meta:

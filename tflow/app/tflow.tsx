@@ -1012,13 +1012,17 @@ export function TFlow({ user }: { user: UserIdentity | null }) {
     const queue = operation === "join" || operation === "leave";
     const message = {
       register: "Активность добавлена в программу",
-      cancel: "Запись отменена",
+      cancel: a.registration_required === false ? "Активность убрана из расписания" : "Запись отменена",
       join: "Вы в листе ожидания. При появлении места запишем автоматически и уведомим вас.",
       leave: "Вы вышли из листа ожидания",
     }[operation];
     if (!leaving) {
       const event = data.events.find((event) => event.id === a.event_id);
       if (event) {
+        if (a.registration_required === false && !event.enrolled) {
+          void enroll(event);
+          return;
+        }
         void enroll(
           event,
           `activities/${a.id}/${queue ? "waitlist" : "registration"}`,

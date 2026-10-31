@@ -35,6 +35,9 @@ export function ProgramGraphEditor({
   const format = (value: number) =>
     multiDay ? localInput(value) : localInput(value).slice(11);
   const [title, setTitle] = useState(activity?.title ?? "");
+  const [registrationRequired, setRegistrationRequired] = useState(activity?.registration_required !== false);
+  const savedRegistrationRequired = activity?.registration_required;
+  useEffect(() => { setRegistrationRequired(savedRegistrationRequired !== false); }, [savedRegistrationRequired]);
   const [start, setStart] = useState(format(range.starts_at)),
     [end, setEnd] = useState(format(range.ends_at));
   const [roomId, setRoomId] = useState(
@@ -127,6 +130,7 @@ export function ProgramGraphEditor({
         activity ? "PATCH" : "POST",
         {
           title: name,
+          registration_required: registrationRequired,
           ...next,
           room_id: roomId,
           online_room: room
@@ -260,6 +264,11 @@ export function ProgramGraphEditor({
           </button>
         )}
       </div>
+      <label className="program-graph-registration">
+        <input type="checkbox" checked={registrationRequired} disabled={busy} onChange={(event) => setRegistrationRequired(event.target.checked)} />
+        Нужна отдельная запись
+      </label>
+      {!registrationRequired && <small className="muted">Доступна всем участникам мероприятия. Добавление в расписание не бронирует место.</small>}
       {onSwap && <button type="button" className="text-button program-graph-swap" disabled={busy} onClick={onSwap}>
         <ArrowLeftRight size={16} /> Поменять местами
       </button>}

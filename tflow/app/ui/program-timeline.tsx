@@ -67,6 +67,8 @@ export function ProgramTimeline({
   const id = useId();
   const viewport = useRef<HTMLDivElement>(null);
   const canvas = useRef<HTMLDivElement>(null);
+  const inlineContent = useRef<HTMLDivElement>(null);
+  const [inlineHeight, setInlineHeight] = useState(260);
   const [width, setWidth] = useState(720);
   const [chosenDay, setChosenDay] = useState(dateKey(event.starts_at));
   const [roomId, setRoomId] = useState("");
@@ -223,12 +225,22 @@ export function ProgramTimeline({
     axisY +
     (projection.belowRows + (focusedGroup ? 1 : 0)) * 76 +
     24 +
-    (inlineEditor ? 260 : 0);
+    (inlineEditor ? inlineHeight + 60 : 0);
   const inlineId = inlineEditor?.item.id;
   const inlineDay = inlineEditor
     ? dateKey(inlineEditor.item.starts_at)
     : undefined;
   const directEditing = Boolean(onSelect);
+  useEffect(() => {
+    const element = inlineContent.current;
+    if (!inlineId || !element) return;
+    const measure = () => { const height = element.getBoundingClientRect().height; if (height > 0) setInlineHeight(height); };
+    measure();
+    if (typeof ResizeObserver === "undefined") return;
+    const observer = new ResizeObserver(measure);
+    observer.observe(element);
+    return () => observer.disconnect();
+  }, [inlineId]);
   useEffect(() => {
     if (!inlineId || !inlineDay) return;
     setChosenDay(inlineDay);
@@ -607,6 +619,7 @@ export function ProgramTimeline({
                           />
                         </button>
                         <div
+                          ref={inlineContent}
                           className="timeline-inline-content"
                           style={{
                             left: labelLeft - left,

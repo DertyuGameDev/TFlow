@@ -166,6 +166,7 @@ def activities_for(user):
         Activity.objects.select_related("room", "event")
         .annotate(
             taken=Count("registrations", distinct=True),
+            event_enrolled=Exists(EventRegistration.objects.filter(event_id=OuterRef("event_id"), user_id=uid)),
             registered=Exists(
                 Registration.objects.filter(activity_id=OuterRef("pk"), user_id=uid)
             ),
@@ -200,6 +201,7 @@ def activity_json(activity, schedule=False):
             "description",
             "speaker",
             "capacity",
+            "registration_required",
         ]
     }
     data.update(
@@ -208,6 +210,7 @@ def activity_json(activity, schedule=False):
         updated_at=milliseconds(activity.updated_at),
         room_name=activity.room.name,
         room_is_online=activity.room.is_online,
+        event_enrolled=bool(activity.event_enrolled),
         taken=activity.taken,
         registered=int(activity.registered),
         waiting_count=activity.waiting_count,

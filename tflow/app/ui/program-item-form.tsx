@@ -61,6 +61,7 @@ export function ActivityForm({
   const [capacity, setCapacity] = useState(
     activity?.capacity ?? Math.min(event.capacity, limit),
   );
+  const [registrationRequired, setRegistrationRequired] = useState(activity?.registration_required !== false);
   const presetRoom = rooms.find((item) => item.id === initialRoomId);
   const presetRoomId = presetRoom?.id,
     presetRoomCapacity = presetRoom?.capacity;
@@ -95,6 +96,7 @@ export function ActivityForm({
         starts_at,
         ends_at,
         capacity,
+        registration_required: registrationRequired,
       },
     );
     await done();
@@ -112,6 +114,8 @@ export function ActivityForm({
   }
   const extraFields = (
     <>
+      <label className="program-available"><input type="checkbox" checked={registrationRequired} onChange={(event) => setRegistrationRequired(event.target.checked)} />Нужна отдельная запись на активность</label>
+      {!registrationRequired && <p className="muted small">Доступна всем записанным на мероприятие. Добавление в личное расписание не бронирует место.</p>}
       <div className="form-row">
         <label>
           Спикер · необязательно
