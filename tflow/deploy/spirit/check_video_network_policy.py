@@ -23,6 +23,27 @@ def inspect_policy(api):
     return {"group_attribute_names": sorted(attributes), "network": network_metadata(attributes)}
 
 
+def inspect_security_group(api):
+    """Read actual cloud firewall rules, rather than group display metadata."""
+    api.vm()
+    path = VM_PATH.rsplit("/vm/", 1)[0] + "/sg"
+    request = Request(BASE + path, headers={"Authorization": "Bearer " + api.token, "Accept": "application/json"})
+    try:
+        with urlopen(request, timeout=20) as response:
+            attributes = json.load(response).get("attributes", {})
+    except HTTPError as error:
+        raise ControlError("VM security group returned HTTP " + str(error.code)) from None
+    rules = []
+    for rule in attributes.get("rules", []):
+        rules.append({
+            key: rule[key] for key in ("direction", "protocol", "port_from", "port_to", "target_kind", "cidr_v4", "origin")
+            if key in rule
+        })
+        if rules[-1].get("cidr_v4") not in (None, "0.0.0.0/0"):
+            rules[-1]["cidr_v4"] = "[address withheld]"
+    return {"rules": rules, "last_applied_at": attributes.get("lastAppliedAt")}
+
+
 if __name__ == "__main__":
     with tempfile.TemporaryDirectory(prefix="tflow-network-policy-") as directory:
         try:

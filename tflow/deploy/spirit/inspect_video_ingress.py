@@ -11,6 +11,7 @@ import tempfile
 from control import HOST, ControlError, Spirit, authenticate
 from deploy import HOST_KEY
 from install_video import ADDRESS
+from check_video_network_policy import inspect_security_group
 
 
 def redact_network_output(value):
@@ -102,6 +103,7 @@ def main():
     with tempfile.TemporaryDirectory(prefix='tflow-video-ingress-') as name:
         directory = Path(name)
         api = Spirit(authenticate(directory))
+        print(json.dumps({"security_group": inspect_security_group(api)}), flush=True)
         options = ssh_options(api, directory)
         command = ['ssh',*options,'ubuntu@'+ADDRESS,shlex.join(['sudo','-n','python3','-',str(seconds)])]
         process = subprocess.Popen(command,stdin=subprocess.PIPE,stdout=subprocess.PIPE,stderr=subprocess.PIPE,text=True)

@@ -4,11 +4,27 @@ from types import SimpleNamespace
 import unittest
 from unittest.mock import Mock, patch
 
-from check_video_network_policy import inspect_policy
+from check_video_network_policy import inspect_policy, inspect_security_group
 from control import BASE, VM_PATH, ControlError
 
 
 class VideoNetworkPolicyTests(unittest.TestCase):
+    @patch("check_video_network_policy.urlopen")
+    def test_actual_security_group_is_read_without_returning_private_fields(self, upstream):
+        attributes = {"rules": [{"direction": "ingress", "protocol": "tcp", "port_from": 8000,
+            "port_to": 8100, "cidr_v4": "0.0.0.0/0", "description": "private-note"},
+            {"cidr_v4": "8.8.8.8/32", "privateKey": "private-key"}], "lastAppliedAt": "test-time"}
+        upstream.return_value = io.BytesIO(json.dumps({"attributes": attributes}).encode())
+        api = SimpleNamespace(token="test-token", vm=Mock())
+        result = inspect_security_group(api)
+        api.vm.assert_called_once()
+        self.assertEqual(upstream.call_args.args[0].full_url, BASE + VM_PATH.rsplit("/vm/", 1)[0] + "/sg")
+        self.assertEqual(upstream.call_args.args[0].get_method(), "GET")
+        self.assertEqual(result["rules"][0]["port_to"], 8100)
+        self.assertIn("0.0.0.0/0", json.dumps(result))
+        for value in ("private-note", "private-key", "test-token", "8.8.8.8"):
+            self.assertNotIn(value, json.dumps(result))
+
     @patch("check_video_network_policy.urlopen")
     def test_only_owned_group_network_metadata_is_returned(self, upstream):
         group = VM_PATH.rsplit("/vm/", 1)[0]
