@@ -47,7 +47,7 @@ def main():
             subprocess.run(["ssh", *options, target, command], check=True)
         remote(f"sudo install -d -m 0750 -o ubuntu -g ubuntu {incoming}")
         scripts = Path(__file__).resolve().parent
-        subprocess.run(["scp", *options, *(str(path) for path in files), str(scripts / "install-release.py"), str(scripts / "configure-video.py"), f"{target}:{incoming}/"], check=True)
+        subprocess.run(["scp", *options, *(str(path) for path in files), str(scripts / "install-release.py"), str(scripts / "runtime_check.py"), str(scripts / "configure-video.py"), f"{target}:{incoming}/"], check=True)
         remote(f"sudo python3 {incoming}/install-release.py {incoming}/manifest.json {incoming}/tflow-release.tar.gz")
         if os.environ.get("TFLOW_CONFIGURE_VIDEO", "0") == "1":
             remote(f"sudo python3 {incoming}/configure-video.py --hostname {hostname} --public-ip {host} --apply")

@@ -50,6 +50,7 @@ backend:
   script:
     - python -m pip install -r tflow/backend/requirements.lock.txt
     - python -m unittest discover -s tflow/deploy/spirit -p 'test_*.py'
+    - python -m unittest discover -s tflow/deploy/sync -p 'test_*.py'
     - cd tflow/backend
     - python manage.py makemigrations --check --dry-run
     - python manage.py test flow.tests --noinput
@@ -86,7 +87,8 @@ deploy_vm:
     url: https://hack-mmk-25-vm1-162f2c.vm.prodcontest.com
   rules:
     - if: '$CI_COMMIT_BRANCH == $CI_DEFAULT_BRANCH && $TFLOW_VM_SSH_KEY && $TFLOW_VM_KNOWN_HOSTS'
-      when: on_success
+      when: manual
+      allow_failure: true
   before_script:
     - apt-get update -qq
     - apt-get install -y --no-install-recommends openssh-client ca-certificates
@@ -121,8 +123,12 @@ deploy-spirit:
 
 deploy-spirit-cu:
   extends: deploy-spirit
+  allow_failure: false
+  rules:
+    - if: '$CI_COMMIT_BRANCH == $CI_DEFAULT_BRANCH && $CI_PIPELINE_SOURCE == "push"'
+      when: on_success
   environment:
-    name: temporary-cu
+    name: spirit-production
     url: https://hack-mmk-25-vm1-162f2c.teleport.t-education.com
   script:
     - python tflow/deploy/spirit/deploy.py release/manifest.json release/tflow-release.tar.gz --gateway

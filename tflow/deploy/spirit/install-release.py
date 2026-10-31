@@ -11,6 +11,7 @@ import sys
 import tarfile
 import time
 import urllib.request
+from runtime_check import verify_runtime
 
 if os.geteuid() != 0 or len(sys.argv) != 3:
     raise SystemExit("Usage: sudo python3 install-release.py <manifest.json> <tflow-release.tar.gz>")
@@ -85,6 +86,7 @@ for attempt in range(30):
         req = urllib.request.Request("http://127.0.0.1:8000/api/health", headers={"Host": host, "X-Forwarded-Proto": "https"})
         with urllib.request.urlopen(req, timeout=2) as response:
             if response.status == 200:
+                verify_runtime(manifest, host)
                 (root / "deployed.json").write_text(json.dumps(manifest, indent=2) + "\n")
                 print(f"Release {sha} is healthy at https://{host}")
                 break

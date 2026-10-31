@@ -36,6 +36,8 @@ run("git", "-C", str(repo), "fetch", str(directory / "source.bundle"), "HEAD")
 if run("git", "-C", str(repo), "rev-parse", "FETCH_HEAD").stdout.strip() != expected:
     raise SystemExit("Source bundle does not identify the requested CI commit")
 run("git", "-C", str(repo), "merge", "--ff-only", expected)
+if run("git", "-C", str(repo), "rev-parse", "HEAD").stdout.strip() != expected:
+    raise SystemExit("A newer VM source is already present; refusing an out-of-order deployment")
 gateway_changed = False
 if gateway:
     gateway_changed = json.loads(run("python3", str(repo / "tflow/deploy/spirit/gateway_config.py"), gateway).stdout)["changed"]
@@ -58,7 +60,10 @@ for attempt in range(25):
         if attempt == 24:
             raise
         time.sleep(0.3)
-print("Exact CI source and release installed; internal healthcheck passed")
+sys.path.insert(0, str(repo / "tflow/deploy/spirit"))
+from runtime_check import verify_runtime
+verify_runtime(incoming, "hack-mmk-25-vm1-162f2c.vm.prodcontest.com")
+print("Exact CI source, runtime version, frontend HTML and assets verified")
 '''
 
 
