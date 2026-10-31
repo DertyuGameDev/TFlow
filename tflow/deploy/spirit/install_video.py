@@ -81,6 +81,7 @@ import os, shutil, subprocess
 source=Path('/etc/letsencrypt/live/tflow-video-162f2c.duckdns.org')
 target=Path('/etc/tflow-video/tls')
 target.mkdir(mode=0o750,exist_ok=True)
+os.chmod(target,0o750)
 shutil.chown(target,group='tflow-video')
 for name in ['fullchain.pem','privkey.pem']:
     dest=target/name
@@ -146,6 +147,7 @@ def main(path):
     run("usermod", "-aG", "tflow-video", "caddy")
     base = Path("/etc/tflow-video")
     base.mkdir(mode=0o750, exist_ok=True)
+    base.chmod(0o750)
     shutil.chown(base, group="tflow-video")
     private_write(Path("/etc/tflow-video/dns.json"), json.dumps({"domain":HOST,"relay_secret":values["relay_secret"]}))
     private_write(Path("/usr/local/lib/tflow/video-dns-hook"), DNS_HOOK, 0o700)
