@@ -71,27 +71,34 @@ package:
       - release/tflow-release.tar.gz
       - release/manifest.json
 
-# Configure protected FILE variables TFLOW_VM_SSH_KEY and TFLOW_VM_KNOWN_HOSTS.
-# Set TFLOW_CONFIGURE_VIDEO=1 for the managed same-VM LiveKit installation.
+# Compatibility trigger retained; uses the current Spirit deployment and video installer.
 deploy_vm:
   stage: deploy
   image: python:3.12-slim
   interruptible: false
   resource_group: tflow-spirit-vm1
+  variables:
+    GIT_DEPTH: "0"
   needs:
     - job: package
       artifacts: true
   environment:
     name: production-vm
-    url: https://hack-mmk-25-vm1-162f2c.vm.prodcontest.com
+    url: https://hack-mmk-25-vm1-162f2c.teleport.t-education.com
   rules:
+    - if: '$CI_PIPELINE_SOURCE == "schedule" && $TFLOW_MEDIA_RENEWAL == "1"'
+      when: never
     - if: '$CI_COMMIT_BRANCH == $CI_DEFAULT_BRANCH'
       when: manual
   before_script:
     - apt-get update -qq
-    - apt-get install -y --no-install-recommends openssh-client ca-certificates
+    - apt-get install -y --no-install-recommends openssh-client git ca-certificates certbot
   script:
-    - python tflow/deploy/spirit/deploy-ci.py
+    - python tflow/deploy/spirit/deploy.py release/manifest.json release/tflow-release.tar.gz --gateway
+    - |
+      if [ "${TFLOW_CONFIGURE_VIDEO:-0}" = "1" ]; then
+        python tflow/deploy/spirit/provision_video.py
+      fi
 
 # Explicit deployment of the verified artifact. External HTTPS is a required
 # check inside this job; an unsuccessful deployment is visible on production.
@@ -144,6 +151,7 @@ spirit-readiness:
   extends: .spirit-control
   script:
     - python tflow/deploy/spirit/control.py inspect
+    - python tflow/deploy/spirit/check_video_network_policy.py
   artifacts:
     expire_in: 1 day
     paths: [.spirit-cli/dp]
@@ -153,7 +161,13 @@ provision-owned-video:
   timeout: 15m
   before_script:
     - apt-get update -qq
-    - apt-get install -y --no-install-recommends openssh-client ca-certificates
+    - apt-get install -y --no-install-recommends openssh-client ca-certificates certbot
+  rules:
+    - if: '$CI_PIPELINE_SOURCE == "schedule" && $TFLOW_MEDIA_RENEWAL == "1"'
+      when: on_success
+      allow_failure: false
+    - if: '$CI_COMMIT_BRANCH == $CI_DEFAULT_BRANCH'
+      when: manual
   script:
     - python tflow/deploy/spirit/provision_video.py
 
