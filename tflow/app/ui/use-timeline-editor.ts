@@ -54,7 +54,7 @@ export function useTimelineEditor({
 }) {
   const gesture = useRef<Gesture | null>(null),
     locked = useRef(false);
-  const draggedClick = useRef(false);
+  const draggedClick = useRef<string | null>(null);
   const [preview, setPreview] = useState<Preview | null>(null);
   const [dragging, setDragging] = useState(false),
     [saving, setSaving] = useState(false);
@@ -82,7 +82,7 @@ export function useTimelineEditor({
     )
       return;
     if (activity ? !onReschedule : !onCreate) return;
-    draggedClick.current = false;
+    draggedClick.current = null;
     e.preventDefault();
     const anchor = timeAt(e.clientX);
     gesture.current = {
@@ -148,7 +148,7 @@ export function useTimelineEditor({
   }
   function cancel() {
     if (!gesture.current) return;
-    draggedClick.current = true;
+    draggedClick.current = gesture.current.activity?.id ?? null;
     release();
     setPreview(null);
     setNotice("Изменение отменено.");
@@ -244,7 +244,7 @@ export function useTimelineEditor({
       const current = gesture.current;
       if (!current || current.pointerId !== e.pointerId) return;
       const range = rangeAt(current, e.clientX);
-      draggedClick.current = Boolean(current.activity && Math.abs(e.clientX - current.x) >= 4);
+      draggedClick.current = current.activity && Math.abs(e.clientX - current.x) >= 4 ? current.activity.id : null;
       release();
       if (current.activity) void save(current.activity, range);
       else {
@@ -265,7 +265,7 @@ export function useTimelineEditor({
     saving,
     error,
     notice,
-    shouldIgnoreClick: (detail: number) => detail !== 0 && draggedClick.current,
+    shouldIgnoreClick: (detail: number, activityId: string) => detail !== 0 && draggedClick.current === activityId,
     begin,
     cancel,
     createAtStart,

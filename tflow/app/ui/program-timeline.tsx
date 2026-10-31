@@ -636,7 +636,7 @@ export function ProgramTimeline({
                         aria-label={label}
                         aria-pressed={selectedNode}
                         title={`${label} · ${node.roomName}`}
-                        onClick={(event) => { if (!editor.shouldIgnoreClick(event.detail)) selectSegment(segment); }}
+                        onClick={(event) => { if (!editor.shouldIgnoreClick(event.detail, multiple ? "" : item.id)) selectSegment(segment); }}
                         disabled={editor.saving}
                         onPointerDown={
                           onReschedule && !multiple
