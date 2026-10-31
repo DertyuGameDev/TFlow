@@ -70,24 +70,32 @@ function LessonPreview({ step, online }: { step: number; online: boolean }) {
       {step === 2 && (
         <>
           <Clock3 size={26} />
-          <strong className="tutorial-preview-title">Программа встречи</strong>
-          <div className="tutorial-example-timeline">
-            <div className="tutorial-example-axis" />
-            <div className="tutorial-example-range tutorial-range-opening">
-              <span>Открытие</span>
-              <i />
-            </div>
-            <div className="tutorial-example-range tutorial-range-lecture">
-              <i />
-              <span>Лекция</span>
-            </div>
-            <div className="tutorial-example-range tutorial-range-practice">
-              <span>Практикум</span>
-              <i />
-            </div>
-            <small className="tutorial-example-axis-start">10:00</small>
-            <small className="tutorial-example-axis-end">12:00</small>
+          <strong className="tutorial-preview-title">Флоу мероприятия</strong>
+          <div className="tutorial-example-flow">
+            {[
+              { time: "10:00", title: "Открытие", live: false },
+              { time: "10:30", title: "Лекция", live: true },
+              { time: "11:15", title: "Практикум", live: false },
+            ].map((item) => (
+              <div
+                className={`tutorial-flow-row ${item.live ? "is-live" : ""}`}
+                key={item.time}
+              >
+                <span className="tutorial-flow-time">{item.time}</span>
+                <span className="tutorial-flow-rail">
+                  <i />
+                </span>
+                <div className="tutorial-flow-block">
+                  {item.live && <small>Сейчас</small>}
+                  <strong>{item.title}</strong>
+                  <span>{item.live ? "Онлайн" : "Большой зал"}</span>
+                </div>
+              </div>
+            ))}
           </div>
+          <small className="tutorial-example-timezone">
+            Название и время — в блоке
+          </small>
         </>
       )}
       {step === 3 && (
@@ -353,9 +361,7 @@ export function OrganizerTutorial({
                 </button>
               </div>
               {entryLocked && (
-                <small>
-                  Проверка входа и эфир доступны после публикации.
-                </small>
+                <small>Проверка входа и эфир доступны после публикации.</small>
               )}
             </div>
             <footer className="tutorial-footer">

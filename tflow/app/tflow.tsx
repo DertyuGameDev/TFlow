@@ -78,7 +78,7 @@ import { OrganizerTutorial } from "./ui/organizer-tutorial";
 import { ProfileUpcomingEvents } from "./ui/profile-upcoming-events";
 import { EventFlows } from "./ui/event-flows";
 import { ReleaseUpdate } from "./ui/release-update";
-import { CatalogActivities } from "./ui/catalog-activities";
+import { EventPage } from "./ui/event-page";
 import { WebinarChannels } from "./ui/webinar-channels";
 import { KeyAccessPage } from "./ui/access-keys";
 import { ThemeToggle } from "./ui/theme-toggle";
@@ -154,10 +154,10 @@ const routeFromHash = (organizer: boolean): Route => {
     ? { view, id, mode }
     : { view: organizer ? "organizer" : "events" };
 };
-const loginLink = (view = "events", id?: string) =>
-  `/login/?next=${encodeURIComponent("/#" + view + (id ? "/" + id : ""))}`;
-const signupLink = (view = "events", id?: string) =>
-  `/register/?next=${encodeURIComponent("/#" + view + (id ? "/" + id : ""))}`;
+const loginLink = (view = "events", id?: string, mode?: string) =>
+  `/login/?next=${encodeURIComponent("/#" + [view, id, mode].filter(Boolean).join("/"))}`;
+const signupLink = (view = "events", id?: string, mode?: string) =>
+  `/register/?next=${encodeURIComponent("/#" + [view, id, mode].filter(Boolean).join("/"))}`;
 
 const plural = (n: number, forms: [string, string, string]) =>
   `${n} ${forms[n % 100 >= 11 && n % 100 <= 14 ? 2 : n % 10 === 1 ? 0 : n % 10 >= 2 && n % 10 <= 4 ? 1 : 2]}`;
@@ -280,12 +280,10 @@ function EventMeta({ event }: { event: FlowEvent }) {
 }
 function DiscoveryCard({
   event,
-  activities,
   onSave,
   userId,
 }: {
   event: FlowEvent;
-  activities?: Activity[];
   onSave: () => void;
   userId?: string;
 }) {
@@ -345,7 +343,6 @@ function DiscoveryCard({
         {ended ? (
           <span className="event-ended-label"><Clock3 size={14} aria-hidden="true" />Завершено</span>
         ) : <strong>Бесплатно</strong>}
-        {activities && <CatalogActivities activities={activities} />}
         {canEnterWebinar(event, userId) && (
           <button
             className="button secondary webinar-card-entry"
@@ -789,7 +786,7 @@ export function TFlow({ user }: { user: UserIdentity | null }) {
   }, [toast]);
   async function action(fn: () => Promise<unknown>, message: string | ((result: unknown) => string)) {
     if (!user) {
-      location.assign(loginLink(route.view, route.id));
+      location.assign(loginLink(route.view, route.id, route.mode));
       return;
     }
     setPending(true);
@@ -921,12 +918,6 @@ export function TFlow({ user }: { user: UserIdentity | null }) {
     />
   ) : null;
   const own = data.events.filter((e) => e.owner_id === user?.userId);
-  const catalogActivities = new Map<string, Activity[]>();
-  for (const activity of data.activities ?? []) {
-    const items = catalogActivities.get(activity.event_id) ?? [];
-    items.push(activity);
-    catalogActivities.set(activity.event_id, items);
-  }
   const ownSections = splitOrganizerEvents(own);
   const visibleOwn = ownSections[ownEventSection];
   const catalogNow = eventTime === "now" ? feedNow : Date.now();
@@ -1165,7 +1156,7 @@ export function TFlow({ user }: { user: UserIdentity | null }) {
             ) : (
               <a
                 className="button primary"
-                href={loginLink(route.view, route.id)}
+                href={loginLink(route.view, route.id, route.mode)}
               >
                 Войти
               </a>
@@ -1298,7 +1289,6 @@ export function TFlow({ user }: { user: UserIdentity | null }) {
                     {visible.map((e) => (
                       <DiscoveryCard
                         event={e}
-                        activities={user?.role === "participant" ? catalogActivities.get(e.id) ?? [] : undefined}
                         key={e.id}
                         onSave={() => save(e)}
                         userId={user?.userId}
@@ -1688,17 +1678,42 @@ export function TFlow({ user }: { user: UserIdentity | null }) {
                   <div className="loading-state">Загружаем событие…</div>
                 ) : (
                   <>
+                    <EventPage
+                      key={detail.event.id}
+                      event={detail.event}
+                      organizer={organizer}
+                      signedIn={!!user}
+                      initialSection={route.mode}
+                      meta={<EventMeta event={detail.event} />}
+                      personalCount={detail.activities.filter(
+                        activity => activity.registered || activity.waitlisted,
+                      ).length}
+                      program={
+                        <EventFlows
+                          key={detail.event.id}
+                          activities={detail.activities}
+                          {...programActions}
+                          onManage={
+                            organizer && detail.event.owner_id === user?.userId
+                              ? () => go("manage", detail.event.id, "program")
+                              : undefined
+                          }
+                        />
+                      }
+                      personal={
+                        <ActivityProgram
+                          activities={detail.activities.filter(
+                            activity => activity.registered || activity.waitlisted,
+                          )}
+                          {...programActions}
+                          vertical
+                        />
+                      }
+                    >
                     <div className="guest-event-layout">
                       <div className="guest-event-content">
                         <div className="guest-cover">
                           <EventArt cover={detail.event.cover} />
-                        </div>
-                        <div className="guest-event-title">
-                          <span>
-                            {detail.event.kind} · {detail.event.topic}
-                          </span>
-                          <h1>{detail.event.title}</h1>
-                          <EventMeta event={detail.event} />
                         </div>
                         <section className="event-about">
                           <h2>О событии</h2>
@@ -1736,15 +1751,7 @@ export function TFlow({ user }: { user: UserIdentity | null }) {
                             </div>
                           </div>
                         </section>
-                        <EventFlows
-                          focusActivityId={route.mode}
-                          key={detail.event.id}
-                          activities={detail.activities}
-                          {...programActions}
-                          onManage={organizer && detail.event.owner_id === user?.userId
-                            ? () => go("manage", detail.event.id, "program")
-                            : undefined}
-                        />
+
                       </div>
                       <aside className="registration-card">
                         {user?.role === "participant" && !!detail.event.checked_in && (
@@ -1881,6 +1888,7 @@ export function TFlow({ user }: { user: UserIdentity | null }) {
                         </div>
                       </aside>
                     </div>
+                    </EventPage>
                   </>
                 )}
               </>
@@ -1926,14 +1934,14 @@ export function TFlow({ user }: { user: UserIdentity | null }) {
                       >
                         <a
                           className="button primary"
-                          href={loginLink("webinar", detail.event.id)}
+                          href={loginLink("webinar", detail.event.id, route.mode)}
                         >
                           Войти в аккаунт
                           <ArrowRight size={18} />
                         </a>
                         <a
                           className="text-button"
-                          href={signupLink("webinar", detail.event.id)}
+                          href={signupLink("webinar", detail.event.id, route.mode)}
                         >
                           Создать аккаунт
                         </a>
