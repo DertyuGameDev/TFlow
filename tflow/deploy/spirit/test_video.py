@@ -33,3 +33,5 @@ class OwnedVideoConfigTests(unittest.TestCase):
         self.assertIn("'clear':clear",DNS_HOOK)
         self.assertIn("X-TFlow-Hook-Signature",DNS_HOOK)
         self.assertNotIn("values['dns_token']",DNS_HOOK)
+        self.assertIn("host=='tflow-one.vercel.app'",DNS_HOOK)
+        self.assertNotIn("CERT_NONE",DNS_HOOK)
