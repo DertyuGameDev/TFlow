@@ -16,7 +16,10 @@ import {
   Plus,
   Search,
 } from "lucide-react";
-import type { Activity, FlowEvent } from "../../lib/types";
+import type { Activity, FlowEvent, Room } from "../../lib/types";
+import { PROGRAM_MINUTE, type ProgramRange } from "../../lib/program-editing";
+import { useTimelineEditor } from "./use-timeline-editor";
+import { FormError } from "./forms";
 import { dateKey, dateLabel, timeLabel } from "../../lib/time";
 import {
   buildProgramTracks,
@@ -39,13 +42,20 @@ export function ProgramTimeline({
   event,
   activities,
   onEdit,
+  rooms: availableRooms = [],
+  onCreate,
+  onReschedule,
 }: {
   event: FlowEvent;
   activities: Activity[];
   onEdit: (activity: Activity) => void;
+  rooms?: Room[];
+  onCreate?: (range: ProgramRange) => void;
+  onReschedule?: (activity: Activity, range: ProgramRange) => Promise<void>;
 }) {
   const id = useId();
   const viewport = useRef<HTMLDivElement>(null);
+  const canvas = useRef<HTMLDivElement>(null);
   const [width, setWidth] = useState(720);
   const [chosenDay, setChosenDay] = useState(dateKey(event.starts_at));
   const [roomId, setRoomId] = useState("");
@@ -64,9 +74,10 @@ export function ProgramTimeline({
     [activities, start, end],
   );
   const rooms = [
-    ...new Map(
-      dayItems.map((item) => [item.room_id, item.room_name]),
-    ).entries(),
+    ...new Map([
+      ...availableRooms.map((item) => [item.id, item.name] as const),
+      ...dayItems.map((item) => [item.room_id, item.room_name] as const),
+    ]).entries(),
   ];
   const room = rooms.some(([key]) => key === roomId) ? roomId : "";
   const items = useMemo(
@@ -89,10 +100,66 @@ export function ProgramTimeline({
     projectedGroups.set(node.roomKey, group);
   }
   const axisY = projection.aboveRows * 76 + 16;
-  const plotHeight = axisY + projection.belowRows * 76 + 24;
   const ticks = programTimeTicks(start, end);
   const dense = projection.nodes.some((node) => node.segment.items.length > 1);
-  const selected = items.find((item) => item.id === selectedId) ?? items[0];
+  const selectedItem = items.find((item) => item.id === selectedId) ?? items[0];
+  const step = (zoom >= 4 ? 1 : 5) * PROGRAM_MINUTE;
+  const editor = useTimelineEditor({
+    event,
+    activities,
+    start,
+    end,
+    step,
+    canvas,
+    roomId: room || (rooms.length === 1 ? rooms[0][0] : undefined),
+    onCreate,
+    onReschedule,
+  });
+  const selected =
+    selectedItem && editor.preview?.activity?.id === selectedItem.id
+      ? { ...selectedItem, ...editor.preview.range }
+      : selectedItem;
+  const editing = editor.dragging || editor.saving;
+  const focusedGroup =
+    onReschedule &&
+    selectedItem &&
+    projection.nodes.some(
+      (node) =>
+        node.segment.items.length > 1 &&
+        node.segment.items.some((item) => item.id === selectedItem.id),
+    );
+  if (focusedGroup && selectedItem) {
+    const left =
+      ((Math.max(start, selectedItem.starts_at) - start) / (end - start)) *
+      canvasWidth;
+    const right =
+      ((Math.min(end, selectedItem.ends_at) - start) / (end - start)) *
+      canvasWidth;
+    const labelWidth = Math.min(canvasWidth, 220);
+    projectedGroups.set("__editing", [
+      {
+        segment: {
+          id: `focus-${selectedItem.id}`,
+          items: [selectedItem],
+          start: Math.max(start, selectedItem.starts_at),
+          end: Math.min(end, selectedItem.ends_at),
+        },
+        roomName: selectedItem.room_name,
+        roomKey: "__editing",
+        side: "below",
+        row: projection.belowRows,
+        left,
+        right,
+        labelWidth,
+        labelLeft: Math.max(
+          0,
+          Math.min(canvasWidth - labelWidth, (left + right - labelWidth) / 2),
+        ),
+      },
+    ]);
+  }
+  const plotHeight =
+    axisY + (projection.belowRows + (focusedGroup ? 1 : 0)) * 76 + 24;
   const selectedIndex = items.findIndex((item) => item.id === selected?.id);
   const group = groupIds ? new Set(groupIds) : null;
   const listItems = items.filter(
@@ -112,6 +179,12 @@ export function ProgramTimeline({
   useEffect(() => {
     const element = viewport.current;
     if (!element) return;
+    if (typeof ResizeObserver === "undefined") {
+      const measure = () => setWidth(element.clientWidth || 720);
+      measure();
+      window.addEventListener("resize", measure);
+      return () => window.removeEventListener("resize", measure);
+    }
     const observer = new ResizeObserver(([entry]) => {
       if (entry.contentRect.width > 0) setWidth(entry.contentRect.width);
     });
@@ -170,7 +243,17 @@ export function ProgramTimeline({
   }
 
   return (
-    <section className="program-timeline" aria-label="Графическое расписание">
+    <section
+      className={`program-timeline ${editing ? "is-editing" : ""}`}
+      aria-label="Графическое расписание"
+      onKeyDownCapture={(e) => {
+        if (e.key === "Escape" && editor.dragging) {
+          e.preventDefault();
+          e.stopPropagation();
+          editor.cancel();
+        }
+      }}
+    >
       <div className="timeline-toolbar">
         {first === last ? (
           <h3>{dateLabel(start, { year: "numeric" })}</h3>
@@ -179,7 +262,7 @@ export function ProgramTimeline({
             <button
               className="icon-button"
               aria-label="Предыдущий день программы"
-              disabled={day === first}
+              disabled={day === first || editing}
               onClick={() => changeDay(shiftProgramDay(day, -1))}
             >
               <ChevronLeft size={18} />
@@ -191,13 +274,14 @@ export function ProgramTimeline({
                 min={first}
                 max={last}
                 value={day}
+                disabled={editing}
                 onChange={(e) => changeDay(e.target.value)}
               />
             </label>
             <button
               className="icon-button"
               aria-label="Следующий день программы"
-              disabled={day === last}
+              disabled={day === last || editing}
               onClick={() => changeDay(shiftProgramDay(day, 1))}
             >
               <ChevronRight size={18} />
@@ -210,6 +294,7 @@ export function ProgramTimeline({
               <span className="sr-only">Аудитория на шкале</span>
               <select
                 value={room}
+                disabled={editing}
                 onChange={(e) => {
                   setRoomId(e.target.value);
                   setGroupIds(null);
@@ -232,13 +317,14 @@ export function ProgramTimeline({
           >
             <button
               aria-label="Уменьшить масштаб расписания"
-              disabled={zoom === 1}
+              disabled={zoom === 1 || editing}
               onClick={() => changeZoom(zoom / 2)}
             >
               <Minus size={16} />
             </button>
             <button
               className="timeline-fit"
+              disabled={editing}
               onClick={() => changeZoom(1)}
               title="Вместить всё расписание в ширину экрана"
             >
@@ -246,7 +332,7 @@ export function ProgramTimeline({
             </button>
             <button
               aria-label="Увеличить масштаб расписания"
-              disabled={zoom === MAX_ZOOM}
+              disabled={zoom === MAX_ZOOM || editing}
               onClick={() => changeZoom(zoom * 2)}
             >
               <Plus size={16} />
@@ -255,13 +341,30 @@ export function ProgramTimeline({
         </div>
       </div>
       <p className="timeline-caption" id={`${id}-hint`}>
-        Пунктов: {items.length} · время по МСК. Нажмите на цветной отрезок,
-        чтобы увидеть детали.
+        Пунктов: {items.length} · время по МСК. Выберите отрезок для деталей.
         {dense
           ? " Мелкие пункты объединены в группы с числом — откройте группу или увеличьте масштаб."
           : ""}
         {zoom > 1 ? " Шкалу можно прокручивать по горизонтали." : ""}
+        {onCreate ? " Новый пункт — выделите время на основной линии." : ""}
+        {onReschedule && (
+          <span className="sr-only">
+            Стрелки влево и вправо меняют выбранную границу. Shift увеличивает
+            шаг до 15 минут. Esc отменяет перетаскивание.
+          </span>
+        )}
       </p>
+      {(onCreate || onReschedule) && (
+        <div className="timeline-edit-feedback" role="status">
+          {editor.saving
+            ? "Сохраняем время…"
+            : editor.preview
+              ? `${editor.preview.activity?.title ?? "Новый пункт"}: ${timeLabel(editor.preview.range.starts_at)}–${timeLabel(editor.preview.range.ends_at)} МСК`
+              : editor.notice ||
+                `Потяните края отрезка: шаг ${step / PROGRAM_MINUTE} мин, сохранение после отпускания.`}
+        </div>
+      )}
+      <FormError error={editor.error} />
       <div
         ref={viewport}
         className="timeline-scroll"
@@ -272,6 +375,7 @@ export function ProgramTimeline({
       >
         <div
           className="timeline-canvas"
+          ref={canvas}
           style={{ width: canvasWidth, height: plotHeight }}
         >
           <div
@@ -289,16 +393,72 @@ export function ProgramTimeline({
               </span>
             ))}
           </div>
+          {onCreate && (
+            <button
+              type="button"
+              className="timeline-create-track"
+              style={{ top: axisY - 16 }}
+              aria-label="Добавить пункт на шкале"
+              aria-describedby={`${id}-hint`}
+              disabled={editor.saving}
+              onPointerDown={(e) => editor.begin(e)}
+              {...editor.pointerHandlers}
+              onClick={(e) => {
+                if (e.detail === 0) editor.createAtStart();
+              }}
+            />
+          )}
+          {editor.preview && !editor.preview.activity && (
+            <div
+              className="timeline-new-range"
+              aria-hidden="true"
+              style={{
+                top: axisY - 9,
+                left:
+                  ((editor.preview.range.starts_at - start) / (end - start)) *
+                  canvasWidth,
+                width:
+                  ((editor.preview.range.ends_at -
+                    editor.preview.range.starts_at) /
+                    (end - start)) *
+                  canvasWidth,
+              }}
+            />
+          )}
           {[...projectedGroups].map(([key, nodes]) => (
             <div
               className="timeline-track"
               role="group"
-              aria-label={nodes[0].roomName}
+              aria-label={`${key === "__editing" ? "Редактирование: " : ""}${nodes[0].roomName}`}
               key={key}
             >
               {nodes.map((node) => {
                 const segment = node.segment;
                 const multiple = segment.items.length > 1;
+                const item = segment.items[0];
+                const range =
+                  !multiple && editor.preview?.activity?.id === item.id
+                    ? editor.preview.range
+                    : null;
+                const segmentStart = range
+                  ? Math.max(start, range.starts_at)
+                  : segment.start;
+                const segmentEnd = range
+                  ? Math.min(end, range.ends_at)
+                  : segment.end;
+                const left = range
+                  ? ((segmentStart - start) / (end - start)) * canvasWidth
+                  : node.left;
+                const right = range
+                  ? ((segmentEnd - start) / (end - start)) * canvasWidth
+                  : node.right;
+                const labelLeft = Math.max(
+                  0,
+                  Math.min(
+                    canvasWidth - node.labelWidth,
+                    (left + right - node.labelWidth) / 2,
+                  ),
+                );
                 const selectedNode = segment.items.some(
                   (item) => item.id === selected?.id,
                 );
@@ -313,12 +473,12 @@ export function ProgramTimeline({
                 return (
                   <div
                     key={segment.id}
-                    className={`timeline-node timeline-node-${node.side} ${selectedNode ? "is-selected" : ""}`}
+                    className={`timeline-node timeline-node-${node.side} ${selectedNode ? "is-selected" : ""} ${right - left < 44 ? "is-compact" : ""}`}
                     data-row={node.row}
                     style={
                       {
-                        left: node.left,
-                        width: node.right - node.left,
+                        left,
+                        width: right - left,
                         top: lineY,
                         "--projection-color": color,
                         "--projection-length": `${Math.abs(axisY - lineY)}px`,
@@ -344,7 +504,7 @@ export function ProgramTimeline({
                       <span
                         className="timeline-node-label"
                         style={{
-                          left: node.labelLeft - node.left,
+                          left: labelLeft - left,
                           width: node.labelWidth,
                         }}
                       >
@@ -359,7 +519,7 @@ export function ProgramTimeline({
                           )}
                         </strong>
                         <small>
-                          {timeLabel(segment.start)}–{tickLabel(segment.end)}
+                          {timeLabel(segmentStart)}–{tickLabel(segmentEnd)}
                           {rooms.length > 1 ? ` · ${node.roomName}` : ""}
                         </small>
                       </span>
@@ -371,6 +531,32 @@ export function ProgramTimeline({
                         aria-hidden="true"
                       />
                     </button>
+                    {onReschedule &&
+                      selectedNode &&
+                      !multiple &&
+                      (["start", "end"] as const).map(
+                        (edge) =>
+                          (edge === "start"
+                            ? item.starts_at >= start
+                            : item.ends_at <= end) && (
+                            <button
+                              type="button"
+                              key={edge}
+                              className={`timeline-resize-handle timeline-resize-${edge}`}
+                              aria-label={`Изменить ${edge === "start" ? "начало" : "окончание"} ${item.title}`}
+                              aria-describedby={`${id}-hint`}
+                              disabled={editor.saving}
+                              title={`${edge === "start" ? "Начало" : "Окончание"}: потяните или используйте ← →`}
+                              onPointerDown={(e) => editor.begin(e, item, edge)}
+                              {...editor.pointerHandlers}
+                              onKeyDown={(e) =>
+                                editor.resizeWithKeyboard(e, item, edge)
+                              }
+                            >
+                              <i aria-hidden="true" />
+                            </button>
+                          ),
+                      )}
                   </div>
                 );
               })}
@@ -378,7 +564,9 @@ export function ProgramTimeline({
           ))}
           {tracks.length === 0 && (
             <p className="timeline-empty">
-              На этот день пока ничего не запланировано.
+              {onCreate
+                ? "Выделите отрезок на линии, чтобы добавить первый пункт."
+                : "На этот день пока ничего не запланировано."}
             </p>
           )}
         </div>

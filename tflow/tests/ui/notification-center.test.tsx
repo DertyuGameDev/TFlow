@@ -11,6 +11,11 @@ function mount(send: Send, extra = {}) {
 }
 
 describe("центр уведомлений", () => {
+  it("отличает получение места на мероприятии от изменения программы", async () => {
+    const send = vi.fn().mockResolvedValue({ items: [notice("seat", { kind: "event_waitlist" })], next_cursor: null });
+    mount(send);
+    expect(await screen.findByRole("heading", { name: "Место на мероприятии освободилось" })).toBeVisible();
+  });
   it("показывает новое событие клуба и открывает его после прочтения", async () => {
     const user = userEvent.setup(), onOpen = vi.fn();
     const send = vi.fn().mockResolvedValueOnce({ items: [notice("club", { kind: "club_event" })], next_cursor: null }).mockResolvedValue({ ok: true });

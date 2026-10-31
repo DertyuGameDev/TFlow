@@ -66,10 +66,9 @@ class RoleAndPassTests(Scenario, TestCase):
             self.assertEqual(result["attendee"]["id"], self.person.pk)
             self.assertEqual(self.participant.get("/api/profile/qr").content, image)
         self.assertEqual(CheckIn.objects.filter(user=self.person).count(), 2)
-        self.assertTrue(
-            self.request(f"events/{self.event.pk}/check-in", "post", code)[
-                "already_checked_in"
-            ]
+        self.request(
+            f"events/{self.event.pk}/check-in", "post", code,
+            status=409, code="ALREADY_CHECKED_IN",
         )
 
     @override_settings(DEBUG=True)
@@ -237,18 +236,25 @@ class RoleAndPassTests(Scenario, TestCase):
         self.assertFalse(Registration.objects.filter(user=self.person).exists())
         self.assertTrue(Registration.objects.filter(user=self.other).exists())
 
-    def test_admitted_scan_and_repeat_do_not_double_count(self):
+    def test_qr_admits_once_and_repeated_scans_are_rejected(self):
         self.publish()
         self.request(
             f"events/{self.event.pk}/registration", "post", client=self.participant
         )
         body = {"qr": f"https://example.test/#pass/{self.person.pass_token}"}
         first = self.request(f"events/{self.event.pk}/check-in", "post", body)
-        second = self.request(f"events/{self.event.pk}/check-in", "post", body)
         self.assertTrue(first["admitted"])
         self.assertFalse(first["already_checked_in"])
-        self.assertTrue(second["already_checked_in"])
-        self.assertEqual(first["checked_in_at"], second["checked_in_at"])
+        for qr in [body["qr"], str(self.person.pass_token), str(self.person.pass_token).upper()]:
+            second = self.request(
+                f"events/{self.event.pk}/check-in", "post", {"qr": qr},
+                status=409, code="ALREADY_CHECKED_IN",
+            )
+            self.assertNotIn("admitted", second)
+            self.assertNotIn("attendee", second)
+        entry = self.event.check_ins.get()
+        self.assertEqual(milliseconds(entry.created_at), first["checked_in_at"])
+        self.assertEqual(entry.checked_by_id, self.owner.pk)
         self.assertEqual(self.event.check_ins.count(), 1)
         detail = self.request(f"events/{self.event.pk}")
         self.assertEqual(detail["event"]["checked_in_count"], 1)
@@ -474,7 +480,7 @@ class AttendanceConcurrencyTests(ConcurrencyTests):
         )
         self.assertEqual(self.event.enrollments.count(), 1)
 
-    def test_twenty_scans_create_one_entry(self):
+    def test_twenty_scans_admit_once_and_reject_nineteen_repeats(self):
         self.publish()
         EventRegistration.objects.create(user=self.person, event=self.event)
         clients = []
@@ -503,6 +509,13 @@ class AttendanceConcurrencyTests(ConcurrencyTests):
 
         with ThreadPoolExecutor(max_workers=20) as pool:
             results = list(pool.map(attempt, clients))
-        self.assertTrue(all(status == 200 for status, _ in results), results)
-        self.assertEqual(sum(not data["already_checked_in"] for _, data in results), 1)
+        admitted = [data for status, data in results if status == 200]
+        self.assertEqual(len(admitted), 1, results)
+        self.assertTrue(admitted[0]["admitted"])
+        self.assertFalse(admitted[0]["already_checked_in"])
+        self.assertEqual(
+            sum(status == 409 and data.get("code") == "ALREADY_CHECKED_IN" for status, data in results),
+            19,
+            results,
+        )
         self.assertEqual(CheckIn.objects.count(), 1)

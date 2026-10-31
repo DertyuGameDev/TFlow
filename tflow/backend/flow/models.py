@@ -266,6 +266,17 @@ class EventRegistration(models.Model):
         ]
 
 
+class EventWaitlistEntry(models.Model):
+    user = models.ForeignKey(User, on_delete=models.CASCADE, related_name="event_waitlist_entries")
+    event = models.ForeignKey(Event, on_delete=models.CASCADE, related_name="waitlist_entries")
+    created_at = models.DateTimeField(default=timezone.now)
+
+    class Meta:
+        ordering = ["id"]
+        constraints = [models.UniqueConstraint(fields=["user", "event"], name="unique_event_waitlist_entry")]
+        indexes = [models.Index(fields=["event", "id"], name="event_waitlist_order")]
+
+
 class CheckIn(models.Model):
     user = models.ForeignKey(User, on_delete=models.CASCADE, related_name="check_ins")
     event = models.ForeignKey(Event, on_delete=models.CASCADE, related_name="check_ins")
@@ -315,7 +326,12 @@ class Notification(models.Model):
     event = models.ForeignKey(Event, on_delete=models.SET_NULL, null=True, blank=True)
     kind = models.CharField(
         max_length=24,
-        choices=[("info", "Обновление"), ("event_cancelled", "Отмена мероприятия"), ("club_event", "Новое событие клуба")],
+        choices=[
+            ("info", "Обновление"),
+            ("event_cancelled", "Отмена мероприятия"),
+            ("club_event", "Новое событие клуба"),
+            ("event_waitlist", "Место на мероприятии освободилось"),
+        ],
         default="info",
     )
     message = models.TextField(max_length=1000)

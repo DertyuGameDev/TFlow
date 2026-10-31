@@ -65,10 +65,14 @@ import { OrganizerIntro } from "./ui/organizer-intro";
 import { Calendar } from "./ui/calendar";
 import { EventRemovalDialog } from "./ui/event-removal-dialog";
 import { NotificationCenter } from "./ui/notification-center";
+import { CheckInStatus } from "./ui/check-in-status";
+import { EventRegistrationAction, EventWaitlists } from "./ui/event-waitlist";
 import { Clubs } from "./ui/clubs";
 import { OrganizerManage } from "./ui/organizer-manage";
 import { AccountMenu } from "./ui/account-menu";
 import { EventTimeFilterControl } from "./ui/event-time-filter";
+import { splitOrganizerEvents } from "../lib/organizer-events";
+import type { ProgramRange } from "../lib/program-editing";
 import { matchesEventTime, type EventTimeFilter } from "../lib/event-filters";
 import { OrganizerTutorial } from "./ui/organizer-tutorial";
 import { ProfileUpcomingEvents } from "./ui/profile-upcoming-events";
@@ -105,7 +109,7 @@ type DialogState =
     }
   | { type: "filters" }
   | { type: "room"; room?: Room }
-  | { type: "activity"; activity?: Activity }
+  | { type: "activity"; activity?: Activity; range?: ProgramRange }
   | null;
 const empty: Bootstrap = {
   events: [],
@@ -308,9 +312,12 @@ function DiscoveryCard({
         {event.enrolled > 0 && (
           <span className="registered-tag">
             <Check size={12} />
-            Вы идёте
+            {event.checked_in ? "Вы вошли" : "Вы идёте"}
           </span>
         )}
+        {!event.enrolled && !!event.event_waitlisted && <span className="registered-tag event-waitlist-tag">
+          <Clock3 size={12} />В очереди · №{event.event_waitlist_position}
+        </span>}
       </div>
       <div className="discovery-copy">
         <p>
@@ -346,6 +353,8 @@ function ProfileView({
   onCreate,
   onEdit,
   onAvatar,
+  pending,
+  onLeaveEventWaitlist,
 }: {
   profile: Profile;
   organizer: boolean;
@@ -353,9 +362,14 @@ function ProfileView({
   onCreate: () => void;
   onEdit: () => void;
   onAvatar: () => void;
+  pending: boolean;
+  onLeaveEventWaitlist: (event: FlowEvent) => void;
 }) {
   const [copyState, setCopyState] = useState<"idle" | "copied" | "error">(
     "idle",
+  );
+  const checkedInEvents = events.filter(
+    (event) => event.enrolled && event.checked_in && event.ends_at > Date.now(),
   );
   return (
     <>
@@ -376,6 +390,13 @@ function ProfileView({
               <BrandLogo />
               <span>Личный пропуск</span>
             </div>
+            {checkedInEvents.length > 0 && (
+              <div className="participant-entry-list">
+                {checkedInEvents.map((event) => (
+                  <CheckInStatus key={event.id} event={event} />
+                ))}
+              </div>
+            )}
             <img
               src="/api/profile/qr"
               alt="Ваш личный QR-код для входа на мероприятия"
@@ -420,6 +441,7 @@ function ProfileView({
           </section>
         )}
         <div className="profile-sections">
+          {!organizer && <EventWaitlists events={events} pending={pending} onLeave={onLeaveEventWaitlist} />}
           <section className="personal-info">
             <div className="person-heading">
               <button
@@ -593,10 +615,14 @@ export function TFlow({ user }: { user: UserIdentity | null }) {
     [format, setFormat] = useState(""),
     [date, setDate] = useState("");
   const [eventTime, setEventTime] = useState<EventTimeFilter>("all");
-  const [ownEventTime, setOwnEventTime] = useState<EventTimeFilter>("all");
+  const [ownEventSection, setOwnEventSection] = useState<
+    "upcoming" | "archive"
+  >("upcoming");
   const latest = useRef(route),
     loadSequence = useRef(0),
     detailSequence = useRef(0);
+  const knownCheckIns = useRef<{ userId: string; ids: Set<string> } | null>(null);
+  const knownEventQueues = useRef<{ userId: string; ids: Set<string> } | null>(null);
   latest.current = route;
   const send = useCallback(
     async (path: string, method = "GET", body?: unknown): Promise<any> => {
@@ -635,6 +661,33 @@ export function TFlow({ user }: { user: UserIdentity | null }) {
     try {
       const next = await send("bootstrap");
       if (n === loadSequence.current) {
+        if (user?.role === "participant") {
+          const checkedIn = (next.tickets as FlowEvent[]).filter(
+            (event) => event.checked_in,
+          );
+          const previous = knownCheckIns.current;
+          if (previous?.userId === user.userId) {
+            const entered = checkedIn.find((event) => !previous.ids.has(event.id));
+            if (entered) {
+              setToast({
+                text: `Вы вошли в мероприятие «${entered.title}».`,
+                error: false,
+              });
+            }
+          }
+          knownCheckIns.current = {
+            userId: user.userId,
+            ids: new Set(checkedIn.map((event) => event.id)),
+          };
+          const previousQueues = knownEventQueues.current;
+          if (previousQueues?.userId === user.userId) {
+            const promoted = (next.tickets as FlowEvent[]).find((event) => previousQueues.ids.has(event.id));
+            if (promoted) setToast({ text: `Место освободилось! Вы зарегистрированы на мероприятие «${promoted.title}».`, error: false });
+          }
+          knownEventQueues.current = { userId: user.userId, ids: new Set(
+            (next.events as FlowEvent[]).filter((event) => event.event_waitlisted).map((event) => event.id),
+          ) };
+        }
         setData(next);
         setError("");
       }
@@ -643,7 +696,7 @@ export function TFlow({ user }: { user: UserIdentity | null }) {
     } finally {
       if (n === loadSequence.current) setLoading(false);
     }
-  }, [send]);
+  }, [send, user?.userId, user?.role]);
   const loadDetail = useCallback(
     async (id: string, attendance: "none" | "owner" | "required" = "none") => {
       const n = ++detailSequence.current;
@@ -680,6 +733,10 @@ export function TFlow({ user }: { user: UserIdentity | null }) {
     if (r.id && ["event", "webinar", "manage", "scan"].includes(r.view))
       await loadDetail(r.id, attendanceScope(r.view, organizer));
   }, [load, loadDetail, organizer]);
+  const refreshInterval =
+    user?.role === "participant" && ["profile", "event"].includes(route.view)
+      ? 5000
+      : 15000;
   useEffect(() => {
     const change = () => {
       if (location.hash === "#main-content") return;
@@ -691,7 +748,7 @@ export function TFlow({ user }: { user: UserIdentity | null }) {
     void load();
     const timer = setInterval(() => {
       if (document.visibilityState === "visible") void refresh();
-    }, 15000);
+    }, refreshInterval);
     const focus = () => void refresh();
     window.addEventListener("focus", focus);
     return () => {
@@ -699,7 +756,7 @@ export function TFlow({ user }: { user: UserIdentity | null }) {
       window.removeEventListener("focus", focus);
       clearInterval(timer);
     };
-  }, [load, organizer, refresh]);
+  }, [load, organizer, refresh, refreshInterval]);
   useEffect(() => {
     detailSequence.current++;
     setDetail(null);
@@ -713,16 +770,16 @@ export function TFlow({ user }: { user: UserIdentity | null }) {
     const timer = setTimeout(() => setToast(null), 5000);
     return () => clearTimeout(timer);
   }, [toast]);
-  async function action(fn: () => Promise<unknown>, message: string) {
+  async function action(fn: () => Promise<unknown>, message: string | ((result: unknown) => string)) {
     if (!user) {
       location.assign(loginLink(route.view, route.id));
       return;
     }
     setPending(true);
     try {
-      await fn();
+      const result = await fn();
       await refresh();
-      setToast({ text: message, error: false });
+      setToast({ text: typeof message === "function" ? message(result) : message, error: false });
     } catch (e) {
       setToast({ text: (e as Error).message, error: true });
     } finally {
@@ -741,10 +798,13 @@ export function TFlow({ user }: { user: UserIdentity | null }) {
     );
   const enrollmentDone = (
     message = "Вы записаны. Событие добавлено в календарь.",
+    result?: unknown,
+    path = "",
   ) => {
     setDialog(null);
     void refresh();
-    setToast({ text: message, error: false });
+    const immediate = /^events\/[^/]+\/waitlist$/.test(path) && (result as { registered?: boolean } | undefined)?.registered === true;
+    setToast({ text: immediate ? "Место доступно! Вы зарегистрированы на мероприятие. Оно добавлено в календарь." : message, error: false });
   };
   async function enroll(
     event: FlowEvent,
@@ -767,8 +827,8 @@ export function TFlow({ user }: { user: UserIdentity | null }) {
     if (pending) return;
     setPending(true);
     try {
-      await send(path, "POST", {});
-      enrollmentDone(message);
+      const result = await send(path, "POST", {});
+      enrollmentDone(message, result, path);
     } catch (e) {
       if (e instanceof ApiError && e.code === "PROFILE_INCOMPLETE")
         setDialog({
@@ -783,6 +843,16 @@ export function TFlow({ user }: { user: UserIdentity | null }) {
       setPending(false);
     }
   }
+  const joinEventQueue = (event: FlowEvent) => void enroll(
+    event, `events/${event.id}/waitlist`,
+    "Вы в листе ожидания. При появлении места зарегистрируем вас автоматически и уведомим.",
+  );
+  const leaveEventQueue = (event: FlowEvent) => void action(
+    () => send(`events/${event.id}/waitlist`, "DELETE"),
+    (result) => (result as { registered?: boolean })?.registered
+      ? "Вы уже получили место на мероприятии. Регистрация сохранена в календаре."
+      : "Вы вышли из листа ожидания мероприятия",
+  );
   const closeForm = (id?: string) => {
     setDialog(null);
     void refresh();
@@ -800,7 +870,8 @@ export function TFlow({ user }: { user: UserIdentity | null }) {
     });
   };
   const own = data.events.filter((e) => e.owner_id === user?.userId);
-  const visibleOwn = own.filter((e) => matchesEventTime(e, ownEventTime));
+  const ownSections = splitOrganizerEvents(own);
+  const visibleOwn = ownSections[ownEventSection];
   const visible = data.events.filter(
     (e) =>
       e.status === "published" &&
@@ -1261,10 +1332,30 @@ export function TFlow({ user }: { user: UserIdentity | null }) {
                         </strong>
                       </div>
                     </div>
-                    <EventTimeFilterControl
-                      value={ownEventTime}
-                      onChange={setOwnEventTime}
-                    />
+                    <div
+                      className="segmented event-time-filter"
+                      role="group"
+                      aria-label="Разделы моих событий"
+                    >
+                      {(
+                        [
+                          ["upcoming", "Предстоящие"],
+                          ["archive", "Архив"],
+                        ] as const
+                      ).map(([section, label]) => (
+                        <button
+                          type="button"
+                          key={section}
+                          className={
+                            ownEventSection === section ? "selected" : ""
+                          }
+                          aria-pressed={ownEventSection === section}
+                          onClick={() => setOwnEventSection(section)}
+                        >
+                          {label} · {ownSections[section].length}
+                        </button>
+                      ))}
+                    </div>
                     <div className="host-events">
                       {visibleOwn.map((e) => (
                         <OrganizerEvent
@@ -1278,14 +1369,28 @@ export function TFlow({ user }: { user: UserIdentity | null }) {
                       ))}
                       {visibleOwn.length === 0 && (
                         <Empty
-                          title="Таких событий пока нет"
-                          text="Выберите другое состояние мероприятий."
+                          title={
+                            ownEventSection === "archive"
+                              ? "Архив пока пуст"
+                              : "Нет предстоящих событий"
+                          }
+                          text={
+                            ownEventSection === "archive"
+                              ? "После завершения мероприятия появятся здесь автоматически."
+                              : "Прошедшие встречи находятся в архиве. Создайте новое событие, чтобы пригласить участников."
+                          }
                         >
                           <button
                             className="button secondary"
-                            onClick={() => setOwnEventTime("all")}
+                            onClick={() =>
+                              ownEventSection === "archive"
+                                ? setOwnEventSection("upcoming")
+                                : setDialog({ type: "create" })
+                            }
                           >
-                            Показать все
+                            {ownEventSection === "archive"
+                              ? "К предстоящим событиям"
+                              : "Создать событие"}
                           </button>
                         </Empty>
                       )}
@@ -1354,8 +1459,8 @@ export function TFlow({ user }: { user: UserIdentity | null }) {
                       )
                     }
                     onRoom={(room) => setDialog({ type: "room", room })}
-                    onActivity={(activity) =>
-                      setDialog({ type: "activity", activity })
+                    onActivity={(activity, range) =>
+                      setDialog({ type: "activity", activity, range })
                     }
                     send={send}
                     refresh={refresh}
@@ -1455,6 +1560,8 @@ export function TFlow({ user }: { user: UserIdentity | null }) {
                     onCreate={() => setDialog({ type: "create" })}
                     onEdit={() => setDialog({ type: "profile" })}
                     onAvatar={() => setDialog({ type: "avatar" })}
+                    pending={pending}
+                    onLeaveEventWaitlist={leaveEventQueue}
                   />
                 ) : (
                   <>
@@ -1572,11 +1679,16 @@ export function TFlow({ user }: { user: UserIdentity | null }) {
                         )}
                       </div>
                       <aside className="registration-card">
+                        {user?.role === "participant" && !!detail.event.checked_in && (
+                          <CheckInStatus event={detail.event} />
+                        )}
                         <div className="price-line">
                           <strong>Бесплатно</strong>
                           <span>
                             {detail.event.enrolled
-                              ? "Ваше место забронировано"
+                              ? detail.event.checked_in
+                                ? "Ваш вход подтверждён"
+                                : "Ваше место забронировано"
                               : `${Math.max(0, detail.event.capacity - detail.event.participant_count)} мест осталось`}
                           </span>
                         </div>
@@ -1650,33 +1762,15 @@ export function TFlow({ user }: { user: UserIdentity | null }) {
                             )}
                           </>
                         ) : user ? (
-                          <button
-                            className="button primary register-event"
-                            disabled={
-                              pending ||
-                              detail.event.participant_count >=
-                                detail.event.capacity ||
-                              detail.event.ends_at < Date.now() ||
-                              detail.event.status !== "published"
-                            }
-                            onClick={() => enroll(detail.event)}
-                          >
-                            {pending
-                              ? "Регистрируем…"
-                              : detail.event.participant_count >=
-                                  detail.event.capacity
-                                ? "Мест больше нет"
-                                : detail.event.ends_at < Date.now()
-                                  ? "Событие завершено"
-                                  : "Зарегистрироваться"}
-                            <ArrowRight size={18} />
-                          </button>
+                          <EventRegistrationAction event={detail.event} profile={data.profile} pending={pending}
+                            onRegister={() => void enroll(detail.event)} onJoin={() => joinEventQueue(detail.event)}
+                            onLeave={() => leaveEventQueue(detail.event)} />
                         ) : (
                           <a
                             className="button primary register-event"
                             href={signupLink("event", detail.event.id)}
                           >
-                            Зарегистрироваться
+                            {detail.event.participant_count >= detail.event.capacity ? "Войти и встать в очередь" : "Зарегистрироваться"}
                             <ArrowRight size={18} />
                           </a>
                         )}
@@ -1685,6 +1779,7 @@ export function TFlow({ user }: { user: UserIdentity | null }) {
                             ? hasWebinar(detail.event)
                               ? "Комната вебинара откроется прямо здесь, на ТФлоу."
                               : "Покажите QR из профиля на входе"
+                            : detail.event.event_waitlisted ? "Вы пока ожидаете место — QR для этого события ещё недоступен."
                             : "После регистрации событие появится в календаре."}
                         </p>
                         {!detail.event.enrolled &&
@@ -1827,6 +1922,7 @@ export function TFlow({ user }: { user: UserIdentity | null }) {
               <>
                 {user ? (
                   <>
+                    {!organizer && <EventWaitlists events={data.events} pending={pending} onLeave={leaveEventQueue} />}
                     <Calendar
                       data={data}
                       userId={user.userId}
@@ -2147,7 +2243,7 @@ export function TFlow({ user }: { user: UserIdentity | null }) {
             path={dialog.path}
             missing={dialog.missing}
             send={send}
-            done={() => enrollmentDone(dialog.message)}
+            done={(result) => enrollmentDone(dialog.message, result, dialog.path)}
           />
         </Modal>
       )}
@@ -2178,15 +2274,20 @@ export function TFlow({ user }: { user: UserIdentity | null }) {
             event={detail.event}
             rooms={detail.rooms}
             activity={dialog.activity}
-            initialStart={(() => {
-              const lastEnd = Math.max(
-                detail.event.starts_at,
-                ...detail.activities.map((item) => item.ends_at),
-              );
-              return lastEnd < detail.event.ends_at
-                ? lastEnd
-                : detail.event.starts_at;
-            })()}
+            initialStart={
+              dialog.range?.starts_at ??
+              (() => {
+                const lastEnd = Math.max(
+                  detail.event.starts_at,
+                  ...detail.activities.map((item) => item.ends_at),
+                );
+                return lastEnd < detail.event.ends_at
+                  ? lastEnd
+                  : detail.event.starts_at;
+              })()
+            }
+            initialEnd={dialog.range?.ends_at}
+            initialRoomId={dialog.range?.room_id}
             send={send}
             done={() => closeForm()}
           />

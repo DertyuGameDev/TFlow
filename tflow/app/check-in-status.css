@@ -1,0 +1,7 @@
+.participant-entry-status{display:flex;align-items:flex-start;gap:10px;padding:14px;border:1px solid #c8dfd0;border-radius:12px;background:var(--theme-green,#eff7f1);color:var(--theme-green-text,#28744f);text-align:left;line-height:1.5}
+.participant-entry-status>svg{flex-shrink:0;margin-top:2px}
+.participant-entry-status>div{min-width:0}
+.participant-entry-status strong{display:block;font-size:15px;font-weight:600}
+.participant-entry-status a{display:block;margin-top:4px;font-size:13px;color:inherit;text-decoration:underline;text-underline-offset:3px;overflow-wrap:anywhere}
+.participant-entry-list{display:grid;gap:10px;width:100%;margin:16px 0}
+:root[data-theme="dark"] .participant-entry-status{border-color:#3b624d}

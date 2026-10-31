@@ -260,7 +260,7 @@ export function CompleteRegistrationForm({
   path: string;
   missing: RequiredProfileField[];
   send: Send;
-  done: () => void;
+  done: (result: unknown) => void;
 }) {
   const [keys, setKeys] = useState(missing),
     [values, setValues] = useState<Partial<ParticipantData>>({}),
@@ -273,14 +273,14 @@ export function CompleteRegistrationForm({
     setError("");
     setFields({});
     try {
-      await send(
+      const result = await send(
         path,
         "POST",
         Object.fromEntries(
           keys.map((key) => [key, values[key] ?? profile[key] ?? ""]),
         ),
       );
-      done();
+      done(result);
     } catch (e) {
       setError((e as Error).message);
       if (e instanceof ApiError) {
@@ -299,8 +299,9 @@ export function CompleteRegistrationForm({
       <div className="registration-form-context">
         <strong>{event.title}</strong>
         <p>
-          Организатору нужны ещё эти данные. Сохраним их в вашем профиле и сразу
-          завершим запись.
+          {/^events\/[^/]+\/waitlist$/.test(path)
+            ? "Сохраним необходимые данные в вашем профиле и добавим вас в очередь. Если место уже доступно, сразу зарегистрируем."
+            : "Организатору нужны ещё эти данные. Сохраним их в вашем профиле и сразу завершим запись."}
         </p>
       </div>
       {keys.map((key) => {
@@ -322,7 +323,7 @@ export function CompleteRegistrationForm({
       </p>
       <FormError error={error} />
       <div className="form-footer">
-        <Submit busy={busy} label="Сохранить и записаться" />
+        <Submit busy={busy} label={/^events\/[^/]+\/waitlist$/.test(path) ? "Сохранить и встать в очередь" : "Сохранить и записаться"} />
       </div>
     </form>
   );
