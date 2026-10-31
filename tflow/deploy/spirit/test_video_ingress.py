@@ -1,6 +1,8 @@
 import io
 import json
 import unittest
+import tempfile
+from pathlib import Path
 from unittest.mock import Mock, patch
 
 from control import ApiError, ControlError
@@ -65,3 +67,21 @@ class VideoIngressTests(unittest.TestCase):
         compile(ingress.VM_PROBE, "video-probe", "exec")
         for word in ("restart", "reboot", "app.env", "privateKey"):
             self.assertNotIn(word, ingress.VM_PROBE)
+
+    @patch("video_ingress.verify_media")
+    @patch("video_ingress.verify_public")
+    @patch("video_ingress.probe")
+    def test_media_check_uses_private_temporary_config_without_installer(self, probe, public, media):
+        values = {"api_key": "test-key", "api_secret": "test-private-secret"}
+        probe.return_value = values
+        with tempfile.TemporaryDirectory() as directory:
+            private = Path(directory)
+            api = Mock()
+            ingress.check_media(api, private)
+            config = private / "media.json"
+            self.assertEqual(json.loads(config.read_text()), values)
+            self.assertEqual(config.stat().st_mode & 0o777, 0o600)
+            public.assert_called_once_with(values)
+            media.assert_called_once_with(private, config, ingress.media_command)
+            self.assertTrue(probe.call_args.kwargs["root"])
+            compile(ingress.MEDIA_CONFIG, "private-media-config", "exec")

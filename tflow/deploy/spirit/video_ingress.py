@@ -14,6 +14,8 @@ from urllib.request import Request, urlopen
 
 from control import BASE, HOST, VM_PATH, ApiError, ControlError, Spirit, authenticate
 from deploy import HOST_KEY
+from provision_video import media_command
+from video_checks import verify_media, verify_public
 
 GROUP_PATH = VM_PATH.rsplit("/vm/", 1)[0]
 SG_PATH = GROUP_PATH + "/sg"
@@ -96,7 +98,7 @@ if not all(value=='active' for value in services.values()):raise SystemExit(1)
 '''
 
 
-def probe(api, private):
+def probe(api, private, *, script=VM_PROBE, root=False):
     data = api.request("GET", "/credentials").get("attributes", {})
     if data.get("username") != "ubuntu" or data.get("host") != "158.160.209.13":
         raise ControlError("SSH credentials do not identify the owned vm1")
@@ -106,16 +108,37 @@ def probe(api, private):
     result = subprocess.run(["ssh", "-i", str(key), "-o", "UserKnownHostsFile=" + str(hosts),
                              "-o", "HostKeyAlias=" + HOST, "-o", "StrictHostKeyChecking=yes",
                              "-o", "BatchMode=yes", "-o", "ConnectTimeout=10", "-o", "ForwardAgent=no",
-                             "ubuntu@158.160.209.13", "python3 -"],
-                            input=VM_PROBE, capture_output=True, text=True, timeout=40)
+                             "ubuntu@158.160.209.13", "sudo -n python3 -" if root else "python3 -"],
+                            input=script, capture_output=True, text=True, timeout=40)
     if result.returncode:
         raise ControlError("Read-only VM probe failed; private SSH output withheld")
     return json.loads(result.stdout)
 
 
+MEDIA_CONFIG = r'''
+import json
+from pathlib import Path
+keys=json.loads(Path('/etc/tflow-video/livekit.yaml').read_text())['keys']
+if len(keys)!=1:raise SystemExit(1)
+key,secret=next(iter(keys.items()))
+print(json.dumps({'api_key':key,'api_secret':secret}))
+'''
+
+
+def check_media(api, private):
+    # Same pinned SSH and private CI storage as the existing media verifier.
+    # No installer, certificate renewal, application events or user devices.
+    values = probe(api, private, script=MEDIA_CONFIG, root=True)
+    config = private / "media.json"
+    config.write_text(json.dumps(values)); config.chmod(0o600)
+    verify_public(values)
+    verify_media(private, config, media_command)
+
+
 def main():
     parser = argparse.ArgumentParser()
     parser.add_argument("--allow-udp", action="store_true")
+    parser.add_argument("--check-media", action="store_true")
     args = parser.parse_args()
     with tempfile.TemporaryDirectory(prefix="tflow-video-ingress-") as directory:
         private = Path(directory)
@@ -125,6 +148,7 @@ def main():
             raise ControlError("Expected the existing active owned vm1")
         baseline = probe(api, private)
         print("VM before:", json.dumps(baseline), flush=True)
+        failure = None
         try:
             before = rules(api)
             print("Spirit ingress before:", json.dumps(coverage(before)), flush=True)
@@ -132,13 +156,21 @@ def main():
             print("Spirit ingress after:", json.dumps(coverage(after)), flush=True)
         except ApiError as error:
             if error.status in (401, 403):
-                raise ControlError("Spirit denies network-rule access to the tenant CI identity; an infrastructure administrator must allow UDP 8082. VM, disk and existing rules were retained") from None
-            raise
+                failure = ControlError("Spirit denies network-rule changes to the tenant CI identity; an infrastructure administrator must allow UDP 8082. VM, disk and existing rules were retained")
+            else:
+                failure = error
+        except ControlError as error:
+            failure = error
+        try:
+            if args.check_media:
+                check_media(api, private)
         finally:
             final = probe(api, private)
             print("VM after:", json.dumps(final), flush=True)
             if final != baseline:
                 raise ControlError("Application or video state changed during the network check; inspect before continuing")
+        if failure:
+            raise failure
 
 
 if __name__ == "__main__":

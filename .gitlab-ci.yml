@@ -183,9 +183,9 @@ spirit-video-ingress:
   script:
     - |
       if [ "${TFLOW_VIDEO_ALLOW_UDP:-0}" = "1" ]; then
-        python tflow/deploy/spirit/video_ingress.py --allow-udp
+        python tflow/deploy/spirit/video_ingress.py --allow-udp --check-media
       else
-        python tflow/deploy/spirit/video_ingress.py
+        python tflow/deploy/spirit/video_ingress.py --check-media
       fi
 
 provision-owned-video:
