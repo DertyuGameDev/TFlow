@@ -57,6 +57,14 @@ class User(AbstractUser):
     REQUIRED_FIELDS = ["name"]
     objects = UserManager()
 
+    class Meta(AbstractUser.Meta):
+        constraints = [
+            models.CheckConstraint(
+                condition=Q(role__in=["participant", "organizer"]),
+                name="user_valid_role",
+            )
+        ]
+
     def __str__(self):
         return self.name or self.email
 

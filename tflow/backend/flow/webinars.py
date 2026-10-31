@@ -30,6 +30,8 @@ def event_for_webinar(user, event_id):
         raise FlowError(
             "NOT_WEBINAR", "Видеокомната доступна для онлайн- и гибридных событий", 400
         )
+    if not owner and user.role != "participant":
+        raise FlowError("FORBIDDEN", "Организатору доступна только студия своего события", 403)
     if not owner and not event.enrollments.filter(user=user).exists():
         raise FlowError(
             "NOT_REGISTERED", "Сначала зарегистрируйтесь на это событие", 403

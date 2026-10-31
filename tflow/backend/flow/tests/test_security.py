@@ -249,7 +249,8 @@ class SecurityTests(Scenario, TestCase):
             ),
         ]:
             with self.subTest(path=path):
-                self.request(path, method, body, status=status)
+                client = self.participant if path.endswith("/registration") else self.client
+                self.request(path, method, body, client=client, status=status)
 
     def test_unknown_paths_and_unsupported_methods(self):
         for path in ["unknown", "events/a/b/c", f"events/{self.event.pk}/unknown"]:

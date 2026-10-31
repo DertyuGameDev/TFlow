@@ -343,10 +343,10 @@ function ProfileView({
     <>
       <Heading
         title="Ваш профиль"
-        text="Один аккаунт — для участия и своих событий"
+        text={organizer ? "Аккаунт организатора · роль изменить нельзя" : "Аккаунт участника · роль изменить нельзя"}
       />
       <div className="personal-layout">
-        <section className="personal-pass">
+        {!organizer && <section className="personal-pass">
           <div className="pass-top">
             <BrandLogo />
             <span>Личный пропуск</span>
@@ -388,7 +388,7 @@ function ProfileView({
             <Check size={16} />
             На входе проверим вашу регистрацию
           </div>
-        </section>
+        </section>}
         <div className="profile-sections">
           <section className="personal-info">
             <div className="person-heading">
@@ -404,7 +404,7 @@ function ProfileView({
               </button>
               <div>
                 <h2>{profile.name}</h2>
-                <span>{organizer ? "Участник и организатор" : "Участник"}</span>
+                <span>{organizer ? "Организатор" : "Участник"}</span>
               </div>
               <button
                 className="icon-button"
@@ -415,8 +415,9 @@ function ProfileView({
               </button>
             </div>
             <p className="profile-sharing-note">
-              Заполните профиль один раз. При записи организатор получит ваши
-              данные, а недостающее можно будет добавить по пути.
+              {organizer
+                ? "Создавайте события и управляйте ими в кабинете организатора."
+                : "Заполните профиль один раз. При записи организатор получит ваши данные, а недостающее можно будет добавить по пути."}
             </p>
             <ParticipantDetails data={profile} showEmpty />
 
@@ -440,26 +441,12 @@ function ProfileView({
               <button className="text-button">Выйти из аккаунта</button>
             </form>
           </section>
-          <section className="profile-organizer">
-            <span className="organizer-eyebrow">
-              <LayoutDashboard size={18} />
-              Для ваших идей
-            </span>
-            <h2>
-              {organizer
-                ? "Ваш кабинет организатора"
-                : "Хотите провести своё событие?"}
-            </h2>
-            <p>
-              {organizer
-                ? "Создавайте события, управляйте регистрациями и встречайте гостей по QR."
-                : "Соберите встречу, лекцию или конференцию. Записи на события и личный QR останутся в этом аккаунте."}
-            </p>
-            <a className="button primary" href="#organizer">
-              {organizer ? "Мои события" : "Стать организатором"}
-              <ArrowRight size={18} />
-            </a>
-          </section>
+          {organizer && <section className="profile-organizer">
+            <span className="organizer-eyebrow"><LayoutDashboard size={18} />Ваши события</span>
+            <h2>Кабинет организатора</h2>
+            <p>Создавайте события, ведите вебинары и встречайте гостей по QR.</p>
+            <a className="button primary" href="#organizer">Мои события<ArrowRight size={18} /></a>
+          </section>}
         </div>
       </div>
     </>
@@ -826,10 +813,8 @@ function OrganizerManage({
 
 export function TFlow({
   user,
-  onUserChange,
 }: {
   user: UserIdentity | null;
-  onUserChange: (user: UserIdentity) => void;
 }) {
   const organizer = user?.role === "organizer";
   const [route, setRoute] = useState<Route>(() => routeFromHash(organizer)),
@@ -837,7 +822,7 @@ export function TFlow({
     [loading, setLoading] = useState(true),
     [error, setError] = useState("");
   const organizerArea =
-    organizer && ["organizer", "manage", "scan"].includes(route.view);
+    organizer;
   const [detail, setDetail] = useState<EventDetail | null>(null),
     [detailError, setDetailError] = useState(""),
     [rows, setRows] = useState<AttendanceRow[]>([]);
@@ -1005,6 +990,10 @@ export function TFlow({
       location.assign(signupLink("event", event.id));
       return;
     }
+    if (organizer) {
+      setToast({ text: "Запись на события доступна только участникам", error: true });
+      return;
+    }
     if (pending) return;
     setPending(true);
     try {
@@ -1096,7 +1085,7 @@ export function TFlow({
     route.view === "profile" ||
     (route.view === "pass" && data.profile?.pass_token === route.id);
   const catalog = ["events", "saved"].includes(route.view);
-  const denied = !organizer && ["manage", "scan"].includes(route.view);
+  const denied = !organizer && (["manage", "scan"].includes(route.view) || (!!user && route.view === "organizer"));
   const brandDestination = organizerArea ? "organizer" : "events";
   const activeNav = (id: string) =>
     route.view === id ||
@@ -1140,8 +1129,7 @@ export function TFlow({
   }
   const programActions = {
     schedule: data.schedule,
-    organizer:
-      route.view === "event" && detail?.event.owner_id === user?.userId,
+    organizer,
     pending,
     onAction: activityAction,
   };
@@ -1176,32 +1164,9 @@ export function TFlow({
           </nav>
           <div className="flow-account">
             <ThemeToggle />
-            <a
-              className="role-switch"
-              href={organizerArea ? "#events" : "#organizer"}
-              aria-label={
-                organizerArea
-                  ? "Перейти к участию в событиях"
-                  : organizer
-                    ? "Кабинет организатора"
-                    : "Стать организатором"
-              }
-            >
-              {organizerArea ? (
-                <Search size={18} />
-              ) : (
-                <LayoutDashboard size={18} />
-              )}
-              <span>
-                {organizerArea
-                  ? "Участвовать"
-                  : organizer
-                    ? "Мои события"
-                    : user
-                      ? "Стать организатором"
-                      : "Организаторам"}
-              </span>
-            </a>
+            {!user && <a className="role-switch" href="#organizer">
+              <LayoutDashboard size={18} /><span>Организаторам</span>
+            </a>}
             {user && !organizerArea && (
               <a
                 className="icon-button favorite-link"
@@ -1269,12 +1234,14 @@ export function TFlow({
           </div>
         ) : denied ? (
           <Empty
-            title="Кабинет организатора"
-            text="Откройте кабинет, чтобы создавать события и управлять своей программой."
+            title="Доступ только для организаторов"
+            text={user
+              ? "Вы вошли как участник. Роль выбирается при регистрации и не может быть изменена."
+              : "Войдите в аккаунт организатора, чтобы управлять своими событиями."}
           >
-            <button className="button primary" onClick={() => go("organizer")}>
-              Стать организатором
-            </button>
+            {user ? <button className="button primary" onClick={() => go("events")}>
+              К событиям
+            </button> : <a className="button primary" href={loginLink(route.view, route.id)}>Войти</a>}
           </Empty>
         ) : (
           <>
@@ -1433,12 +1400,11 @@ export function TFlow({
                   <Empty
                     icon={CalendarDays}
                     title="События скоро появятся"
-                    text="Организаторы ещё не опубликовали мероприятия. Если вы готовите встречу, создайте своё событие."
+                    text="Организаторы ещё не опубликовали мероприятия. Загляните позже."
                   >
-                    <a className="button secondary" href="#organizer">
-                      Стать организатором
-                      <ArrowRight size={17} />
-                    </a>
+                    {!user && <a className="button secondary" href="#organizer">
+                      Организаторам<ArrowRight size={17} />
+                    </a>}
                   </Empty>
                 )}
               </>
@@ -1509,19 +1475,7 @@ export function TFlow({
                 )}
               </>
             )}
-            {route.view === "organizer" && !organizer && (
-              <OrganizerIntro
-                user={user}
-                send={send}
-                onEnabled={(nextUser) => {
-                  onUserChange(nextUser);
-                  setToast({
-                    text: "Кабинет открыт. Создайте своё первое событие.",
-                    error: false,
-                  });
-                }}
-              />
-            )}
+            {route.view === "organizer" && !user && <OrganizerIntro />}
             {route.view === "manage" && organizer && (
               <>
                 <button className="back-link" onClick={() => go("organizer")}>
@@ -1781,6 +1735,8 @@ export function TFlow({
                               : "В кабинет организатора"}
                             <ArrowRight size={17} />
                           </button>
+                        ) : organizer ? (
+                          <p className="registration-role-note">Запись доступна только аккаунтам участников. Вы вошли как организатор.</p>
                         ) : detail.event.enrolled ? (
                           <>
                             <button
@@ -1949,6 +1905,8 @@ export function TFlow({
                           Создать аккаунт
                         </a>
                       </Empty>
+                    ) : organizer && detail.event.owner_id !== user.userId ? (
+                      <Empty icon={Video} title="Это студия другого организатора" text="Вы можете вести вебинары только своих событий. Просмотр доступен зарегистрированным участникам." />
                     ) : !detail.event.enrolled &&
                       detail.event.owner_id !== user.userId ? (
                       <Empty
@@ -2199,9 +2157,9 @@ export function TFlow({
         <footer className="flow-footer">
           <span>ТФлоу · События и люди</span>
           <nav className="flow-footer-links" aria-label="Ссылки внизу страницы">
-            <a href="#organizer">
+            {(!user || organizer) && <a href="#organizer">
               {organizer ? "Кабинет организатора" : "Организаторам"}
-            </a>
+            </a>}
             <a href="#clubs">Клубы по интересам</a>
             <a href="#places">Площадки</a>
           </nav>
