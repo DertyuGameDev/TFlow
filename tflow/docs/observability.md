@@ -14,7 +14,7 @@ Prometheus → Alertmanager → webhook команды; без внешнего 
 python3 monitoring/setup.py
 # Перезапустите уже работающий npm run dev, чтобы загрузить backend/.env.monitoring.
 # Почта не требуется для мониторинга:
-NOTIFICATION_EMAIL_ENABLED=0 npm run dev
+npm run dev
 ```
 
 В другом терминале (приёмник алертов уже входит в Compose):

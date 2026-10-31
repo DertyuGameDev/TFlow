@@ -18,7 +18,6 @@
     "db:migrate": "node scripts/python.mjs manage.py migrate --noinput",
     "test:calendar": "node --experimental-strip-types lib/calendar.test.mjs",
     "setup:video": "node scripts/setup-video.mjs",
-    "setup:mail": "node scripts/python.mjs ../scripts/setup-mail.py",
     "test:frontend": "npm run test:calendar && node --experimental-strip-types lib/activities.test.mjs && node --experimental-strip-types lib/screen-share.test.mjs && node --experimental-strip-types lib/audio-level.test.mjs && npm run test:ui",
     "test:ui": "vitest run",
     "test": "npm run test:frontend && npm run test:backend"

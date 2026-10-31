@@ -7,7 +7,6 @@ try { createRequire(import.meta.url).resolve('livekit-client'); }
 catch { console.error('Не установлены зависимости интерфейса. Выполните npm ci, затем npm run dev.'); process.exit(1); }
 
 if(existsSync(resolve('backend/.env.monitoring')))process.loadEnvFile(resolve('backend/.env.monitoring'));
-if(existsSync(resolve('backend/.env.mail')))process.loadEnvFile(resolve('backend/.env.mail'));
 if(existsSync(resolve('backend/.env.video')))process.loadEnvFile(resolve('backend/.env.video'));
 process.env.TFLOW_DEMO_MODE ??= '1';
 
@@ -55,12 +54,6 @@ else{
   const reminders=spawn(python,['manage.py','send_activity_reminders','--watch'],{cwd:resolve('backend'),stdio:'inherit'});
   children.push(reminders);
   reminders.on('exit',code=>{if(!exiting&&code)console.error('Reminder worker stopped; restart npm run dev to resume reminders.');});
-  const emailEnabled=process.env.NOTIFICATION_EMAIL_ENABLED ?? (process.env.EMAIL_HOST_USER&&process.env.EMAIL_HOST_PASSWORD?'1':'0');
-  if(emailEnabled==='1'){
-    const mailer=spawn(python,['manage.py','send_notification_emails','--watch'],{cwd:resolve('backend'),stdio:'inherit'});
-    children.push(mailer);
-    mailer.on('exit',code=>{if(!exiting&&code)console.error('Email worker stopped; pending messages stay in the database.');});
-  }
   console.log('\nТФлоу: http://127.0.0.1:5173/ · API: Django 127.0.0.1:8000\n');
 }
 for(const signal of ['SIGINT','SIGTERM'])process.on(signal,()=>stop());

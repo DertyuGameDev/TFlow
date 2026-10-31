@@ -143,22 +143,6 @@ TFLOW_DNS_HOOK_SECRET = os.environ.get("TFLOW_DNS_HOOK_SECRET", "")
 TFLOW_DUCKDNS_TOKEN = os.environ.get("TFLOW_DUCKDNS_TOKEN", "")
 LIVEKIT_API_KEY = os.environ.get("LIVEKIT_API_KEY", "devkey" if DEBUG else "")
 LIVEKIT_API_SECRET = os.environ.get("LIVEKIT_API_SECRET", "secret" if DEBUG else "")
-EMAIL_BACKEND = "django.core.mail.backends.smtp.EmailBackend"
-EMAIL_HOST = os.environ.get("EMAIL_HOST", "smtp.yandex.ru")
-EMAIL_PORT = int(os.environ.get("EMAIL_PORT", "465"))
-EMAIL_HOST_USER = os.environ.get("EMAIL_HOST_USER", "")
-EMAIL_HOST_PASSWORD = os.environ.get("EMAIL_HOST_PASSWORD", "")
-EMAIL_USE_SSL = os.environ.get("EMAIL_USE_SSL", "1") == "1"
-EMAIL_USE_TLS = os.environ.get("EMAIL_USE_TLS", "0") == "1"
-EMAIL_TIMEOUT = 10
-DEFAULT_FROM_EMAIL = os.environ.get("DEFAULT_FROM_EMAIL", EMAIL_HOST_USER)
-NOTIFICATION_EMAIL_ENABLED = (
-    os.environ.get(
-        "NOTIFICATION_EMAIL_ENABLED",
-        "1" if EMAIL_HOST_USER and EMAIL_HOST_PASSWORD else "0",
-    )
-    == "1"
-)
 PUBLIC_APP_URL = os.environ.get(
     "TFLOW_PUBLIC_URL",
     (

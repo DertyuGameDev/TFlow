@@ -1,15 +1,13 @@
 from unittest.mock import patch
 
-from django.core import mail
 from django.test import Client, TestCase, override_settings
 
 from flow import services
-from flow.mailing import send_pending_emails
-from flow.models import Community, Membership, Notification, NotificationEmail, User
+from flow.models import Community, Membership, Notification, User
 from .test_api import FAST_HASHER, Scenario
 
 
-@override_settings(PASSWORD_HASHERS=FAST_HASHER, NOTIFICATION_EMAIL_ENABLED=False)
+@override_settings(PASSWORD_HASHERS=FAST_HASHER)
 class ClubSubscriptionTests(Scenario, TestCase):
     def setUp(self):
         super().setUp()
@@ -76,8 +74,6 @@ class ClubSubscriptionTests(Scenario, TestCase):
         self.assertEqual(notice.event_id, self.event.pk)
         self.assertIn(self.club.name, notice.message)
         self.assertIn(self.event.title, notice.message)
-        self.assertEqual(NotificationEmail.objects.get().recipient, self.person.email)
-        self.assertEqual(send_pending_emails(), {"sent": 0, "failed": 0, "configured": False})
         state = self.request("bootstrap", client=self.participant)
         self.assertEqual(state["unread_notification_count"], 1)
         self.assertEqual(state["notifications"][0]["kind"], "club_event")
@@ -89,21 +85,22 @@ class ClubSubscriptionTests(Scenario, TestCase):
         self.request(f"events/{self.event.pk}/publish", "post")
         self.assertFalse(Notification.objects.exists())
 
-    def test_publication_and_notice_roll_back_if_email_queue_fails(self):
+    def test_publication_and_notice_roll_back_if_notification_creation_fails(self):
         Membership.objects.create(user=self.person, community=self.club)
-        with patch("flow.mailing.NotificationEmail.objects.bulk_create", side_effect=RuntimeError("queue failure")):
+        with patch(
+            "flow.notifications.Notification.objects.bulk_create",
+            side_effect=RuntimeError("queue failure"),
+        ):
             with self.assertRaises(RuntimeError):
                 services.publish_event(self.owner, self.event.pk)
         self.event.refresh_from_db()
         self.assertEqual(self.event.status, "draft")
         self.assertFalse(Notification.objects.exists())
-        self.assertFalse(NotificationEmail.objects.exists())
 
-    @override_settings(EMAIL_BACKEND="django.core.mail.backends.locmem.EmailBackend", NOTIFICATION_EMAIL_ENABLED=True, DEFAULT_FROM_EMAIL="notifications@example.test")
-    def test_club_notification_uses_distinct_subject_and_private_recipient(self):
+    def test_new_club_event_is_available_in_site_notification_center(self):
         Membership.objects.create(user=self.person, community=self.club)
         self.request(f"events/{self.event.pk}/publish", "post")
-        self.assertEqual(send_pending_emails()["sent"], 1)
-        self.assertEqual(mail.outbox[0].subject, "ТФлоу — новое событие клуба")
-        self.assertEqual(mail.outbox[0].to, [self.person.email])
-        self.assertEqual(mail.outbox[0].cc + mail.outbox[0].bcc, [])
+        page = self.request("notifications", client=self.participant)
+        self.assertEqual(len(page["items"]), 1)
+        self.assertEqual(page["items"][0]["kind"], "club_event")
+        self.assertEqual(page["items"][0]["event_id"], self.event.pk)
