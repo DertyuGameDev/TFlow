@@ -1,7 +1,13 @@
 import json
 import unittest
+import tempfile
+from pathlib import Path
+from types import SimpleNamespace
+from unittest.mock import patch
+from control import ControlError
+from provision_video import media_command
 
-from install_video import ADDRESS, HOST, DNS_HOOK, RENEW_HOOK, livekit_config, validate
+from install_video import ADDRESS, HOST, DNS_HOOK, RENEW_HOOK, failure_reason, livekit_config, resolve_values, validate
 
 
 class OwnedVideoConfigTests(unittest.TestCase):
@@ -44,3 +50,46 @@ class OwnedVideoConfigTests(unittest.TestCase):
                     validate({**self.values, key: value})
                 self.assertIn(key, str(error.exception))
                 self.assertNotIn(value, str(error.exception))
+
+    def test_routine_provision_reuses_private_vm_configuration(self):
+        with tempfile.TemporaryDirectory() as directory:
+            base = Path(directory)
+            (base / "livekit.yaml").write_text(livekit_config(self.values))
+            (base / "dns.json").write_text(json.dumps({"relay_secret":self.values["relay_secret"]}))
+            incoming = {"domain":HOST,"ip":ADDRESS,"api_key":"","api_secret":"","relay_secret":""}
+            self.assertEqual(resolve_values(incoming,base),self.values)
+            self.assertEqual(incoming["api_key"],"")
+
+    def test_initial_setup_requires_credentials_and_never_invents_them(self):
+        with tempfile.TemporaryDirectory() as directory:
+            with self.assertRaisesRegex(ValueError,"api_key"):
+                resolve_values({"domain":HOST,"ip":ADDRESS},Path(directory))
+
+    def test_explicit_rotation_is_kept_and_partial_api_credentials_are_rejected(self):
+        with tempfile.TemporaryDirectory() as directory:
+            self.assertEqual(resolve_values(self.values,Path(directory)),self.values)
+        with self.assertRaisesRegex(ValueError,"supplied together"):
+            validate({**self.values,"api_secret":""},allow_missing=True)
+
+    @patch("provision_video.subprocess.run")
+    def test_ssh_and_installer_failures_have_safe_stage_diagnostics(self, run):
+        for code, detail, expected in [
+            (255, "Host key verification failed. private-value", "pinned SSH host key"),
+            (255, "Connection timed out private-value", "SSH connection timed out"),
+            (1, "certbot failed; private-value", "certbot failed"),
+            (1, "certbot failed (private_value);", "certbot failed"),
+            (1, "certbot failed (dns_relay_http_503); private-value", "dns_relay_http_503"),
+        ]:
+            with self.subTest(code=code, expected=expected):
+                run.return_value = SimpleNamespace(returncode=code,stdout="private-value",stderr=detail)
+                with self.assertRaises(ControlError) as error:
+                    media_command(["ssh","test-only"],"installation")
+                self.assertIn(expected,str(error.exception))
+                self.assertIn("installation",str(error.exception))
+                self.assertNotIn("private-value",str(error.exception))
+                self.assertNotIn("private_value",str(error.exception))
+
+    def test_private_installer_output_is_reduced_to_fixed_error_codes(self):
+        self.assertEqual(failure_reason("private-token DNS relay HTTP 403; detail"),"dns_relay_http_403")
+        self.assertEqual(failure_reason("private-token DNS relay connection failed"),"dns_relay_connection_failed")
+        self.assertEqual(failure_reason("private-token"),"command_failed")

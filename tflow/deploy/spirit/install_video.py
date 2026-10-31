@@ -18,13 +18,34 @@ VERSION = "1.13.11"
 ARCHIVE_SHA = "1e9ee90ca301e1842b2887fc77cb122759756a9c8aeb4334ee91de3325ec43fb"
 
 
-def validate(values):
+def validate(values, *, allow_missing=False):
     if values.get("domain") != HOST or values.get("ip") != ADDRESS:
         raise ValueError("Media configuration must identify the owned vm1")
+    if bool(values.get("api_key")) != bool(values.get("api_secret")):
+        raise ValueError("Media api_key and api_secret must be supplied together")
     for key in ("api_key", "api_secret", "relay_secret"):
+        if allow_missing and not values.get(key):
+            continue
         if not re.fullmatch(r"[A-Za-z0-9_-]{24,128}", values.get(key, "")):
             raise ValueError(f"Invalid media configuration: {key} must contain 24–128 URL-safe characters")
     return values
+
+
+def resolve_values(values, base=Path("/etc/tflow-video")):
+    # Routine CI jobs reuse secrets on the owned VM; they never return them to CI.
+    values = dict(validate(values, allow_missing=True))
+    if not values.get("api_key") and not values.get("api_secret"):
+        path = base / "livekit.yaml"
+        if path.is_file():
+            keys = json.loads(path.read_text()).get("keys", {})
+            if len(keys) != 1:
+                raise ValueError("Existing media configuration must contain one API key")
+            values["api_key"], values["api_secret"] = next(iter(keys.items()))
+    if not values.get("relay_secret"):
+        path = base / "dns.json"
+        if path.is_file():
+            values["relay_secret"] = json.loads(path.read_text()).get("relay_secret", "")
+    return validate(values)
 
 
 def livekit_config(values):
@@ -41,7 +62,7 @@ def livekit_config(values):
 
 
 DNS_HOOK = r'''#!/usr/bin/python3
-import hashlib, hmac, json, os, socket, subprocess, sys, time, urllib.request
+import hashlib, hmac, json, os, socket, subprocess, sys, time, urllib.error, urllib.request
 from pathlib import Path
 values=json.loads(Path('/etc/tflow-video/dns.json').read_text())
 host=values['domain']
@@ -62,8 +83,10 @@ for fallback in [False,True]:
         with urllib.request.urlopen(request,timeout=10 if not fallback else 20) as response:
             if json.load(response).get('ok') is not True: raise ValueError()
         break
+    except urllib.error.HTTPError as error:
+        if fallback: raise SystemExit('DNS relay HTTP '+str(error.code)+'; credential output withheld')
     except Exception:
-        if fallback: raise SystemExit('DNS update failed; credential output withheld')
+        if fallback: raise SystemExit('DNS relay connection failed; credential output withheld')
     finally: socket.getaddrinfo=resolver
 if not clear:
     for attempt in range(24):
@@ -113,6 +136,23 @@ WantedBy=multi-user.target
 """
 
 
+def failure_reason(details):
+    match = re.search(r"DNS relay HTTP ([1-5][0-9]{2});", details)
+    if match:
+        return "dns_relay_http_" + match[1]
+    for needle, reason in (
+        ("DNS relay connection failed", "dns_relay_connection_failed"),
+        ("ACME TXT has not propagated", "dns_txt_not_propagated"),
+        ("Timeout during connect", "upstream_connection_failed"),
+        ("Connection timed out", "upstream_connection_failed"),
+        ("Failed to establish a new connection", "upstream_connection_failed"),
+        ("Some challenges have failed", "acme_validation_failed"),
+    ):
+        if needle in details:
+            return reason
+    return "command_failed"
+
+
 def run(*args):
     result = subprocess.run(list(map(str, args)), capture_output=True, text=True, timeout=480)
     if result.returncode:
@@ -122,7 +162,7 @@ def run(*args):
         with log.open('a') as stream:
             stream.write(f'\n{Path(str(args[0])).name}\n'+details)
         log.chmod(0o600)
-        raise RuntimeError(f"{Path(str(args[0])).name} failed; inspect /var/log/tflow-video-setup.log on vm1")
+        raise RuntimeError(f"{Path(str(args[0])).name} failed ({failure_reason(details)}); inspect /var/log/tflow-video-setup.log on vm1")
     return result
 
 
@@ -138,7 +178,7 @@ def private_write(path, text, mode=0o600):
 def main(path):
     if os.geteuid() != 0:
         raise RuntimeError("Run as root on the owned vm1")
-    values = validate(json.loads(path.read_text()))
+    values = resolve_values(json.loads(path.read_text()))
     os.umask(0o077)
     run("apt-get", "update", "-qq")
     run("apt-get", "install", "-y", "--no-install-recommends", "certbot", "dnsutils")
