@@ -16,6 +16,7 @@ import {
   Plus,
   SlidersHorizontal,
   Video,
+  Users,
 } from "lucide-react";
 import type { Bootstrap, FlowEvent } from "../../lib/types";
 import { dateLabel, timeLabel } from "../../lib/time";
@@ -35,6 +36,7 @@ import {
   type CalendarSource,
 } from "../../lib/calendar";
 import { Modal } from "./dialog";
+import { FormError } from "./forms";
 import "../calendar.css";
 
 type View = "month" | "day";
@@ -49,6 +51,7 @@ type Props = {
   onCreate: (start: number) => void;
   onBrowse: () => void;
   onCancelEvent: (event: FlowEvent) => void;
+  onCancelActivity: (activityId: string) => Promise<void>;
 };
 const weekdays = ["Пн", "Вт", "Ср", "Чт", "Пт", "Сб", "Вс"];
 const fullWeekdays = [
@@ -143,6 +146,7 @@ export function Calendar({
   onCreate,
   onBrowse,
   onCancelEvent,
+  onCancelActivity,
 }: Props) {
   const [date, setDate] = useState(() =>
     isCalendarDate(initialDate) ? initialDate : calendarDate(Date.now()),
@@ -156,7 +160,11 @@ export function Calendar({
         canCreate ? ["ticket", "activity", "owned"] : ["ticket", "activity"],
       ),
   );
-  const [selected, setSelected] = useState<CalendarEntry | null>(null);
+  const [selectedId, setSelectedId] = useState<string | null>(null);
+  const [confirmCancel, setConfirmCancel] = useState(false);
+  const [cancelBusy, setCancelBusy] = useState(false);
+  const [cancelError, setCancelError] = useState("");
+  const cancelling = useRef(false);
   const [now, setNow] = useState(Date.now);
   const scroller = useRef<HTMLDivElement>(null);
   const monthTable = useRef<HTMLTableElement>(null);
@@ -164,6 +172,7 @@ export function Calendar({
   const scrollKey = useRef("");
   const today = calendarDate(now);
   const entries = useMemo(() => calendarEntries(data, userId), [data, userId]);
+  const selected = entries.find((entry) => entry.id === selectedId) ?? null;
   const visible = useMemo(
     () => entries.filter((entry) => enabled.has(entry.source)),
     [entries, enabled],
@@ -195,6 +204,9 @@ export function Calendar({
     return () => window.clearInterval(timer);
   }, []);
   useEffect(() => {
+    if (selectedId && !selected) setSelectedId(null);
+  }, [selectedId, selected]);
+  useEffect(() => {
     if (view !== "day") {
       scrollKey.current = "";
       return;
@@ -218,6 +230,31 @@ export function Calendar({
     setDate(nextDate);
     setView(nextView);
     window.history.replaceState(null, "", `#calendar/${nextDate}/${nextView}`);
+  }
+  function openEntry(entry: CalendarEntry) {
+    setSelectedId(entry.id);
+    setConfirmCancel(false);
+    setCancelError("");
+  }
+  async function cancelActivity() {
+    if (!selected?.activityId || cancelling.current) return;
+    const entryId = selected.id;
+    cancelling.current = true;
+    setCancelBusy(true);
+    setCancelError("");
+    try {
+      await onCancelActivity(selected.activityId);
+      setSelectedId((current) => (current === entryId ? null : current));
+    } catch (reason) {
+      setCancelError(
+        reason instanceof Error
+          ? reason.message
+          : "Не удалось отменить запись. Повторите попытку.",
+      );
+    } finally {
+      cancelling.current = false;
+      setCancelBusy(false);
+    }
   }
   function toggleSource(source: CalendarSource) {
     setEnabled((previous) => {
@@ -509,7 +546,7 @@ export function Calendar({
                                   key={entry.id}
                                   entry={entry}
                                   date={day}
-                                  onClick={() => setSelected(entry)}
+                                  onClick={() => openEntry(entry)}
                                 />
                               ))}
                               {items.length > 3 && (
@@ -572,7 +609,7 @@ export function Calendar({
                         key={entry.id}
                         entry={entry}
                         date={date}
-                        onClick={() => setSelected(entry)}
+                        onClick={() => openEntry(entry)}
                       />
                     ))}
                   </div>
@@ -614,7 +651,7 @@ export function Calendar({
                         }}
                         title={`${segment.entry.title} · ${timeLabel(segment.entry.starts_at)}–${timeLabel(segment.entry.ends_at)}`}
                         aria-label={`${segment.entry.title}, ${timeLabel(segment.entry.starts_at)}–${timeLabel(segment.entry.ends_at)}${segment.entry.draft ? ", черновик" : ""}`}
-                        onClick={() => setSelected(segment.entry)}
+                        onClick={() => openEntry(segment.entry)}
                       >
                         <strong>{segment.entry.title}</strong>
                         <span>
@@ -674,7 +711,7 @@ export function Calendar({
           subtitle={
             sources.find((source) => source.id === selected.source)?.title
           }
-          onClose={() => setSelected(null)}
+          onClose={() => setSelectedId(null)}
         >
           <div className="cal-entry-details">
             <p>
@@ -712,6 +749,50 @@ export function Calendar({
                 {selected.description}
               </div>
             )}
+            <p>
+              <Users size={19} />
+              <span>
+                Свободно {Math.max(0, selected.capacity - selected.taken)} из{" "}
+                {selected.capacity} мест
+              </span>
+            </p>
+            {selected.activityId && (
+              <div className="cal-cancel-activity">
+                {confirmCancel ? (
+                  <>
+                    <p>
+                      Отменить запись на эту активность? Место станет доступно
+                      другим участникам. Регистрация на мероприятие сохранится.
+                    </p>
+                    <div>
+                      <button
+                        className="button secondary"
+                        disabled={cancelBusy}
+                        onClick={() => setConfirmCancel(false)}
+                      >
+                        Оставить запись
+                      </button>
+                      <button
+                        className="button danger-button"
+                        disabled={cancelBusy}
+                        onClick={() => void cancelActivity()}
+                      >
+                        {cancelBusy ? "Отменяем…" : "Подтвердить отмену"}
+                      </button>
+                    </div>
+                  </>
+                ) : (
+                  <button
+                    className="text-button"
+                    disabled={cancelBusy}
+                    onClick={() => setConfirmCancel(true)}
+                  >
+                    Отменить запись на активность
+                  </button>
+                )}
+                <FormError error={cancelError} />
+              </div>
+            )}
             {selectedEvent && (
               <p className="cal-registration-state">
                 {selectedEvent.checked_in
@@ -724,7 +805,7 @@ export function Calendar({
                 <button
                   className="button primary"
                   onClick={() => {
-                    setSelected(null);
+                    setSelectedId(null);
                     onOpenWebinar(webinarEvent);
                   }}
                 >
@@ -737,7 +818,7 @@ export function Calendar({
               <button
                 className={`button ${webinarEvent ? "secondary" : "primary"}`}
                 onClick={() => {
-                  setSelected(null);
+                  setSelectedId(null);
                   onOpenEvent(selected);
                 }}
               >
@@ -750,7 +831,7 @@ export function Calendar({
                 <button
                   className="button danger-outline"
                   onClick={() => {
-                    setSelected(null);
+                    setSelectedId(null);
                     onCancelEvent(selectedEvent);
                   }}
                 >

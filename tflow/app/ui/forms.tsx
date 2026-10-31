@@ -14,7 +14,7 @@ export function useSubmit(action:(data:FormData)=>Promise<void>) {
   return {error,busy,submit};
 }
 export function FormError({error}:{error:string}){return error?<div className="form-error" role="alert"><AlertCircle size={18}/><span>{error}</span></div>:null;}
-export function Submit({busy,label}:{busy:boolean;label:string}){return <button className="button primary" type="submit" disabled={busy}>{busy?<LoaderCircle className="spin" size={18}/>:null}{busy?"Сохраняем…":label}{!busy&&<ArrowRight size={17}/>}</button>;}
+export function Submit({busy,label,disabled=false}:{busy:boolean;label:string;disabled?:boolean}){return <button className="button primary" type="submit" disabled={busy||disabled}>{busy?<LoaderCircle className="spin" size={18}/>:null}{busy?"Сохраняем…":label}{!busy&&<ArrowRight size={17}/>}</button>;}
 export function EventForm({event,communities,send,done}:{event?:FlowEvent;communities:Community[]}&Props){
   const start=event?.starts_at??Date.now()+86400000;
   const {submit,error,busy}=useSubmit(async d=>{
@@ -50,8 +50,4 @@ export function ActivityForm({event,rooms,activity,send,done}:{event:FlowEvent;r
     <p className="muted small">При переносе проверим занятость аудитории и расписания всех записанных участников. Изменение с конфликтами будет отклонено.</p>
     <FormError error={error}/><div className="form-footer"><Submit busy={busy} label={activity?"Сохранить изменения":"Добавить активность"}/></div>
   </form>;
-}
-export function ProfileForm({profile,send,done}:{profile:Profile}&Props){
-  const {submit,error,busy}=useSubmit(async d=>{await send("profile","PATCH",{...Object.fromEntries(d),interests:d.getAll("interests").join(", ")});done();});
-  return <form className="flow-form" onSubmit={submit}><div className="form-row"><label>Имя<input name="first_name" autoComplete="given-name" required maxLength={80} defaultValue={profile.first_name}/></label><label>Фамилия<input name="last_name" autoComplete="family-name" required maxLength={80} defaultValue={profile.last_name}/></label></div><CityPicker defaultValue={profile.city}/><label>О себе<textarea name="about" maxLength={1000} rows={4} defaultValue={profile.about} placeholder="Чем занимаетесь и какие задачи вам интересны"/></label><InterestPicker value={profile.interests} disabled={busy}/><FormError error={error}/><div className="form-footer"><Submit busy={busy} label="Сохранить профиль"/></div></form>;
 }

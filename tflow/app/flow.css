@@ -658,5 +658,60 @@ body{font-size:16px;color:var(--theme-text,#222329);background:var(--theme-page,
 .discovery-copy .webinar-card-entry{margin-top:16px;min-height:44px;font-size:14px;justify-content:flex-start}
 .webinar-room-page{width:100%;min-width:0;margin-bottom:32px}
 .webinar-room-page .webinar-panel{margin:0 0 32px}
+.webinar-lobby>svg{margin-inline:auto}
 @media(max-width:950px){.flow-footer{grid-template-columns:minmax(0,1fr) auto;gap:8px 16px}.flow-footer>nav{grid-row:2;grid-column:1 / -1;justify-content:flex-start}.flow-footer-time{grid-row:1;grid-column:2}}
 @media(max-width:350px){.flow-footer>nav{gap:4px 16px}.flow-footer a{min-height:32px}}
+
+.profile-sharing-note{color:var(--flow-muted);font-size:14px;line-height:1.65;margin:0 0 24px}
+.profile-data-grid{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:20px 24px;margin:0 0 24px;min-width:0}
+.profile-data-grid>div{min-width:0;margin:0!important}
+.profile-data-grid dt{font-size:13px;color:var(--flow-muted);margin-bottom:5px}
+.profile-data-grid dd{margin:0;font-size:15px;line-height:1.6;overflow-wrap:anywhere;white-space:pre-line;color:var(--theme-text,#303641)}
+.profile-data-grid dd.unfilled{color:var(--theme-subtle,#737983);font-size:14px}
+.profile-field-wide{grid-column:1 / -1}
+.flow-form .form-field>label{display:block}
+.profile-field-group{margin:10px 0 8px;padding:18px 0 0;border-top:1px solid var(--flow-border)}
+.profile-field-group legend{padding-right:10px;font-size:16px;font-weight:600;margin:0}
+.profile-form-grid{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:16px;min-width:0}
+.profile-field-error{color:var(--theme-red-text,#a12e2e);font-size:13px;line-height:1.5}
+.flow-form [aria-invalid=true]{border-color:var(--theme-red-text,#a12e2e)}
+.profile-email-note{font-size:13px;color:var(--flow-muted);overflow-wrap:anywhere}
+.registration-form-context{padding-bottom:18px;border-bottom:1px solid var(--flow-border);margin-bottom:4px}
+.registration-form-context strong{display:block;font-size:16px;line-height:1.5;overflow-wrap:anywhere}
+.registration-form-context p{font-size:14px;line-height:1.6;color:var(--flow-muted);margin-top:8px}
+.registration-settings{margin:0 0 32px;border:1px solid var(--flow-border);border-radius:16px;min-width:0}
+.registration-settings>summary{list-style:none;display:flex;align-items:center;justify-content:space-between;gap:16px;cursor:pointer;padding:22px 24px;min-height:72px}
+.registration-settings>summary::-webkit-details-marker,.attendee-record>summary::-webkit-details-marker{display:none}
+.registration-settings>summary h2{font-size:19px;letter-spacing:-.02em}
+.registration-settings>summary p{font-size:13px;color:var(--flow-muted);margin-top:7px;line-height:1.5}
+.registration-settings[open]>summary>svg{transform:rotate(180deg)}
+.registration-settings>summary:focus-visible,.attendee-record>summary:focus-visible{outline:3px solid #1769e8;outline-offset:3px;border-radius:12px}
+.registration-settings>.flow-form{padding:0 24px 24px}
+.requirement-options{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:4px 16px;margin:0}
+.registration-settings .requirement-options label{display:flex;flex-direction:row;align-items:center;gap:10px;min-height:44px;cursor:pointer;font-size:14px}
+.registration-settings .requirement-options input{width:20px;height:20px;min-height:20px;flex:0 0 20px;padding:0;margin:0;accent-color:#26282c}
+.requirements-save{display:flex;align-items:center;gap:16px;flex-wrap:wrap}
+.requirements-save>span{display:flex;align-items:center;gap:6px;font-size:13px;color:var(--theme-green-text,#26704c)}
+.attendee-record{border-bottom:1px solid var(--flow-border);min-width:0}
+.attendee-record>.attendee-row{list-style:none;cursor:pointer;border-bottom:0;min-height:76px}
+.attendee-expand{display:inline-flex;align-items:center;gap:5px;font-size:13px;color:var(--flow-muted)}
+.attendee-record[open] .attendee-expand svg{transform:rotate(90deg)}
+.attendee-profile{padding:4px 0 14px 49px}
+.snapshot-caption{font-size:12px;color:var(--flow-muted);margin-bottom:18px}
+.attendee-profile .profile-data-grid{max-width:760px}
+.scanned-profile .profile-data-grid{margin-top:18px}
+.registration-card>.required-data-note{font-size:12px;line-height:1.6;overflow-wrap:anywhere;margin-top:0;text-align:left}
+@media(max-width:600px){
+  .profile-data-grid{gap:18px;grid-template-columns:minmax(0,1fr)}
+  .profile-form-grid{grid-template-columns:minmax(0,1fr);gap:16px}
+  .registration-settings>summary{padding:18px}
+  .registration-settings>summary h2{font-size:18px}
+  .registration-settings>.flow-form{padding:0 18px 18px}
+  .requirement-options{grid-template-columns:minmax(0,1fr)}
+  .requirements-save{align-items:flex-start;gap:12px}
+  .requirements-save>.button{width:100%;white-space:normal}
+  .attendee-record>.attendee-row{grid-template-columns:36px minmax(0,1fr);padding:16px 0}
+  .attendee-expand{grid-column:2;justify-self:start;min-height:28px}
+  .attendee-profile{padding-left:0}
+  .complete-registration-form .button{white-space:normal;width:100%}
+}

@@ -5,14 +5,14 @@
 
 :root[data-theme="dark"] {
   color-scheme: dark;
-  --theme-page: #111318;
-  --theme-surface: #1b1e25;
-  --theme-soft: #22262e;
-  --theme-hover: #2b303a;
-  --theme-border: #363d48;
-  --theme-text: #f1f3f7;
-  --theme-muted: #afb8c7;
-  --theme-subtle: #949faf;
+  --theme-page: #141414;
+  --theme-surface: #222222;
+  --theme-soft: #303030;
+  --theme-hover: #383838;
+  --theme-border: #383838;
+  --theme-text: #f5f5f5;
+  --theme-muted: #b3b3b3;
+  --theme-subtle: #969696;
   --theme-link: #9bc0ff;
   --theme-focus: #a5c7ff;
   --theme-highlight: #352f1b;
@@ -27,6 +27,15 @@
   --theme-info: #202f48;
   --theme-info-text: #b2cdff;
   --theme-info-border: #49638b;
+  --theme-bg: var(--theme-page);
+  --theme-panel: var(--theme-surface);
+  --theme-raised: var(--theme-soft);
+  --theme-warm: var(--theme-highlight);
+  --theme-warm-text: var(--theme-highlight-text);
+  --theme-green: var(--theme-success);
+  --theme-green-text: var(--theme-success-text);
+  --theme-red: var(--theme-danger);
+  --theme-red-text: var(--theme-danger-text);
   background: var(--theme-page);
 }
 
@@ -66,9 +75,23 @@
   display: block;
 }
 
-/* The supplied logo is monochrome; photos, covers and QR pixels stay intact. */
+/* Recolour the wordmark while retaining the shield and its letter. */
+.brand-logo,
+.auth-brand {
+  position: relative;
+  isolation: isolate;
+}
 [data-theme="dark"] :is(.brand-logo, .auth-brand) img {
-  filter: brightness(0) invert(1);
+  filter: contrast(1.5) sepia(1) saturate(20) hue-rotate(-30deg);
+}
+[data-theme="dark"] :is(.brand-logo, .auth-brand)::after {
+  content: "";
+  position: absolute;
+  inset: 0;
+  background: #f5f5f5;
+  mask: url("logo.svg") center/contain no-repeat;
+  clip-path: inset(0 0 0 28%);
+  pointer-events: none;
 }
 [data-theme="dark"]
   :is(
@@ -100,6 +123,9 @@
 }
 [data-theme="dark"] .filter-button b {
   color: #24272d;
+}
+[data-theme="dark"] .requirement-options input {
+  accent-color: #ffdd2d;
 }
 [data-theme="dark"] .cal-draft {
   background: color-mix(in srgb, var(--cal-fill), var(--theme-surface) 50%);
@@ -141,8 +167,11 @@
   }
 }
 @media (max-width: 350px) {
+  .flow-topbar .brand-logo::after {
+    display: none;
+  }
   .flow-topbar .brand .brand-logo {
-    width: 112px;
+    width: 44px;
   }
   .flow-app .flow-topbar-inner {
     gap: 8px;
@@ -152,6 +181,14 @@
     height: 34px;
     min-width: 30px;
     padding: 5px;
+  }
+}
+@media (forced-colors: active) {
+  [data-theme="dark"] :is(.brand-logo, .auth-brand) img {
+    filter: none;
+  }
+  [data-theme="dark"] :is(.brand-logo, .auth-brand)::after {
+    display: none;
   }
 }
 @media (max-width: 310px) {

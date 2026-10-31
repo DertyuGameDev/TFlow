@@ -2,14 +2,14 @@ import { useId, useState } from "react";
 import { AlertCircle, Check, Clock3, MapPin, Search, Users } from "lucide-react";
 import type { Activity } from "../../lib/types";
 import { dateKey, dateLabel, overlaps, timeLabel } from "../../lib/time";
+import { activityAvailability } from "../../lib/activities";
 
 export type ActivityAction = "register" | "cancel" | "join" | "leave";
 type Actions = { schedule: Activity[]; organizer: boolean; pending: boolean; onAction: (activity: Activity, action: ActivityAction) => void };
 
 export function ActivityCard({ activity: a, schedule, organizer, pending, onAction, personal = false }: Actions & { activity: Activity; personal?: boolean }) {
-  const conflict = schedule.find(b => b.id !== a.id && overlaps(a, b));
-  const closed = a.starts_at <= Date.now();
-  const full = a.taken >= a.capacity;
+  const { conflict, closed, free } = activityAvailability(a, schedule, Date.now());
+  const full = free === 0;
   const operation: ActivityAction = a.registered ? "cancel" : a.waitlisted ? "leave" : full ? "join" : "register";
   const disabled = pending || (!a.registered && !a.waitlisted && (closed || !!conflict));
   return <article className={`program-card ${a.registered ? "program-card-registered" : ""}`}>
@@ -20,7 +20,7 @@ export function ActivityCard({ activity: a, schedule, organizer, pending, onActi
       <div className="program-meta"><span><MapPin size={14}/>{personal && a.venue ? `${a.venue} · ` : ""}{a.room_name}</span>{a.speaker && <span>{a.speaker}</span>}</div>
       {a.description && <p>{a.description}</p>}
       <div className="program-badges">
-        <span className={`program-badge ${full ? "is-full" : ""}`}><Users size={13}/>{full ? "Мест нет" : `${a.capacity - a.taken} из ${a.capacity} мест свободно`}</span>
+        <span className={`program-badge ${full ? "is-full" : ""}`}><Users size={13}/>{full ? "Мест нет" : `${free} из ${a.capacity} мест свободно`}</span>
         {!!a.registered && <span className="program-badge is-registered"><Check size={13}/>Вы записаны</span>}
         {!!a.waitlisted && <span className="program-badge is-waiting"><Clock3 size={13}/>Вы в очереди · № {a.waitlist_position}</span>}
         {!a.waitlisted && a.waiting_count > 0 && <span className="program-queue-count">В очереди: {a.waiting_count}</span>}

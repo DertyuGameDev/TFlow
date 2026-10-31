@@ -6,6 +6,7 @@ COPY index.html tsconfig.json vite.config.mts postcss.config.mjs ./
 COPY app ./app
 COPY src ./src
 COPY lib ./lib
+COPY backend/flow/interest_categories.json ./backend/flow/interest_categories.json
 COPY public ./public
 RUN npm run check && npm run build
 

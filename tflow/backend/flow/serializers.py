@@ -13,6 +13,7 @@ from .models import (
     WaitlistEntry,
 )
 from .names import split_name
+from .profile_data import participant_profile
 
 
 def milliseconds(value):
@@ -46,6 +47,7 @@ def profile(user):
         else split_name(user.name)
     )
     return {
+        **participant_profile(user),
         "id": user.pk,
         "name": user.name,
         "first_name": first_name,
@@ -125,6 +127,7 @@ def event_json(event):
         "cover",
         "status",
         "community_id",
+        "required_profile_fields",
     ]
     data = {key: getattr(event, key) for key in keys}
     data.update(

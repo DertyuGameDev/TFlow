@@ -63,6 +63,13 @@ test("an owned event with an own ticket appears only once", () => {
   assert.equal(calendarEntries(data({ events: [own], tickets: [own] }), "me").length, 1);
 });
 
+test("calendar activity keeps its registration target and current seat counts", () => {
+  const result = calendarEntries(data({schedule:[{...event("session"),event_id:"conference",room_name:"Зал",capacity:5,taken:3}]}), "me")[0];
+  assert.equal(result.activityId, "session");
+  assert.equal(result.eventId, "conference");
+  assert.equal(result.capacity-result.taken, 2);
+});
+
 test("invalid event durations never produce broken calendar blocks", () => {
   assert.equal(calendarEntries(data({ tickets: [event("zero", 0, 0), event("negative", 2, 1), event("nan", NaN, 3)] }), "me").length, 0);
 });

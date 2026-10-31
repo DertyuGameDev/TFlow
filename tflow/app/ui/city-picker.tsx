@@ -4,10 +4,10 @@ import { CITY_SUGGESTIONS, cityMatches, normalizeCity } from "../../lib/cities";
 
 type Props = {
   defaultValue?: string; value?: string; onChange?: (city: string) => void;
-  cities?: readonly string[]; required?: boolean; disabled?: boolean;
+  cities?: readonly string[]; required?: boolean; disabled?: boolean; error?: string;
 };
 
-export function CityPicker({defaultValue = "", value, onChange, cities = CITY_SUGGESTIONS, required = true, disabled = false}: Props) {
+export function CityPicker({defaultValue = "", value, onChange, cities = CITY_SUGGESTIONS, required = true, disabled = false, error}: Props) {
   const id = useId(), input = useRef<HTMLInputElement>(null), list = useRef<HTMLUListElement>(null);
   const [draft, setDraft] = useState(defaultValue), [open, setOpen] = useState(false), [active, setActive] = useState(-1);
   const [above, setAbove] = useState(false);
@@ -38,6 +38,7 @@ export function CityPicker({defaultValue = "", value, onChange, cities = CITY_SU
       <MapPin className="city-input-icon" size={17} aria-hidden="true"/>
       <input ref={input} id={id} name="city" role="combobox" aria-autocomplete="list" aria-expanded={expanded}
         aria-controls={`${id}-list`} aria-activedescendant={expanded && active >= 0 ? `${id}-option-${active}` : undefined}
+        aria-invalid={error?true:undefined} aria-describedby={error?`${id}-error`:undefined}
         placeholder="Начните вводить город" autoComplete="off" maxLength={80} minLength={required ? 2 : undefined}
         required={required} disabled={disabled} value={current}
         onFocus={show}
@@ -70,5 +71,6 @@ export function CityPicker({defaultValue = "", value, onChange, cities = CITY_SU
         {!matches.length && <p className="city-no-results" role="status">Совпадений нет. Можно указать свой город.</p>}
       </div>}
     </div>
+    {error&&<span className="profile-field-error" id={`${id}-error`}>{error}</span>}
   </div>;
 }

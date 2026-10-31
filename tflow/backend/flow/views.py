@@ -21,7 +21,7 @@ from .contracts import (
     EventInput,
     FlowError,
     MoveEventInput,
-    ProfileInput,
+    RequirementsInput,
     RoomInput,
     validate,
 )
@@ -45,6 +45,7 @@ from .serializers import (
     visible_events,
 )
 from . import services
+from .profile_data import registration_profile
 
 logger = logging.getLogger("flow")
 
@@ -144,6 +145,8 @@ def api(request, path):
         data = {"error": error.message, "code": error.code}
         if hasattr(error, "fields"):
             data["fields"] = error.fields
+        if hasattr(error, "missing_fields"):
+            data["missing_fields"] = error.missing_fields
         return JsonResponse(data, status=error.status)
     except IntegrityError:
         logger.exception("Database integrity check rejected a request")
@@ -259,9 +262,10 @@ def dispatch_api(request, path):
                     [
                         {
                             "id": row.user_id,
-                            "name": row.user.name,
-                            "email": row.user.email,
-                            "city": row.user.city,
+                            "name": registration_profile(row)["name"],
+                            "email": registration_profile(row)["email"],
+                            "city": registration_profile(row)["city"],
+                            "profile_data": registration_profile(row),
                             "created_at": milliseconds(row.created_at),
                             "checked_in_at": (
                                 milliseconds(check_ins[row.user_id].created_at)
@@ -339,7 +343,11 @@ def dispatch_api(request, path):
             ) from error
         if not isinstance(body, dict):
             raise FlowError("VALIDATION", "Ожидается объект с полями формы", 400)
-        if any(isinstance(value, (dict, list)) for value in body.values()):
+        if any(isinstance(value, (dict, list)) and not (
+            resource == "events" and action == "requirements" and method == "PATCH"
+            and key == "required_profile_fields" and isinstance(value, list)
+        ) for key, value in body.items()):
+
             raise FlowError(
                 "VALIDATION", "Поля формы должны содержать простые значения", 400
             )
@@ -347,10 +355,7 @@ def dispatch_api(request, path):
         services.become_organizer(user)
         return JsonResponse({"user": identity(user)})
     elif path == "profile" and method == "PATCH":
-        values = validate(ProfileInput, body)
-        for key, value in values.items():
-            setattr(user, key, value)
-        user.save(update_fields=list(values))
+        services.save_profile(user, body)
     elif path == "notifications" and method == "PATCH":
         user.notifications.update(read=True)
     elif resource == "notifications" and item_id and not action and method == "PATCH":
@@ -385,7 +390,12 @@ def dispatch_api(request, path):
             else:
                 Bookmark.objects.filter(user=user, event_id=item_id).delete()
         elif item_id and not action and method == "PATCH":
-            services.update_event(user, item_id, validate(EventInput, body))
+            values = validate(EventInput, body)
+            # Omitted optional fields must not erase existing event data.
+            for field in ("capacity", "address", "community_id"):
+                if field not in body or (field == "capacity" and body[field] is None):
+                    values.pop(field, None)
+            services.update_event(user, item_id, values)
         elif item_id and not action and method == "DELETE":
             services.delete_event(user, item_id)
         elif item_id and action == "publish" and method == "POST":
@@ -393,7 +403,9 @@ def dispatch_api(request, path):
         elif item_id and action == "move" and method == "PATCH":
             services.move_event(user, item_id, validate(MoveEventInput, body))
         elif item_id and action == "registration" and method == "POST":
-            services.enroll_event(user, item_id)
+            services.enroll_event(user, item_id, body)
+        elif item_id and action == "requirements" and method == "PATCH":
+            services.set_requirements(user, item_id, validate(RequirementsInput, body))
         elif item_id and action == "registration" and method == "DELETE":
             services.cancel_event(user, item_id)
         elif item_id and action == "webinar" and method == "POST":
@@ -426,14 +438,14 @@ def dispatch_api(request, path):
         services.save_room(user, validate(RoomInput, body), room_id=item_id)
     elif resource == "activities" and item_id:
         if action == "registration" and method == "POST":
-            if services.register(user, item_id) is False:
+            if services.register(user, item_id, body) is False:
                 raise FlowError(
                     "NO_SEATS", "Свободное место получил участник из листа ожидания"
                 )
         elif action == "registration" and method == "DELETE":
             services.cancel(user, item_id)
         elif action == "waitlist" and method == "POST":
-            services.join_waitlist(user, item_id)
+            services.join_waitlist(user, item_id, body)
         elif action == "waitlist" and method == "DELETE":
             services.leave_waitlist(user, item_id)
         elif not action and method == "PATCH":
@@ -448,13 +460,12 @@ def dispatch_api(request, path):
 
 
 def attendee_json(person, event_id):
+    registration = person.event_registrations.get(event_id=event_id)
+    data = registration_profile(registration)
     return {
         "id": person.pk,
-        "name": person.name,
-        "email": person.email,
-        "city": person.city,
-        "about": person.about,
-        "interests": person.interests,
+        **data,
+        "profile_data": data,
         "activities": list(
             person.registrations.filter(activity__event_id=event_id).values_list(
                 "activity__title", flat=True

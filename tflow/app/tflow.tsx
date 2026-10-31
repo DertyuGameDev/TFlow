@@ -38,6 +38,7 @@ import type {
   EventDetail,
   FlowEvent,
   Profile,
+  RequiredProfileField,
   Room,
   UserIdentity,
   Community,
@@ -48,13 +49,7 @@ import { csrfToken, signInPath } from "../lib/session";
 import { dateLabel, timeLabel } from "../lib/time";
 import { canEnterWebinar, hasWebinar } from "../lib/webinars";
 import { Modal } from "./ui/dialog";
-import {
-  ActivityForm,
-  FormError,
-  ProfileForm,
-  RoomForm,
-  type Send,
-} from "./ui/forms";
+import { ActivityForm, FormError, RoomForm, type Send } from "./ui/forms";
 import { QuickEventForm } from "./ui/quick-event-form";
 import { QRScanner } from "./ui/qr-scanner";
 import { EventArt } from "./ui/event-card";
@@ -73,12 +68,27 @@ import { NotificationCenter } from "./ui/notification-center";
 import { Clubs } from "./ui/clubs";
 import { ThemeToggle } from "./ui/theme-toggle";
 const Webinar = lazy(() => import("./ui/webinar"));
+import {
+  CompleteRegistrationForm,
+  ExpandedProfileForm,
+  ParticipantDetails,
+  RegistrationSettings,
+} from "./ui/profile-data";
+import { ApiError } from "../lib/api-error";
+import { REQUIREMENT_FIELDS } from "../lib/profile-fields";
 
 type Route = { view: string; id?: string; mode?: string };
 type DialogState =
   | { type: "create"; startsAt?: number; communityId?: string }
   | { type: "edit" | "move" | "cancel" | "delete"; event: FlowEvent }
   | { type: "profile" | "avatar" }
+  | {
+      type: "enroll";
+      event: FlowEvent;
+      path: string;
+      missing: RequiredProfileField[];
+      message: string;
+    }
   | { type: "filters" }
   | { type: "room"; room?: Room }
   | { type: "activity"; activity?: Activity }
@@ -404,32 +414,12 @@ function ProfileView({
                 <Pencil size={18} />
               </button>
             </div>
-            <dl>
-              <div>
-                <dt>Электронная почта</dt>
-                <dd>{profile.email}</dd>
-              </div>
-              <div>
-                <dt>Город</dt>
-                <dd>{profile.city}</dd>
-              </div>
-              {profile.about && (
-                <div>
-                  <dt>О себе</dt>
-                  <dd>{profile.about}</dd>
-                </div>
-              )}
-              {profile.interests && (
-                <div>
-                  <dt>Интересы</dt>
-                  <dd className="personal-interest-tags">
-                    {parseInterests(profile.interests).map((category) => (
-                      <span key={category}>{category}</span>
-                    ))}
-                  </dd>
-                </div>
-              )}
-            </dl>
+            <p className="profile-sharing-note">
+              Заполните профиль один раз. При записи организатор получит ваши
+              данные, а недостающее можно будет добавить по пути.
+            </p>
+            <ParticipantDetails data={profile} showEmpty />
+
             <button className="button secondary" onClick={onEdit}>
               <Pencil size={16} />
               Изменить профиль
@@ -575,6 +565,8 @@ function OrganizerManage({
   onPublish,
   onRoom,
   onActivity,
+  send,
+  refresh,
 }: {
   detail: EventDetail;
   rows: AttendanceRow[];
@@ -585,6 +577,8 @@ function OrganizerManage({
   onPublish: () => void;
   onRoom: (room?: Room) => void;
   onActivity: (activity?: Activity) => void;
+  send: Send;
+  refresh: () => Promise<void>;
 }) {
   const [query, setQuery] = useState(""),
     [filter, setFilter] = useState("all");
@@ -674,6 +668,12 @@ function OrganizerManage({
           </strong>
         </div>
       </div>
+      <RegistrationSettings
+        key={e.id}
+        event={e}
+        send={send}
+        refresh={refresh}
+      />
       <section className="attendee-section">
         <div className="section-title">
           <h2>Участники</h2>
@@ -709,27 +709,39 @@ function OrganizerManage({
         {visible.length ? (
           <div className="attendee-list">
             {visible.map((p) => (
-              <article className="attendee-row" key={p.id}>
-                <span className="small-person-avatar">
-                  {p.name.slice(0, 1)}
-                </span>
-                <div>
-                  <h3>{p.name}</h3>
-                  <p>{p.email}</p>
+              <details className="attendee-record" key={p.id}>
+                <summary className="attendee-row">
+                  <span className="small-person-avatar">
+                    {p.name.slice(0, 1)}
+                  </span>
+                  <div>
+                    <h3>{p.name}</h3>
+                    <p>{p.email}</p>
+                  </div>
+                  <span
+                    className={`arrival-badge ${p.checked_in_at ? "arrived" : ""}`}
+                  >
+                    {p.checked_in_at ? (
+                      <>
+                        <Check size={14} />
+                        Вошёл в {timeLabel(p.checked_in_at)}
+                      </>
+                    ) : (
+                      "Ожидаем"
+                    )}
+                  </span>
+                  <span className="attendee-expand">
+                    Данные
+                    <ArrowRight size={15} aria-hidden="true" />
+                  </span>
+                </summary>
+                <div className="attendee-profile">
+                  <p className="snapshot-caption">
+                    Данные, переданные при записи · {dateLabel(p.created_at)}
+                  </p>
+                  <ParticipantDetails data={p.profile_data} />
                 </div>
-                <span
-                  className={`arrival-badge ${p.checked_in_at ? "arrived" : ""}`}
-                >
-                  {p.checked_in_at ? (
-                    <>
-                      <Check size={14} />
-                      Вошёл в {timeLabel(p.checked_in_at)}
-                    </>
-                  ) : (
-                    "Ожидаем"
-                  )}
-                </span>
-              </article>
+              </details>
             ))}
           </div>
         ) : (
@@ -786,7 +798,8 @@ function OrganizerManage({
             <div>
               <strong>{a.title}</strong>
               <small>
-                {a.room_name} · {a.taken} / {a.capacity} мест
+                {a.room_name} · {a.taken} занято ·{" "}
+                {Math.max(0, a.capacity - a.taken)} свободно
                 {a.waiting_count > 0 ? ` · в очереди: ${a.waiting_count}` : ""}
               </small>
             </div>
@@ -867,10 +880,7 @@ export function TFlow({
         .catch(() => ({ error: "Сервер недоступен. Повторите действие." }));
       if (!response.ok) {
         if (response.status === 401) location.assign(signInPath());
-        throw Object.assign(
-          new Error(payload.error || "Не удалось выполнить действие"),
-          { status: response.status, code: payload.code },
-        );
+        throw Object.assign(new ApiError(payload), { status: response.status });
       }
       return payload;
     },
@@ -977,13 +987,43 @@ export function TFlow({
         ),
       event.saved ? "Убрали из избранного" : "Сохранили событие",
     );
-  const enroll = (event: FlowEvent) =>
-    void action(
-      () => send(`events/${event.id}/registration`, "POST", {}),
-      hasWebinar(event)
-        ? "Вы зарегистрированы. Войти в вебинар можно из карточки события или календаря."
-        : "Вы зарегистрированы. Для входа используйте QR из профиля.",
-    );
+  const enrollmentDone = (
+    message = "Вы записаны. Событие добавлено в календарь.",
+  ) => {
+    setDialog(null);
+    void refresh();
+    setToast({ text: message, error: false });
+  };
+  async function enroll(
+    event: FlowEvent,
+    path = `events/${event.id}/registration`,
+    message = hasWebinar(event)
+      ? "Вы зарегистрированы. Войти в вебинар можно из карточки события или календаря."
+      : "Вы зарегистрированы. Событие добавлено в календарь, QR — в профиле.",
+  ) {
+    if (!user) {
+      location.assign(signupLink("event", event.id));
+      return;
+    }
+    if (pending) return;
+    setPending(true);
+    try {
+      await send(path, "POST", {});
+      enrollmentDone(message);
+    } catch (e) {
+      if (e instanceof ApiError && e.code === "PROFILE_INCOMPLETE")
+        setDialog({
+          type: "enroll",
+          event,
+          path,
+          missing: e.missing_fields,
+          message,
+        });
+      else setToast({ text: (e as Error).message, error: true });
+    } finally {
+      setPending(false);
+    }
+  }
   const closeForm = (id?: string) => {
     setDialog(null);
     void refresh();
@@ -1077,6 +1117,17 @@ export function TFlow({
       join: "Вы в листе ожидания. При появлении места запишем автоматически и уведомим вас.",
       leave: "Вы вышли из листа ожидания",
     }[operation];
+    if (!leaving) {
+      const event = data.events.find((event) => event.id === a.event_id);
+      if (event) {
+        void enroll(
+          event,
+          `activities/${a.id}/${queue ? "waitlist" : "registration"}`,
+          message,
+        );
+        return;
+      }
+    }
     void action(
       () =>
         send(
@@ -1504,6 +1555,8 @@ export function TFlow({
                     onActivity={(activity) =>
                       setDialog({ type: "activity", activity })
                     }
+                    send={send}
+                    refresh={refresh}
                   />
                 ) : (
                   <div className="loading-state">Открываем событие…</div>
@@ -1815,6 +1868,19 @@ export function TFlow({
                               : "Покажите QR из профиля на входе"
                             : "После регистрации событие появится в календаре."}
                         </p>
+                        {!detail.event.enrolled &&
+                          detail.event.required_profile_fields?.length > 0 && (
+                            <p className="required-data-note">
+                              Для записи:{" "}
+                              {REQUIREMENT_FIELDS.filter((f) =>
+                                detail.event.required_profile_fields.includes(
+                                  f.key as RequiredProfileField,
+                                ),
+                              )
+                                .map((f) => f.label.toLowerCase())
+                                .join(", ")}
+                            </p>
+                          )}
                         <div className="registration-facts">
                           <span>
                             <Clock3 size={17} />
@@ -1949,6 +2015,17 @@ export function TFlow({
                       onCancelEvent={(event) =>
                         setDialog({ type: "cancel", event })
                       }
+                      onCancelActivity={async (activityId) => {
+                        await send(
+                          `activities/${activityId}/registration`,
+                          "DELETE",
+                        );
+                        await refresh();
+                        setToast({
+                          text: "Запись отменена. Расписание обновлено.",
+                          error: false,
+                        });
+                      }}
                       onOpenEvent={(entry) =>
                         go(
                           entry.source === "owned" ? "manage" : "event",
@@ -2184,7 +2261,7 @@ export function TFlow({
                 : undefined
             }
             move={dialog.type === "move"}
-            city={data.profile?.city}
+            city={data.profile?.city || "Москва"}
             communities={data.communities.filter(
               (club) =>
                 club.joined ||
@@ -2211,10 +2288,25 @@ export function TFlow({
       )}
       {dialog?.type === "profile" && data.profile && (
         <Modal title="Редактировать профиль" onClose={() => setDialog(null)}>
-          <ProfileForm
+          <ExpandedProfileForm
             profile={data.profile}
             send={send}
             done={() => closeForm()}
+          />
+        </Modal>
+      )}
+      {dialog?.type === "enroll" && data.profile && (
+        <Modal
+          title="Дополните данные для записи"
+          onClose={() => setDialog(null)}
+        >
+          <CompleteRegistrationForm
+            profile={data.profile}
+            event={dialog.event}
+            path={dialog.path}
+            missing={dialog.missing}
+            send={send}
+            done={() => enrollmentDone(dialog.message)}
           />
         </Modal>
       )}

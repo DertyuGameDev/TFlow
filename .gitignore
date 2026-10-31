@@ -226,3 +226,4 @@ __marimo__/
 # Application source (override the Python template's lib/ rule)
 !tflow/lib/
 !tflow/lib/**
+/release/

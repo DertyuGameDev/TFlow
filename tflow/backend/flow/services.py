@@ -2,7 +2,9 @@ from contextlib import contextmanager
 from django.db import transaction
 from django.db.models import Q
 from django.utils import timezone
-from .contracts import FlowError
+from .contracts import FlowError, ProfileInput, validate
+from .profile_data import PROFILE_LABELS, participant_profile
+from .names import split_name
 from .mailing import create_notifications
 from .models import (
     Activity,
@@ -57,6 +59,39 @@ def become_organizer(user):
     return user
 
 
+def profile_updates(user, data):
+    allowed = ProfileInput.base_fields.keys()
+    supplied = {key: value for key, value in data.items() if key in allowed}
+    if not supplied:
+        return {}
+    current = {key: value for key, value in participant_profile(user).items() if key in allowed}
+    if "first_name" in supplied or "last_name" in supplied:
+        first_name, last_name = (user.first_name, user.last_name) if user.first_name or user.last_name else split_name(user.name)
+        current.update(first_name=first_name, last_name=last_name)
+    values = validate(ProfileInput, {**current, **supplied})
+    if {"name", "first_name", "last_name"} & supplied.keys():
+        supplied.update({key: values[key] for key in ("name", "first_name", "last_name")})
+    return {key: values[key] for key in supplied}
+
+
+def save_profile(user, data):
+    with transaction.atomic():
+        person = User.objects.select_for_update().get(pk=user.pk)
+        values = profile_updates(person, data)
+        for key, value in values.items():
+            setattr(person, key, value)
+        if values:
+            person.save(update_fields=list(values))
+
+
+def set_requirements(user, event_id, data):
+    with schedule_write():
+        event = owned_event(event_id, user)
+        event.required_profile_fields = data["required_profile_fields"]
+        event.updated_at = timezone.now()
+        event.save(update_fields=["required_profile_fields", "updated_at"])
+
+
 def check_community(data, user, previous_id=None):
     if (
         data.get("community_id")
@@ -95,7 +130,7 @@ def update_event(user, event_id, data):
             raise FlowError(
                 "WEBINAR_ACTIVE", "Завершите эфир перед сменой формата на очный"
             )
-        if event.enrollments.count() > data["capacity"]:
+        if event.enrollments.count() > data.get("capacity", event.capacity):
             raise FlowError(
                 "BELOW_REGISTERED",
                 "Нельзя уменьшить число мест ниже количества регистраций",
@@ -377,7 +412,7 @@ def retry_user_waitlists_locked(user):
         promote_waitlist_locked(entry.activity)
 
 
-def join_waitlist(user, activity_id):
+def join_waitlist(user, activity_id, profile_data=None):
     with schedule_write():
         activity = registration_activity(activity_id)
         if activity.registrations.filter(user=user).exists():
@@ -393,7 +428,7 @@ def join_waitlist(user, activity_id):
             raise FlowError(
                 "SEATS_AVAILABLE", "На активность есть места — запишитесь напрямую"
             )
-        enroll_locked(user, activity.event)
+        enroll_locked(user, activity.event, profile_data)
         WaitlistEntry.objects.create(user=user, activity=activity)
 
 
@@ -402,7 +437,7 @@ def leave_waitlist(user, activity_id):
         WaitlistEntry.objects.filter(user=user, activity_id=activity_id).delete()
 
 
-def register(user, activity_id):
+def register(user, activity_id, profile_data=None):
     with schedule_write():
         activity = registration_activity(activity_id)
         if Registration.objects.filter(user=user, activity=activity).exists():
@@ -423,7 +458,7 @@ def register(user, activity_id):
         if activity.registrations.count() >= activity.capacity:
             # Return instead of raising: an exception would roll back promotions.
             return False
-        enroll_locked(user, activity.event)
+        enroll_locked(user, activity.event, profile_data)
         Registration.objects.create(user=user, activity=activity)
         activity.waitlist.filter(user=user).delete()
     return True
@@ -440,25 +475,38 @@ def cancel(user, activity_id):
             retry_user_waitlists_locked(user)
 
 
-def enroll_locked(user, event):
+def enroll_locked(user, event, profile_data=None):
     if event.status != "published":
         raise FlowError("NOT_PUBLISHED", "Регистрация ещё не открыта")
     if event.ends_at <= timezone.now():
         raise FlowError("REGISTRATION_CLOSED", "Мероприятие уже завершилось")
-    if EventRegistration.objects.filter(user=user, event=event).exists():
-        return
+    existing = EventRegistration.objects.filter(user=user, event=event).first()
+    if existing:
+        return existing
     if event.enrollments.count() >= event.capacity:
         raise FlowError("NO_SEATS", "Свободные места закончились")
-    EventRegistration.objects.create(user=user, event=event)
+    person = User.objects.select_for_update().get(pk=user.pk)
+    values = profile_updates(person, profile_data or {})
+    for key, value in values.items():
+        setattr(person, key, value)
+    missing = [key for key in event.required_profile_fields if not getattr(person, key)]
+    if missing:
+        error = FlowError("PROFILE_INCOMPLETE", "Дополните данные для записи", 409)
+        error.missing_fields = missing
+        error.fields = {key: [f"Заполните поле «{PROFILE_LABELS[key]}»"] for key in missing}
+        raise error
+    if values:
+        person.save(update_fields=list(values))
+    return EventRegistration.objects.create(user=person, event=event, profile_data=participant_profile(person))
 
 
-def enroll_event(user, event_id):
+def enroll_event(user, event_id, profile_data=None):
     with schedule_write():
         try:
             event = Event.objects.get(pk=event_id)
         except Event.DoesNotExist as error:
             raise FlowError("NOT_FOUND", "Мероприятие не найдено", 404) from error
-        enroll_locked(user, event)
+        enroll_locked(user, event, profile_data)
 
 
 def cancel_event(user, event_id):

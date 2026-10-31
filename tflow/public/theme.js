@@ -1,11 +1,12 @@
 // Shared by the app and the server-rendered sign-in forms. Run before paint.
 (() => {
-  const key = "tflow.theme";
+  const key = "tflow-theme";
   const root = document.documentElement;
   const system = window.matchMedia("(prefers-color-scheme: dark)");
   let preference = null;
   try {
-    const stored = localStorage.getItem(key);
+    const stored =
+      localStorage.getItem(key) || localStorage.getItem("tflow.theme");
     if (stored === "light" || stored === "dark") preference = stored;
   } catch {
     /* The switch still works when browser storage is unavailable. */

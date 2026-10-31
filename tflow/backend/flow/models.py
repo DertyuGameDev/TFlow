@@ -37,7 +37,14 @@ class User(AbstractUser):
     username = None
     email = models.EmailField(unique=True)
     name = models.CharField(max_length=80)
-    city = models.CharField(max_length=80, default="Москва")
+    city = models.CharField(max_length=80, blank=True, default="")
+    phone = models.CharField(max_length=32, blank=True)
+    birth_date = models.DateField(null=True, blank=True)
+    telegram = models.CharField(max_length=64, blank=True)
+    organization = models.CharField(max_length=160, blank=True)
+    job_title = models.CharField(max_length=160, blank=True)
+    education = models.CharField(max_length=240, blank=True)
+    website = models.URLField(max_length=300, blank=True)
     about = models.TextField(blank=True, max_length=1000)
     interests = models.CharField(blank=True, max_length=300)
     role = models.CharField(
@@ -107,6 +114,7 @@ class Event(models.Model):
     )
     updated_at = models.DateTimeField(default=timezone.now)
     capacity = models.PositiveIntegerField(default=500)
+    required_profile_fields = models.JSONField(default=list, blank=True)
 
     class Meta:
         ordering = ["starts_at", "id"]
@@ -223,6 +231,7 @@ class EventRegistration(models.Model):
         Event, on_delete=models.CASCADE, related_name="enrollments"
     )
     created_at = models.DateTimeField(default=timezone.now)
+    profile_data = models.JSONField(default=dict, blank=True)
 
     class Meta:
         constraints = [

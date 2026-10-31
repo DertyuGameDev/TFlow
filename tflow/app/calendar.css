@@ -145,3 +145,10 @@
 .cal-view-switch button{padding-inline:6px;font-size:var(--font-size-min)}
 }
 .cal-entry-actions{display:flex;gap:12px;flex-wrap:wrap;margin-top:24px}.cal-entry-actions>.button{min-height:46px;font-size:14px;flex:1;justify-content:center}.cal-entry-details>.cal-registration-state{font-size:14px;line-height:1.7;color:var(--theme-muted,#5b7664);background:var(--theme-hover,#f0f7f2);padding:12px 14px;border-radius:10px}@media(max-width:600px){.cal-entry-actions{flex-direction:column}.cal-entry-actions>.button{width:100%}}
+
+.cal-cancel-activity{display:grid;gap:12px}
+.cal-cancel-activity>p{font-size:13px;line-height:1.7;color:var(--theme-muted,#6f7987)}
+.cal-cancel-activity>div:not(.form-error){display:flex;gap:10px;flex-wrap:wrap}
+.cal-cancel-activity .button{flex:1;min-width:0;font-size:12px}
+.cal-cancel-activity>.text-button{justify-self:start;font-size:13px;color:var(--theme-danger-text,#a34d3e);min-height:40px}
+@media(max-width:600px){.cal-cancel-activity>div:not(.form-error){flex-direction:column}.cal-cancel-activity .button{width:100%}}
