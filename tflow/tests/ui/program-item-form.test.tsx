@@ -5,30 +5,142 @@ import { ActivityForm } from "../../app/ui/program-item-form";
 import { event } from "../fixtures";
 
 describe("пункты программы", () => {
+  it("создаёт второй онлайн-поток вместе с одновременной активностью", async () => {
+    const send = vi.fn().mockResolvedValue({}), user = userEvent.setup();
+    render(<ActivityForm event={{ ...event, format: "Онлайн" }} rooms={[
+      { id: "first", event_id: event.id, name: "Первый поток", capacity: 100, is_online: true },
+    ]} send={send} done={vi.fn()} />);
+    await user.type(screen.getByLabelText("Название пункта программы"), "Параллельная лекция");
+    await user.selectOptions(screen.getByLabelText("Аудитория"), screen.getByRole("option", { name: "Создать онлайн-поток" }));
+    expect(screen.getByLabelText("Название аудитории")).toHaveValue("Онлайн-поток 2");
+    await user.click(screen.getByRole("button", { name: "Добавить в программу" }));
+    await waitFor(() => expect(send).toHaveBeenCalledWith(`events/${event.id}/activities`, "POST", expect.objectContaining({
+      room_id: "", online_room: true, new_room_name: "Онлайн-поток 2", starts_at: event.starts_at,
+    })));
+  });
+
+  it("при редактировании сохраняет вторую онлайн-аудиторию и её вместимость", async () => {
+    const send = vi.fn().mockResolvedValue({}), user = userEvent.setup();
+    render(<ActivityForm event={{ ...event, format: "Онлайн" }} rooms={[
+      { id: "first", event_id: event.id, name: "Python", capacity: 50, is_online: true },
+      { id: "second", event_id: event.id, name: "Django", capacity: 30, is_online: true },
+    ]} initialRoomId="second" send={send} done={vi.fn()} />);
+    expect(screen.getByLabelText("Аудитория")).toHaveValue("second");
+    expect(screen.getByLabelText("Лимит зрителей")).toHaveValue(30);
+    await user.type(screen.getByLabelText("Название пункта программы"), "Django");
+    await user.click(screen.getByRole("button", { name: "Добавить в программу" }));
+    await waitFor(() => expect(send).toHaveBeenCalledWith(expect.any(String), "POST", expect.objectContaining({ room_id: "second", online_room: true, capacity: 30 })));
+  });
+  it("сохраняет время и аудиторию, выбранные на графике", async () => {
+    const user = userEvent.setup(),
+      send = vi.fn().mockResolvedValue({});
+    render(
+      <ActivityForm
+        event={event}
+        rooms={[
+          { id: "one", event_id: event.id, name: "Первый зал", capacity: 100 },
+          { id: "two", event_id: event.id, name: "Второй зал", capacity: 50 },
+        ]}
+        initialStart={event.starts_at + 15 * 60000}
+        initialEnd={event.starts_at + 45 * 60000}
+        initialRoomId="two"
+        send={send}
+        done={vi.fn()}
+      />,
+    );
+    expect(screen.getByLabelText("Начало · МСК")).toHaveValue(
+      "2026-11-12T10:15",
+    );
+    expect(screen.getByLabelText("Окончание · МСК")).toHaveValue(
+      "2026-11-12T10:45",
+    );
+    expect(screen.getByLabelText("Аудитория")).toHaveValue("two");
+    await user.type(
+      screen.getByLabelText("Название пункта программы"),
+      "Практикум",
+    );
+    await user.click(
+      screen.getByRole("button", { name: "Добавить в программу" }),
+    );
+    await waitFor(() => expect(send).toHaveBeenCalledOnce());
+    expect(send).toHaveBeenCalledWith(
+      `events/${event.id}/activities`,
+      "POST",
+      expect.objectContaining({
+        starts_at: event.starts_at + 15 * 60000,
+        ends_at: event.starts_at + 45 * 60000,
+        room_id: "two",
+        capacity: 50,
+      }),
+    );
+  });
   it("создаёт именованную аудиторию вместе с программой одним запросом", async () => {
-    const user = userEvent.setup(), send = vi.fn().mockResolvedValue({ id: "item" }), done = vi.fn();
-    render(<ActivityForm event={event} rooms={[{ id: "old", event_id: event.id, name: "Старый зал", capacity: 100 }]} send={send} done={done} />);
-    await user.type(screen.getByLabelText("Название пункта программы"), "Практика");
+    const user = userEvent.setup(),
+      send = vi.fn().mockResolvedValue({ id: "item" }),
+      done = vi.fn();
+    render(
+      <ActivityForm
+        event={event}
+        rooms={[
+          { id: "old", event_id: event.id, name: "Старый зал", capacity: 100 },
+        ]}
+        send={send}
+        done={done}
+      />,
+    );
+    await user.type(
+      screen.getByLabelText("Название пункта программы"),
+      "Практика",
+    );
     await user.selectOptions(screen.getByLabelText("Аудитория"), "@new");
     await user.clear(screen.getByLabelText("Название аудитории"));
     await user.type(screen.getByLabelText("Название аудитории"), "Новый зал");
-    fireEvent.change(screen.getByLabelText("Вместимость аудитории"), { target: { value: "25" } });
+    fireEvent.change(screen.getByLabelText("Вместимость аудитории"), {
+      target: { value: "25" },
+    });
     expect(screen.getByLabelText("Лимит мест")).toHaveValue(25);
-    await user.click(screen.getByRole("button", { name: "Добавить в программу" }));
+    await user.click(
+      screen.getByRole("button", { name: "Добавить в программу" }),
+    );
     await waitFor(() => expect(done).toHaveBeenCalledOnce());
-    expect(send).toHaveBeenCalledExactlyOnceWith(`events/${event.id}/activities`, "POST", expect.objectContaining({
-      title: "Практика", room_id: "", new_room_name: "Новый зал", new_room_capacity: 25, capacity: 25,
-    }));
+    expect(send).toHaveBeenCalledExactlyOnceWith(
+      `events/${event.id}/activities`,
+      "POST",
+      expect.objectContaining({
+        title: "Практика",
+        room_id: "",
+        new_room_name: "Новый зал",
+        new_room_capacity: 25,
+        capacity: 25,
+      }),
+    );
   });
 
   it("не отправляет новую аудиторию после возврата к существующей", async () => {
-    const user = userEvent.setup(), send = vi.fn().mockResolvedValue({ id: "item" });
-    render(<ActivityForm event={event} rooms={[{ id: "old", event_id: event.id, name: "Старый зал", capacity: 10 }]} send={send} done={vi.fn()} />);
-    await user.type(screen.getByLabelText("Название пункта программы"), "Практика");
+    const user = userEvent.setup(),
+      send = vi.fn().mockResolvedValue({ id: "item" });
+    render(
+      <ActivityForm
+        event={event}
+        rooms={[
+          { id: "old", event_id: event.id, name: "Старый зал", capacity: 10 },
+        ]}
+        send={send}
+        done={vi.fn()}
+      />,
+    );
+    await user.type(
+      screen.getByLabelText("Название пункта программы"),
+      "Практика",
+    );
     await user.selectOptions(screen.getByLabelText("Аудитория"), "@new");
     await user.selectOptions(screen.getByLabelText("Аудитория"), "old");
-    expect(screen.queryByLabelText("Название аудитории")).not.toBeInTheDocument();
-    await user.click(screen.getByRole("button", { name: "Добавить в программу" }));
+    expect(
+      screen.queryByLabelText("Название аудитории"),
+    ).not.toBeInTheDocument();
+    await user.click(
+      screen.getByRole("button", { name: "Добавить в программу" }),
+    );
     await waitFor(() => expect(send).toHaveBeenCalledOnce());
     expect(send.mock.calls[0][2]).not.toHaveProperty("new_room_name");
     expect(send.mock.calls[0][2]).toHaveProperty("room_id", "old");
@@ -223,7 +335,7 @@ describe("пункты программы", () => {
     );
   });
 
-  it("повторно использует онлайн-аудиторию и её лимит без второго варианта в списке", async () => {
+  it("повторно использует именованную онлайн-аудиторию и её лимит", async () => {
     const user = userEvent.setup(),
       send = vi.fn().mockResolvedValue({});
     render(
@@ -243,8 +355,12 @@ describe("пункты программы", () => {
       />,
     );
     expect(screen.getByLabelText("Аудитория")).toHaveValue("virtual");
-    expect(screen.getAllByRole("option", { name: "Онлайн · Вебинар внутри ТФлоу" })).toHaveLength(1);
-    expect(screen.getByRole("option", { name: "Создать новую аудиторию" })).toBeInTheDocument();
+    expect(
+      screen.getAllByRole("option", { name: "Онлайн · Наш эфир · 25 мест" }),
+    ).toHaveLength(1);
+    expect(
+      screen.getByRole("option", { name: "Создать новую аудиторию" }),
+    ).toBeInTheDocument();
     expect(screen.getByLabelText("Лимит зрителей")).toHaveValue(25);
     await user.type(
       screen.getByLabelText("Название пункта программы"),

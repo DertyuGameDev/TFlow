@@ -7,6 +7,7 @@ export const event: FlowEvent = {
   cover: "yellow", status: "published", community_id: null, organizer: "Организатор", activity_count: 0,
   saved: 0, participant_count: 4, capacity: 100, checked_in_count: 0, enrolled: 0, checked_in: 0,
   updated_at: 1, required_profile_fields: [],
+  event_waitlisted: 0, event_waitlist_position: 0, event_waiting_count: 0,
 };
 export const profile: Profile = {
   id: "person-one", name: "Анна Петрова", first_name: "Анна", last_name: "Петрова", email: "anna@example.test",

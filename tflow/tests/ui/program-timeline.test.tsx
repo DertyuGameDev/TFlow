@@ -1,9 +1,16 @@
-import { fireEvent, render, screen, within } from "@testing-library/react";
+import {
+  act,
+  fireEvent,
+  render,
+  screen,
+  waitFor,
+  within,
+} from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import { ProgramTimeline } from "../../app/ui/program-timeline";
 import type { Activity } from "../../lib/types";
-import { event } from "../fixtures";
+import { deferred, event } from "../fixtures";
 
 function item(index: number, duration = 30): Activity {
   return {
@@ -28,6 +35,18 @@ function item(index: number, duration = 30): Activity {
 
 beforeEach(() => {
   vi.stubGlobal(
+    "PointerEvent",
+    class extends MouseEvent {
+      pointerId: number;
+      isPrimary: boolean;
+      constructor(type: string, init: PointerEventInit = {}) {
+        super(type, init);
+        this.pointerId = init.pointerId ?? 1;
+        this.isPrimary = init.isPrimary ?? true;
+      }
+    },
+  );
+  vi.stubGlobal(
     "ResizeObserver",
     class {
       constructor(private callback: ResizeObserverCallback) {}
@@ -46,6 +65,183 @@ beforeEach(() => {
       disconnect() {}
     },
   );
+});
+
+function measureCanvas(container: HTMLElement) {
+  vi.spyOn(
+    container.querySelector(".timeline-canvas")!,
+    "getBoundingClientRect",
+  ).mockReturnValue({
+    x: 0,
+    y: 0,
+    left: 0,
+    top: 0,
+    right: 600,
+    bottom: 200,
+    width: 600,
+    height: 200,
+    toJSON() {},
+  });
+}
+function drag(target: HTMLElement, from: number, to: number, finish = true) {
+  fireEvent.pointerDown(target, { button: 0, pointerId: 1, clientX: from });
+  fireEvent.pointerMove(target, { pointerId: 1, clientX: to });
+  if (finish) fireEvent.pointerUp(target, { pointerId: 1, clientX: to });
+}
+
+describe("действия на графике программы", () => {
+  it("создаёт пункт выделением интервала даже на пустом графике и передаёт выбранную аудиторию", () => {
+    const onCreate = vi.fn();
+    const { container } = render(
+      <ProgramTimeline
+        event={event}
+        activities={[]}
+        rooms={[
+          {
+            id: "main",
+            event_id: event.id,
+            name: "Главный зал",
+            capacity: 100,
+          },
+        ]}
+        onEdit={vi.fn()}
+        onCreate={onCreate}
+      />,
+    );
+    measureCanvas(container);
+    const track = screen.getByRole("button", {
+      name: "Добавить пункт на шкале",
+    });
+    drag(track, 300, 150);
+    expect(onCreate).toHaveBeenCalledExactlyOnceWith({
+      starts_at: event.starts_at + 30 * 60000,
+      ends_at: event.starts_at + 60 * 60000,
+      room_id: "main",
+    });
+    fireEvent.click(track, { detail: 0 });
+    expect(onCreate).toHaveBeenLastCalledWith({
+      starts_at: event.starts_at,
+      ends_at: event.starts_at + 30 * 60000,
+      room_id: "main",
+    });
+  });
+  it("показывает растягивание сразу и сохраняет ровно один раз после отпускания", async () => {
+    const activity = item(0),
+      sending = deferred<void>(),
+      onReschedule = vi.fn(() => sending.promise);
+    const { container } = render(
+      <ProgramTimeline
+        event={event}
+        activities={[activity]}
+        onEdit={vi.fn()}
+        onReschedule={onReschedule}
+      />,
+    );
+    measureCanvas(container);
+    const handle = screen.getByRole("button", {
+      name: "Изменить окончание Лекция 0",
+    });
+    drag(handle, 150, 225, false);
+    expect(screen.getByRole("status")).toHaveTextContent("10:00–10:45");
+    expect(onReschedule).not.toHaveBeenCalled();
+    fireEvent.pointerUp(handle, { pointerId: 1, clientX: 225 });
+    expect(onReschedule).toHaveBeenCalledExactlyOnceWith(activity, {
+      starts_at: activity.starts_at,
+      ends_at: event.starts_at + 45 * 60000,
+    });
+    expect(handle).toBeDisabled();
+    expect(screen.getByRole("status")).toHaveTextContent("Сохраняем");
+    await act(async () => sending.resolve());
+    expect(screen.getByRole("status")).toHaveTextContent("сохранено");
+  });
+  it("отменяет жест через Esc и отмену касания, а нажатие края без перемещения ничего не сохраняет", () => {
+    const onReschedule = vi.fn();
+    const { container } = render(
+      <ProgramTimeline
+        event={event}
+        activities={[item(0)]}
+        onEdit={vi.fn()}
+        onReschedule={onReschedule}
+      />,
+    );
+    measureCanvas(container);
+    const handle = screen.getByRole("button", {
+      name: "Изменить окончание Лекция 0",
+    });
+    drag(handle, 150, 225, false);
+    fireEvent.pointerCancel(handle, { pointerId: 2 });
+    expect(screen.getByRole("status")).toHaveTextContent("10:00–10:45");
+    fireEvent.keyDown(handle, { key: "Escape" });
+    fireEvent.pointerUp(handle, { pointerId: 1, clientX: 225 });
+    drag(handle, 150, 225, false);
+    fireEvent.pointerCancel(handle, { pointerId: 1 });
+    drag(handle, 150, 150);
+    expect(onReschedule).not.toHaveBeenCalled();
+    expect(screen.getByRole("article")).toHaveTextContent("10:00–10:30");
+  });
+  it("не сохраняет пересечение в аудитории и возвращает исходное время при ошибке сервера", async () => {
+    const onReschedule = vi
+      .fn()
+      .mockRejectedValue(new Error("Перенос создаёт пересечение у участников"));
+    const { container, rerender } = render(
+      <ProgramTimeline
+        event={event}
+        activities={[item(0), item(1)]}
+        onEdit={vi.fn()}
+        onReschedule={onReschedule}
+      />,
+    );
+    measureCanvas(container);
+    drag(
+      screen.getByRole("button", { name: "Изменить окончание Лекция 0" }),
+      150,
+      225,
+    );
+    expect(screen.getByRole("alert")).toHaveTextContent("Лекция 1");
+    expect(onReschedule).not.toHaveBeenCalled();
+    rerender(
+      <ProgramTimeline
+        event={event}
+        activities={[item(0)]}
+        onEdit={vi.fn()}
+        onReschedule={onReschedule}
+      />,
+    );
+    drag(
+      screen.getByRole("button", { name: "Изменить окончание Лекция 0" }),
+      150,
+      225,
+    );
+    await waitFor(() =>
+      expect(screen.getByRole("alert")).toHaveTextContent(
+        "пересечение у участников",
+      ),
+    );
+    expect(screen.getByRole("article")).toHaveTextContent("10:00–10:30");
+  });
+  it("даёт редактировать пункт из плотной группы и поддерживает клавиатуру", async () => {
+    const onReschedule = vi.fn().mockResolvedValue(undefined);
+    render(
+      <ProgramTimeline
+        event={event}
+        activities={Array.from({ length: 60 }, (_, index) => item(index, 2))}
+        onEdit={vi.fn()}
+        onReschedule={onReschedule}
+      />,
+    );
+    expect(
+      screen.getByRole("group", { name: "Редактирование: Главный зал" }),
+    ).toBeInTheDocument();
+    const handle = screen.getByRole("button", {
+      name: "Изменить окончание Лекция 0",
+    });
+    fireEvent.keyDown(handle, { key: "ArrowLeft" });
+    await waitFor(() => expect(onReschedule).toHaveBeenCalledOnce());
+    expect(onReschedule.mock.calls[0][1]).toEqual({
+      starts_at: event.starts_at,
+      ends_at: event.starts_at + 60000,
+    });
+  });
 });
 
 describe("графическая программа", () => {

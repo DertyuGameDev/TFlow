@@ -37,6 +37,7 @@ import {
 } from "../../lib/calendar";
 import { Modal } from "./dialog";
 import { FormError } from "./forms";
+import { CheckInStatus } from "./check-in-status";
 import "../calendar.css";
 
 type View = "month" | "day";
@@ -792,11 +793,9 @@ export function Calendar({
                 <FormError error={cancelError} />
               </div>
             )}
-            {selectedEvent && (
+            {selectedEvent?.checked_in ? <CheckInStatus event={selectedEvent} /> : selectedEvent && (
               <p className="cal-registration-state">
-                {selectedEvent.checked_in
-                  ? "Вход подтверждён. Регистрация сохранена в календаре."
-                  : "Вы зарегистрированы на это событие."}
+                Вы зарегистрированы на это событие.
               </p>
             )}
             <div className="cal-entry-actions">

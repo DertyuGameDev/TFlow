@@ -30,6 +30,7 @@ import { ParticipantDetails, RegistrationSettings } from "./profile-data";
 import { EventParticipants } from "./event-participants";
 import type { Send } from "./forms";
 import { ProgramTimeline } from "./program-timeline";
+import type { ProgramRange } from "../../lib/program-editing";
 import { OrganizerTutorial } from "./organizer-tutorial";
 import "../event-management.css";
 
@@ -47,7 +48,7 @@ type Props = {
   onDelete: () => void;
   onPublish: () => void;
   onRoom: (room?: Room) => void;
-  onActivity: (activity?: Activity) => void;
+  onActivity: (activity?: Activity, range?: ProgramRange) => void;
   onOpenPublic: () => void;
   onOpenWebinar: () => void;
   send: Send;
@@ -373,34 +374,39 @@ export function OrganizerManage({
             Добавить пункт программы
           </button>
         </header>
-        {detail.activities.length === 0 ? (
-          <div className="management-empty">
-            <CalendarDays size={30} />
-            <h3>Что запланировано на встречу?</h3>
-            <p>
-              Например: открытие в 10:00, лекция в 10:30 и практикум в 12:00.
-              Добавьте пункты с временем начала и окончания — участники увидят
-              их на странице события.
-            </p>
-            <small>
-              Для одной встречи можно оставить событие без отдельных пунктов
-              программы.
-            </small>
-          </div>
-        ) : (
-          <ProgramTimeline
-            event={e}
-            activities={detail.activities}
-            onEdit={onActivity}
-          />
-        )}
+        <ProgramTimeline
+          event={e}
+          activities={detail.activities}
+          rooms={detail.rooms}
+          onEdit={onActivity}
+          onCreate={(range) => onActivity(undefined, range)}
+          onReschedule={async (activity, range) => {
+            const current = detail.activities.find(
+              (item) => item.id === activity.id,
+            );
+            if (!current || current.updated_at !== activity.updated_at)
+              throw new Error(
+                "Этот пункт уже изменился. Проверьте его время и повторите действие.",
+              );
+            await send(`activities/${current.id}`, "PATCH", {
+              title: current.title,
+              description: current.description,
+              speaker: current.speaker,
+              room_id: current.room_id,
+              capacity: current.capacity,
+              starts_at: range.starts_at,
+              ends_at: range.ends_at,
+            });
+            await refresh();
+          }}
+        />
         <section className="management-card management-rooms">
           <header className="management-section-heading">
             <div>
               <h3>Аудитории</h3>
               <p>
-                Очные залы и онлайн-поток могут работать параллельно. «Онлайн»
-                доступен при добавлении пункта программы.
+                Очные залы и несколько онлайн-потоков могут работать параллельно.
+                Для каждого одновременного эфира создайте свою онлайн-аудиторию.
               </p>
             </div>
             <button className="text-button" onClick={() => onRoom()}>
@@ -428,10 +434,10 @@ export function OrganizerManage({
             ))}
           </div>
           {detail.rooms.some((room) => room.is_online) &&
-              hasWebinar(e) &&
+            hasWebinar(e) &&
             e.status === "published" && (
               <button className="text-button" onClick={onOpenWebinar}>
-                <Video size={17} /> Открыть студию онлайн-аудитории
+                <Video size={17} /> Выбрать онлайн-флоу
               </button>
             )}
         </section>
