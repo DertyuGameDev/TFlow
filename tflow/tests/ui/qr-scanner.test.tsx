@@ -16,7 +16,7 @@ const admitted: ScanResult = {
 
 function mount(send = vi.fn().mockResolvedValue(admitted)) {
   const onScan = vi.fn();
-  render(<QRScanner event={event} events={[event]} send={send} onScan={onScan} />);
+  render(<QRScanner event={event} events={[event]} activities={[]} send={send} onScan={onScan} />);
   return { send, onScan };
 }
 

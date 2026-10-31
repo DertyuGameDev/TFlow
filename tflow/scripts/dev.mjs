@@ -52,6 +52,9 @@ if(!ready){console.error('Django did not become ready on 127.0.0.1:8000.');stop(
 else{
   const frontend=spawn(process.execPath,['node_modules/vite/bin/vite.js'],{stdio:'inherit'});
   children.push(frontend);frontend.on('exit',code=>stop(code??1));
+  const reminders=spawn(python,['manage.py','send_activity_reminders','--watch'],{cwd:resolve('backend'),stdio:'inherit'});
+  children.push(reminders);
+  reminders.on('exit',code=>{if(!exiting&&code)console.error('Reminder worker stopped; restart npm run dev to resume reminders.');});
   const emailEnabled=process.env.NOTIFICATION_EMAIL_ENABLED ?? (process.env.EMAIL_HOST_USER&&process.env.EMAIL_HOST_PASSWORD?'1':'0');
   if(emailEnabled==='1'){
     const mailer=spawn(python,['manage.py','send_notification_emails','--watch'],{cwd:resolve('backend'),stdio:'inherit'});

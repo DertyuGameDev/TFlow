@@ -1,16 +1,24 @@
-import { useId, type ComponentProps } from "react";
+import { useEffect, useId, useRef, type ComponentProps } from "react";
 import { ArrowRight, ListOrdered } from "lucide-react";
 import { ActivityProgram } from "./activity-program";
 import "../event-flows.css";
 
 type Props = Omit<ComponentProps<typeof ActivityProgram>, "personal"> & {
   onManage?: () => void;
+  focusActivityId?: string;
 };
 
-export function EventFlows({ onManage, ...program }: Props) {
+export function EventFlows({ onManage, focusActivityId, ...program }: Props) {
   const headingId = useId();
+  const focused = useRef("");
+  useEffect(() => {
+    if (!focusActivityId) { focused.current = ""; return; }
+    if (focused.current === focusActivityId) return;
+    const item = document.getElementById(`flow-${focusActivityId}`);
+    if (item) { item.scrollIntoView({block:"center"}); item.focus({preventScroll:true}); focused.current = focusActivityId; }
+  }, [focusActivityId,program.activities]);
   return (
-    <section className="event-flows" aria-labelledby={headingId}>
+    <section id="event-flows" className="event-flows" aria-labelledby={headingId}>
       <header className="event-flows-heading">
         <div>
           <h2 id={headingId}>Флоу <span>{program.activities.length}</span></h2>

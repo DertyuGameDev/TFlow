@@ -29,9 +29,17 @@ def schedule_write():
     # IMMEDIATE acquires the SQLite write lock before validation. PostgreSQL uses
     # this singleton row to serialize writes across events and user schedules.
     # Every operation that can affect the schedule must take this same lock.
+    import time
+    from .observability import SCHEDULE_WAIT, SCHEDULE_HOLD
+    started = time.monotonic()
     with transaction.atomic():
         ScheduleLock.objects.select_for_update().get(pk=1)
-        yield
+        acquired = time.monotonic()
+        SCHEDULE_WAIT.observe(acquired - started)
+        try:
+            yield
+        finally:
+            SCHEDULE_HOLD.observe(time.monotonic() - acquired)
 
 
 def owned_event(event_id, user):
@@ -161,6 +169,8 @@ def update_event(user, event_id, data):
             raise FlowError(
                 "EVENT_DATES", "Активности должны проходить в пределах дат мероприятия"
             )
+        from .schedule_feedback import event_snapshot, event_change_message
+        before_event = event_snapshot(event)
         changed = any(getattr(event, key) != value for key, value in data.items())
         for key, value in data.items():
             setattr(event, key, value)
@@ -177,7 +187,7 @@ def update_event(user, event_id, data):
                     Notification(
                         user_id=uid,
                         event=event,
-                        message=f"Обновлена информация о мероприятии «{event.title}».",
+                        message=event_change_message(event, before_event),
                     )
                     for uid in users
                 ]
@@ -310,6 +320,7 @@ def save_room(user, data, *, event_id=None, room_id=None):
 
 
 def validate_activity(activity):
+    from .schedule_feedback import conflict_error
     event = activity.event
     try:
         room = Room.objects.get(pk=activity.room_id, event=event)
@@ -332,7 +343,7 @@ def validate_activity(activity):
         .exclude(pk=activity.pk)
         .exists()
     ):
-        raise FlowError(
+        raise conflict_error(activity,
             "ROOM_CONFLICT",
             "В этой аудитории уже проходит другая активность. Измените время или аудиторию",
         )
@@ -351,7 +362,7 @@ def validate_activity(activity):
         .exclude(activity_id=activity.pk)
         .exists()
     ):
-        raise FlowError(
+        raise conflict_error(activity,
             "ENROLLED_CONFLICT",
             "Перенос создаёт пересечение у зарегистрированных участников. Выберите другое время",
         )
@@ -426,6 +437,8 @@ def save_activity(user, data, *, event_id=None, activity_id=None):
                     )
                 )
                 data["room_id"] = room.pk
+        from .schedule_feedback import snapshot, change_message
+        before = snapshot(activity) if activity_id else None
         changed = any(getattr(activity, key) != value for key, value in data.items())
         if activity_id and changed and Webinar.objects.filter(activity=activity, active=True).exists():
             raise FlowError("WEBINAR_ACTIVE", "Завершите эфир перед изменением этой активности")
@@ -448,7 +461,8 @@ def save_activity(user, data, *, event_id=None, activity_id=None):
                     Notification(
                         user_id=uid,
                         event_id=activity.event_id,
-                        message=f"Обновлена активность «{activity.title}». Проверьте время и аудиторию в своём расписании.",
+                        activity=activity,
+                        message=change_message(activity, before),
                     )
                     for uid in set(
                         activity.registrations.values_list("user_id", flat=True)
@@ -527,6 +541,7 @@ def promote_waitlist_locked(activity):
                     Notification(
                         user=entry.user,
                         event=activity.event,
+                        activity=activity,
                         message=f"Место освободилось! Вы автоматически записаны на «{activity.title}» из листа ожидания. Время и аудитория — в вашей программе.",
                     )
                 ]
@@ -769,6 +784,8 @@ def move_event(user, event_id, data):
         event = owned_event(event_id, user)
         if all(getattr(event, key) == value for key, value in data.items()):
             return
+        from .schedule_feedback import event_snapshot, event_change_message
+        before_event = event_snapshot(event)
         delta = data["starts_at"] - event.starts_at
         activities = list(event.activities.select_related("room"))
         ids = [activity.pk for activity in activities]
@@ -826,7 +843,7 @@ def move_event(user, event_id, data):
                 Notification(
                     user_id=uid,
                     event=event,
-                    message=f"Мероприятие «{event.title}» перенесено. Проверьте дату и место в календаре.",
+                    message=event_change_message(event, before_event, moved=True),
                 )
                 for uid in recipients
             ]
@@ -882,10 +899,11 @@ def attendee_by_qr(user, event_id, raw):
     return event, person
 
 
-def check_in(user, event_id, raw):
+def check_in(user, event_id, raw, activity_id=None):
     with schedule_write():
         event, person = attendee_by_qr(user, event_id, raw)
-        entry = mark_event_entry(user, event, person)
+        from .attendance import mark_activity_entry
+        entry = mark_activity_entry(user, event, person, activity_id) if activity_id else mark_event_entry(user, event, person)
         return person, entry, False
 
 

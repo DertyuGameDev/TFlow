@@ -17,13 +17,7 @@ python3 monitoring/setup.py
 NOTIFICATION_EMAIL_ENABLED=0 npm run dev
 ```
 
-В другом терминале:
-
-```sh
-python3 monitoring/alert-inbox.py
-```
-
-В третьем:
+В другом терминале (приёмник алертов уже входит в Compose):
 
 ```sh
 cd monitoring
@@ -33,7 +27,7 @@ docker compose up -d
 Grafana: http://127.0.0.1:3001 — логин `tflow`, сгенерированный пароль в `monitoring/.env`.
 Дашборд «ТФлоу · Эксплуатация» создаётся автоматически.
 Prometheus: http://127.0.0.1:9090/targets; правила: `/rules`.
-Alertmanager: http://127.0.0.1:9093; доставка: `monitoring/secrets/alerts.jsonl`.
+Alertmanager: http://127.0.0.1:9093; доставка: `monitoring/secrets/inbox/alerts.jsonl`.
 Секреты не коммитятся. UIs и сборщики слушают только loopback.
 Compose использует сеть Linux-хоста; для Docker Desktop нужны другие адреса backend и отдельная сеть.
 
@@ -85,3 +79,18 @@ docker compose -f monitoring/compose.yaml run --rm --entrypoint promtool prometh
 Справка по реализации: [Prometheus multiprocess](https://prometheus.github.io/client_python/multiprocess/), [сбор логов Alloy → Loki](https://grafana.com/docs/alloy/latest/tutorials/send-logs-to-loki/).
 
 При текущей локальной проверке сервисы запущены из официальных архивов без Docker, с временными данными в `/tmp/tflow-*`. После перезагрузки используйте Compose по инструкции выше; существующий внешний деплой автоматически не изменяется.
+
+## Установка на существующем сервере и автозапуск
+
+После обновления приложения и миграций, на VM с существующей службой `tflow` и Docker Compose:
+
+```sh
+python3 monitoring/install.py            # Только показать план
+sudo python3 monitoring/install.py --apply
+```
+
+Установщик не создаёт VM и не меняет DNS/HTTPS. Добавляет systemd-службу сборщиков с автоматическим перезапуском, постоянные Docker volumes, логи `/var/log/tflow`, ротацию и минутный таймер напоминаний. Добавляет к существующему Gunicorn конфигурацию multiprocess-метрик, сохраняет копии изменяемых конфигураций. Пароль Grafana находится в `/opt/tflow-monitoring/.env`, технические порты остаются на loopback. Для доступа используйте SSH-туннель, например `ssh -L 3001:127.0.0.1:3001 ubuntu@YOUR-HOST`.
+
+После установки проверьте `systemctl status tflow tflow-monitoring tflow-reminders.timer`, Prometheus targets, напоминание и доставку тестового алерта. При недоступности webhook Alertmanager повторяет доставку. Локальный приёмник включён в Compose и хранит сообщения в `secrets/inbox/alerts.jsonl`; он не получает доступ к остальным секретам.
+
+Подключение к актуальному production пока не проверено: владелец сообщил, что текущий деплой устарел. Код установщика, конфигурации и локальный контур проверяются отдельно от внешней выкладки. После обновления деплоя потребуются адрес, доступ на VM и канал команды.

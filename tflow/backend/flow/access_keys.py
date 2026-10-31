@@ -91,14 +91,15 @@ def record_use(key, user):
     EventAccessUse.objects.update_or_create(key=key, user=user, defaults={"last_used_at": timezone.now()})
 
 
-def delegated_check_in(user, secret, raw_qr):
+def delegated_check_in(user, secret, raw_qr, activity_id=None):
     from .services import person_from_qr, mark_event_entry
     with schedule_write():
         key = resolve_key(user, secret, purpose="scan")
         person = person_from_qr(raw_qr)
         if person is None or not key.event.enrollments.filter(user=person).exists():
             raise FlowError("NOT_REGISTERED", "Нет регистрации на это мероприятие. Вход не подтверждён", 409)
-        entry = mark_event_entry(user, key.event, person, access_key=key)
+        from .attendance import mark_activity_entry
+        entry = mark_activity_entry(user, key.event, person, activity_id, access_key=key) if activity_id else mark_event_entry(user, key.event, person, access_key=key)
         record_use(key, user)
         return {"admitted": True, "already_checked_in": False,
                 "checked_in_at": round(entry.created_at.timestamp()*1000),

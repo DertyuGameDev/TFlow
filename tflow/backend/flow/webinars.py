@@ -257,6 +257,9 @@ def operate(user, event_id, operation, session=None, *, activity_id=None, access
             if participant.get("identity") != str(user.pk) or participant.get("state") not in {"JOINED", "ACTIVE", 1, 2}:
                 raise FlowError("ATTENDANCE_UNCONFIRMED", "Сервер ещё не подтвердил подключение к эфиру", 409)
             entry, _ = CheckIn.objects.get_or_create(user=user, event=event, defaults={"source": "webinar", "checked_by": None})
+            if activity is not None:
+                from .models import ActivityAttendance
+                ActivityAttendance.objects.get_or_create(user=user, activity=activity, defaults={"source": "webinar", "checked_by": None})
             return {"ok": True, "confirmed": True, "checked_in_at": round(entry.created_at.timestamp() * 1000)}
         grants = {
             "roomJoin": True,

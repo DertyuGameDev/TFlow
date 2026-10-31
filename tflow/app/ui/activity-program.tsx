@@ -14,7 +14,7 @@ export function ActivityCard({ activity: a, schedule, organizer, pending, onActi
   const full = free === 0;
   const operation: ActivityAction = a.registered ? "cancel" : a.waitlisted ? "leave" : full ? "join" : "register";
   const disabled = pending || (!a.registered && !a.waitlisted && (closed || !!conflict));
-  return <article className={`program-card ${a.registered ? "program-card-registered" : ""}`}>
+  return <article id={`flow-${a.id}`} tabIndex={-1} className={`program-card ${a.registered ? "program-card-registered" : ""}`}>
     <div className="program-time"><strong>{timeLabel(a.starts_at)}</strong><span>{timeLabel(a.ends_at)}</span></div>
     <div className="program-copy">
       {personal && <a className="program-event" href={`#event/${a.event_id}`}>{a.event_title}</a>}
@@ -23,8 +23,9 @@ export function ActivityCard({ activity: a, schedule, organizer, pending, onActi
       {a.description && <p>{a.description}</p>}
       <div className="program-badges">
         <span className={`program-badge ${full ? "is-full" : ""}`}><Users size={13}/>{open ? "Без отдельной регистрации" : full ? "Мест нет" : `${free} из ${a.capacity} мест свободно`}</span>
+        {!!a.attended && <span className="program-badge is-registered"><Check size={13}/>Посещение подтверждено</span>}
         {!!a.registered && <span className="program-badge is-registered"><Check size={13}/>{open ? "В вашем расписании" : "Вы записаны"}</span>}
-        {!!a.waitlisted && <span className="program-badge is-waiting"><Clock3 size={13}/>Вы в очереди · № {a.waitlist_position}</span>}
+        {!!a.waitlisted && <span className="program-badge is-waiting"><Clock3 size={13}/>{a.waitlist_state === "time_conflict" ? "Очередь приостановлена" : a.waitlist_state === "closed" ? "Очередь закрыта" : "Вы в очереди"} · № {a.waitlist_position}</span>}
         {!a.waitlisted && a.waiting_count > 0 && <span className="program-queue-count">В очереди: {a.waiting_count}</span>}
       </div>
       {open && <p className="muted small">Доступна всем участникам мероприятия. Добавление в расписание не бронирует место.</p>}
@@ -34,6 +35,7 @@ export function ActivityCard({ activity: a, schedule, organizer, pending, onActi
           title={organizer ? "Откроется в новой вкладке" : undefined}>
           <Video size={16}/>{organizer ? "Открыть студию флоу" : "Войти в вебинар флоу"}
         </a>}
+      {!!a.waitlisted && <p className="muted small">{a.waitlist_state === "closed" ? "Распределение мест завершено." : "Запишем автоматически и уведомим. Если у первого в очереди занято время, место получит следующий подходящий участник; позиция первого сохранится."}</p>}
       {conflict && !a.registered && <p className="program-conflict"><AlertCircle size={15}/><span>{a.waitlisted ? "Для автоматической записи освободите время: " : "Пересечение с «"}{conflict.title}{a.waitlisted ? ". Ваше место в очереди сохранено." : `» (${timeLabel(conflict.starts_at)}–${timeLabel(conflict.ends_at)}).`}</span></p>}
     </div>
     {!organizer && <button className={`button small-button ${a.registered || a.waitlisted ? "secondary" : "primary"}`} disabled={disabled} onClick={() => onAction(a, operation)}>

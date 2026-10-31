@@ -33,7 +33,7 @@ with tarfile.open(archive) as bundle:
         raise SystemExit("Release is unexpectedly large")
     for member in members:
         parts = Path(member.name).parts
-        if not member.isfile() or len(parts) < 3 or parts[0] != "tflow" or parts[1] not in {"backend", "dist", "public"} or ".." in parts or Path(member.name).is_absolute():
+        if not member.isfile() or len(parts) < 3 or parts[0] != "tflow" or parts[1] not in {"backend", "dist", "public", "monitoring"} or ".." in parts or Path(member.name).is_absolute():
             raise SystemExit("Release contains an unsupported path or file type")
     release.mkdir(mode=0o755)
     bundle.extractall(release, members=members, filter="data")

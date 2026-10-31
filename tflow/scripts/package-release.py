@@ -11,8 +11,8 @@ project = Path(__file__).resolve().parents[1]
 output = project.parent / "release"
 output.mkdir(exist_ok=True)
 archive = output / "tflow-release.tar.gz"
-allowed = [project / name for name in ("backend", "dist", "public")]
-excluded_parts = {"data", "staticfiles", "__pycache__", "tests", ".venv", "node_modules"}
+allowed = [project / name for name in ("backend", "dist", "public", "monitoring")]
+excluded_parts = {"data", "staticfiles", "__pycache__", "tests", ".venv", "node_modules", "secrets"}
 
 if not (project / "dist" / "index.html").is_file():
     raise SystemExit("Build the frontend before creating a release")

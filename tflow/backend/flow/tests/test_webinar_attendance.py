@@ -4,7 +4,7 @@ from urllib.error import HTTPError
 from django.test import TestCase, override_settings
 from django.utils import timezone
 
-from flow.models import CheckIn, EventRegistration, Registration, Webinar
+from flow.models import ActivityAttendance, CheckIn, EventRegistration, Registration, Webinar
 from .test_api import FAST_HASHER, Scenario
 from .test_webinar_transport import VIDEO
 
@@ -21,6 +21,8 @@ class WebinarAttendanceTests(Scenario, TestCase):
         body = {"operation": "confirm", "session": str(room.room)}
         self.request(f"activities/{self.a.pk}/webinar", "post", body, client=self.participant)
         self.assertEqual(CheckIn.objects.get().event_id, self.event.pk)
+        self.assertEqual(ActivityAttendance.objects.get().activity_id, self.a.pk)
+        self.assertEqual(ActivityAttendance.objects.get().source, "webinar")
         self.assertEqual(server.call_args.args[1], "tflow-" + str(room.room))
         EventRegistration.objects.create(user=self.other, event=self.event)
         self.request(f"activities/{self.a.pk}/webinar", "post", body, client=self.stranger, status=403, code="NOT_REGISTERED")

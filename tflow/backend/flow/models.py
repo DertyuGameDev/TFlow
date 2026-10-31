@@ -364,6 +364,7 @@ class Membership(models.Model):
 
 
 class Notification(models.Model):
+    activity = models.ForeignKey(Activity, on_delete=models.SET_NULL, null=True, blank=True)
     id = models.CharField(primary_key=True, max_length=100, default=new_id)
     user = models.ForeignKey(
         User, on_delete=models.CASCADE, related_name="notifications"
@@ -376,6 +377,7 @@ class Notification(models.Model):
             ("event_cancelled", "Отмена мероприятия"),
             ("club_event", "Новое событие клуба"),
             ("event_waitlist", "Место на мероприятии освободилось"),
+            ("activity_reminder", "Напоминание об активности"),
         ],
         default="info",
     )
@@ -397,3 +399,27 @@ class NotificationEmail(models.Model):
     next_attempt_at = models.DateTimeField(default=timezone.now, db_index=True)
     locked_until = models.DateTimeField(null=True, blank=True)
     last_error = models.CharField(max_length=80, blank=True)
+
+
+class ActivityAttendance(models.Model):
+    user = models.ForeignKey(User, on_delete=models.CASCADE, related_name="activity_attendance")
+    activity = models.ForeignKey(Activity, on_delete=models.CASCADE, related_name="attendance")
+    checked_by = models.ForeignKey(User, on_delete=models.PROTECT, null=True, blank=True, related_name="performed_activity_attendance")
+    access_key = models.ForeignKey(EventAccessKey, on_delete=models.SET_NULL, null=True, blank=True)
+    source = models.CharField(max_length=12, choices=[("qr", "QR"), ("webinar", "Вебинар")], default="qr")
+    created_at = models.DateTimeField(default=timezone.now)
+
+    class Meta:
+        constraints = [
+            models.UniqueConstraint(fields=["user", "activity"], name="unique_activity_attendance"),
+            models.CheckConstraint(condition=Q(source="qr", checked_by__isnull=False) | Q(source="webinar", checked_by__isnull=True), name="activity_attendance_verifier"),
+        ]
+
+
+class ActivityReminder(models.Model):
+    user = models.ForeignKey(User, on_delete=models.CASCADE)
+    activity = models.ForeignKey(Activity, on_delete=models.CASCADE)
+    starts_at = models.DateTimeField()
+
+    class Meta:
+        constraints = [models.UniqueConstraint(fields=["user", "activity", "starts_at"], name="unique_activity_reminder")]

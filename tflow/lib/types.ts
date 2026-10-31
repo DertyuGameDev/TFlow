@@ -17,6 +17,8 @@ export type FlowEvent = {
 };
 export type Room = { id: string; event_id: string; name: string; capacity: number; is_online?: boolean };
 export type Activity = {
+  attended?: boolean; attended_count?: number;
+  waitlist_state?: "not_waiting" | "closed" | "time_conflict" | "waiting";
   registration_required?: boolean;
   event_enrolled?: boolean;
   id: string; event_id: string; room_id: string; title: string; description: string; speaker: string;
@@ -26,12 +28,12 @@ export type Activity = {
   event_title?: string; city?: string; venue?: string; event_cover?: string;
 };
 export type Community = { id: string; name: string; description: string; topic: string; color: string; member_count: number; joined: number; subscribed: boolean; owner_id: string | null; event_count: number; avatar_url: string | null };
-export type Notice = { id: string; event_id: string | null; kind: "info" | "event_cancelled" | "club_event" | "event_waitlist"; message: string; created_at: number; read: number };
+export type Notice = { activity_id?: string | null; id: string; event_id: string | null; kind: "info" | "event_cancelled" | "club_event" | "event_waitlist" | "activity_reminder"; message: string; created_at: number; read: number };
 export type NoticePage = { items: Notice[]; next_cursor: string | null };
 export type Bootstrap = { events: FlowEvent[]; activities?: Activity[]; tickets: FlowEvent[]; schedule: Activity[]; waitlist: Activity[]; communities: Community[]; notifications: Notice[]; unread_notification_count: number; profile: Profile | null };
 export type EventDetail = { event: FlowEvent; rooms: Room[]; activities: Activity[] };
 export type Attendee = ParticipantData & { id: string; profile_data: ParticipantData; activities: string[] };
-export type AttendanceRow = { id: string; name: string; email: string; city: string; profile_data: ParticipantData; created_at: number; checked_in_at: number | null };
+export type AttendanceRow = { activity_attendance?: {activity_id:string; title:string; source:string; created_at:number}[]; id: string; name: string; email: string; city: string; profile_data: ParticipantData; created_at: number; checked_in_at: number | null };
 export type ScanResult = { admitted: boolean; already_checked_in: boolean; checked_in_at: number; attendee: Pick<Attendee, "id" | "name" | "activities"> & { profile_data?: ParticipantData } };
 export const CATEGORY_GROUPS = categoryGroups;
 export const TOPICS = CATEGORY_GROUPS.flatMap(group => group.categories);

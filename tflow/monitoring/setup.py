@@ -10,6 +10,7 @@ args = parser.parse_args()
 root = Path(__file__).resolve().parent
 private = root / 'secrets'
 private.mkdir(exist_ok=True, mode=0o700)
+(private/'inbox').mkdir(exist_ok=True, mode=0o700)
 logdir = root.parent / 'backend/data/logs'
 logdir.mkdir(exist_ok=True, parents=True)
 (logdir / 'tflow.jsonl').touch(exist_ok=True)

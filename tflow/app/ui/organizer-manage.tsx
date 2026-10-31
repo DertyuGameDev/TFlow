@@ -715,6 +715,7 @@ export function OrganizerManage({
                     Данные при записи · {dateLabel(person.created_at)}
                   </p>
                   <ParticipantDetails data={person.profile_data} />
+                  {!!person.activity_attendance?.length && <div><h4>Посещённые флоу</h4><ul>{person.activity_attendance.map(visit => <li key={visit.activity_id}>{visit.title} · {dateLabel(visit.created_at)} {timeLabel(visit.created_at)} МСК · {visit.source === "webinar" ? "Подключение к вебинару" : "QR на входе"}</li>)}</ul></div>}
                 </div>
               </details>
             ))}

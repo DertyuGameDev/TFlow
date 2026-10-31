@@ -824,9 +824,7 @@ export function TFlow({ user }: { user: UserIdentity | null }) {
   async function enroll(
     event: FlowEvent,
     path = `events/${event.id}/registration`,
-    message = hasWebinar(event)
-      ? "Вы зарегистрированы. Войти в вебинар можно из карточки события или календаря."
-      : "Вы зарегистрированы. Событие добавлено в календарь, QR — в профиле.",
+    message = "Билет на мероприятие получен. Выберите активности в разделе «Флоу»: места на них бронируются отдельно. QR — в профиле.",
   ) {
     if (!user) {
       location.assign(signupLink("event", event.id));
@@ -1744,6 +1742,7 @@ export function TFlow({ user }: { user: UserIdentity | null }) {
                           </div>
                         </section>
                         <EventFlows
+                          focusActivityId={route.mode}
                           key={detail.event.id}
                           activities={detail.activities}
                           {...programActions}
@@ -1762,10 +1761,15 @@ export function TFlow({ user }: { user: UserIdentity | null }) {
                             {detail.event.enrolled
                               ? detail.event.checked_in
                                 ? "Ваш вход подтверждён"
-                                : "Ваше место забронировано"
+                                : "Регистрация на мероприятие подтверждена"
                               : `${Math.max(0, detail.event.capacity - detail.event.participant_count)} мест осталось`}
                           </span>
                         </div>
+                        {user?.role === "participant" && !!detail.event.enrolled && <div className="event-waitlist-state" aria-label="Регистрация и программа">
+                          <strong>Билет на мероприятие получен</strong>
+                          <p>Выбрано активностей: {detail.activities.filter(a => a.registered).length}. На флоу с ограничением мест нужна отдельная запись. Открытые флоу доступны по билету, добавление в расписание не бронирует место.</p>
+                          <button className="button secondary" onClick={() => document.getElementById("event-flows")?.scrollIntoView({behavior:"smooth", block:"start"})}>Выбрать активности</button>
+                        </div>}
                         {organizer && detail.event.owner_id === user?.userId ? (
                           <button
                             className="button primary"
@@ -2132,8 +2136,8 @@ export function TFlow({ user }: { user: UserIdentity | null }) {
                   unreadCount={data.unread_notification_count}
                   revision={`${data.notifications[0]?.id ?? ""}:${data.unread_notification_count}`}
                   onChange={load}
-                  onOpen={(eventId) =>
-                    go(eventId ? "event" : "calendar", eventId ?? undefined)
+                  onOpen={(eventId, activityId) =>
+                    go(eventId ? "event" : "calendar", eventId ?? undefined, activityId ?? undefined)
                   }
                 />
               ) : (
