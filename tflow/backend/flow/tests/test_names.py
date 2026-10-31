@@ -24,14 +24,13 @@ class NameTests(Scenario, TestCase):
         self.assertEqual(state["last_name"], "де Ла Крус")
         self.assertEqual(client.get("/api/auth/me").json()["user"]["displayName"], user.name)
 
-    def test_first_name_required_but_surname_is_optional(self):
-        _, response = self.signup(first_name=" ")
-        self.assertEqual(response.status_code, 200)
-        self.assertIn("first_name", response.context["form"].errors)
-        self.assertFalse(User.objects.filter(email="separate-names@example.test").exists())
-        _, response = self.signup(first_name="Я", last_name="")
-        self.assertEqual(response.status_code, 302)
-        self.assertEqual(User.objects.get(email="separate-names@example.test").name, "Я")
+    def test_name_parts_can_be_completed_after_signup(self):
+        for field in ["first_name", "last_name"]:
+            with self.subTest(field=field):
+                email = f"optional-{field}@example.test"
+                _, response = self.signup(**{field: " ", "email": email})
+                self.assertEqual(response.status_code, 302)
+                self.assertEqual(getattr(User.objects.get(email=email), field), "")
 
     def test_profile_parts_update_full_name_and_are_isolated_to_current_user(self):
         body = {"first_name": " Софья ", "last_name": " Петрова-Соколова ", "city": "Мурманск", "about": "", "interests": "Дизайн"}

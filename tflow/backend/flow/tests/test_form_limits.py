@@ -27,7 +27,7 @@ class DemoRegistrationTests(TestCase):
     def test_simplified_registration_keeps_email_role_and_password_match_checks(self):
         for changes in [
             {"email": "invalid"}, {"role": "admin"}, {"password2": "other"},
-            {"password1": "", "password2": ""}, {"first_name": " "},
+            {"password1": "", "password2": ""},
         ]:
             with self.subTest(changes=changes):
                 self.assertEqual(self.signup(**changes).status_code, 200)
@@ -48,7 +48,7 @@ class DemoRegistrationTests(TestCase):
             field = str(page.context["form"][name])
             self.assertNotIn("maxlength=", field)
             self.assertNotIn("minlength=", field)
-        self.assertContains(page, '<details class="registration-interests">')
+        self.assertContains(page, 'data-signup-step="preferences"')
 
 
 @override_settings(PASSWORD_HASHERS=FAST_HASHER)

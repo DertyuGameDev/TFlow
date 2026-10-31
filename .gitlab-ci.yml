@@ -49,6 +49,7 @@ backend:
     paths: [.cache/pip/]
   script:
     - python -m pip install -r tflow/backend/requirements.lock.txt
+    - python -m unittest discover -s tflow/deploy/spirit -p 'test_*.py'
     - cd tflow/backend
     - python manage.py makemigrations --check --dry-run
     - python manage.py test flow.tests --noinput
@@ -76,7 +77,7 @@ deploy_vm:
   stage: deploy
   image: python:3.12-slim
   interruptible: false
-  resource_group: tflow-production-vm
+  resource_group: tflow-spirit-vm1
   needs:
     - job: package
       artifacts: true
@@ -91,3 +92,77 @@ deploy_vm:
     - apt-get install -y --no-install-recommends openssh-client ca-certificates
   script:
     - python tflow/deploy/spirit/deploy-ci.py
+
+# Explicit deployment of the verified artifact. External HTTPS is a required
+# check inside this job; an unsuccessful deployment is visible on production.
+deploy-spirit:
+  stage: deploy
+  image: python:3.12-slim
+  interruptible: false
+  resource_group: tflow-spirit-vm1
+  timeout: 15m
+  allow_failure: true
+  variables:
+    GIT_DEPTH: "0"
+  needs:
+    - job: package
+      artifacts: true
+  rules:
+    - if: '$CI_COMMIT_BRANCH == $CI_DEFAULT_BRANCH'
+      when: manual
+  environment:
+    name: production
+    url: https://hack-mmk-25-vm1-162f2c.vm.prodcontest.com
+  before_script:
+    - apt-get update -qq
+    - apt-get install -y --no-install-recommends openssh-client git ca-certificates
+  script:
+    - python tflow/deploy/spirit/deploy.py release/manifest.json release/tflow-release.tar.gz
+
+deploy-spirit-cu:
+  extends: deploy-spirit
+  environment:
+    name: temporary-cu
+    url: https://hack-mmk-25-vm1-162f2c.teleport.t-education.com
+  script:
+    - python tflow/deploy/spirit/deploy.py release/manifest.json release/tflow-release.tar.gz --gateway
+
+# Maintenance uses the existing tenant-scoped Spirit CI identity. No key or
+# token is printed or stored in artifacts; only the public CLI is retained.
+.spirit-control:
+  stage: deploy
+  image: python:3.12-slim
+  interruptible: false
+  resource_group: tflow-spirit-vm1
+  timeout: 12m
+  allow_failure: true
+  rules:
+    - if: '$CI_COMMIT_BRANCH == $CI_DEFAULT_BRANCH'
+      when: manual
+
+spirit-readiness:
+  extends: .spirit-control
+  script:
+    - python tflow/deploy/spirit/control.py inspect
+  artifacts:
+    expire_in: 1 day
+    paths: [.spirit-cli/dp]
+
+spirit-recover-network:
+  extends: .spirit-control
+  needs:
+    - job: spirit-readiness
+      artifacts: true
+  script:
+    - python tflow/deploy/spirit/control.py power-cycle
+
+# Requires an explicit SPIRIT_REBUILD_CONFIRM=<vm1 UUID> when starting the job.
+# An off-VM backup and owner consent must exist before this destructive action.
+spirit-rebuild-authorized:
+  extends: .spirit-control
+  timeout: 20m
+  needs:
+    - job: spirit-readiness
+      artifacts: true
+  script:
+    - python tflow/deploy/spirit/control.py rebuild

@@ -50,6 +50,7 @@ INSTALLED_APPS = [
 MIDDLEWARE = [
     "django.middleware.security.SecurityMiddleware",
     "whitenoise.middleware.WhiteNoiseMiddleware",
+    "flow.security.RequestLimitsMiddleware",
     "django.contrib.sessions.middleware.SessionMiddleware",
     "django.middleware.common.CommonMiddleware",
     "django.middleware.csrf.CsrfViewMiddleware",
@@ -78,6 +79,16 @@ WSGI_APPLICATION = (
 if not IS_VERCEL:
     ASGI_APPLICATION = "config.asgi.application"
 AUTH_USER_MODEL = "flow.User"
+# Forwarded client addresses are trusted only from explicitly listed proxies.
+AUTH_TRUSTED_PROXY_IPS = [
+    value.strip()
+    for value in os.environ.get("DJANGO_TRUSTED_PROXY_IPS", "").split(",")
+    if value.strip()
+]
+AUTH_RATE_LIMIT_WINDOW = 300
+AUTH_LOGIN_IP_LIMIT = 50
+AUTH_LOGIN_ACCOUNT_IP_LIMIT = 10
+AUTH_REGISTER_IP_LIMIT = 10
 AUTH_PASSWORD_VALIDATORS = [
     {
         "NAME": "django.contrib.auth.password_validation.UserAttributeSimilarityValidator"

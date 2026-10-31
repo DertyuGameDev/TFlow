@@ -58,6 +58,15 @@
 :root[data-theme="dark"] .switch a{color:#ffdf45}
 :root[data-theme="dark"] .toast{background:#253f33;color:#e8fff0;border-color:#426d56}
 :root[data-theme="dark"] .toast.toast-error{background:#513032;color:#ffe3de;border-color:#885453}
+:root[data-theme="dark"] .toggle-track{outline:1px solid #898989}
+:root[data-theme="dark"] .organizer-setting{background:var(--theme-field)}
+:root[data-theme="dark"] .organizer-setting:has(input:checked){background:var(--theme-warm);border-color:#96803b}
+:root[data-theme="dark"] .role-description{color:var(--theme-muted)}
+:root[data-theme="dark"] .signup-progress{color:var(--theme-muted)}
+:root[data-theme="dark"] .role-choice{color:var(--theme-muted)}
+:root[data-theme="dark"] .organizer-setting:not(:has(input:checked)) .participant-label{color:var(--theme-text)}
+:root[data-theme="dark"] .organizer-setting:has(input:checked) .organizer-label{color:var(--theme-warm-text)}
+:root[data-theme="dark"] .toggle-control input:checked:not(:focus-visible)+.toggle-track{outline:none}
 
 /* Calendar: restrained colours keep both the month and hourly grid legible. */
 /* Programme, waitlists and profile controls also share the same palette. */

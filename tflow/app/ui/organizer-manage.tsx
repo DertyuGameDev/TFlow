@@ -422,8 +422,8 @@ export function OrganizerManage({
             <div>
               <h2>Аудитории</h2>
               <p>
-                Очные залы и онлайн-поток могут работать параллельно. «Онлайн»
-                доступен при добавлении пункта программы.
+                Очные залы и несколько онлайн-потоков могут работать параллельно.
+                Для каждого одновременного эфира создайте свою онлайн-аудиторию.
               </p>
             </div>
             <button className="text-button" onClick={() => onRoom()}>
@@ -454,7 +454,7 @@ export function OrganizerManage({
             hasWebinar(e) &&
             e.status === "published" && (
               <button className="text-button" onClick={onOpenWebinar}>
-                <Video size={17} /> Открыть студию онлайн-аудитории
+                <Video size={17} /> Выбрать онлайн-флоу
               </button>
             )}
         </section>

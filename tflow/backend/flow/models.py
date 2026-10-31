@@ -72,6 +72,14 @@ class User(AbstractUser):
         return self.name or self.email
 
 
+class AuthRateLimit(models.Model):
+    """Shared authentication budgets; keys contain no raw email or IP address."""
+
+    key = models.CharField(primary_key=True, max_length=64)
+    attempts = models.PositiveIntegerField(default=0)
+    expires_at = models.DateTimeField(db_index=True)
+
+
 class ScheduleLock(models.Model):
     """A shared write lock: SQLite IMMEDIATE; row lock on PostgreSQL."""
 
@@ -149,13 +157,21 @@ class Event(models.Model):
 
 
 class Webinar(models.Model):
-    event = models.OneToOneField(
-        Event, on_delete=models.CASCADE, related_name="webinar"
+    event = models.ForeignKey(
+        Event, on_delete=models.CASCADE, related_name="webinars"
+    )
+    activity = models.OneToOneField(
+        "Activity", on_delete=models.CASCADE, related_name="webinar", null=True, blank=True
     )
     room = models.UUIDField(default=uuid.uuid4, unique=True)
     active = models.BooleanField(default=False)
     started_at = models.DateTimeField(null=True, blank=True)
     ended_at = models.DateTimeField(null=True, blank=True)
+
+    class Meta:
+        constraints = [models.UniqueConstraint(
+            fields=["event"], condition=Q(activity__isnull=True), name="one_general_webinar_per_event"
+        )]
 
 
 class Room(models.Model):
@@ -168,11 +184,6 @@ class Room(models.Model):
     class Meta:
         ordering = ["name", "id"]
         constraints = [
-            models.UniqueConstraint(
-                fields=["event"],
-                condition=Q(is_online=True),
-                name="one_online_room_per_event",
-            ),
             models.CheckConstraint(
                 condition=Q(capacity__gte=1),
                 name="room_valid_capacity",

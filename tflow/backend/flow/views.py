@@ -13,7 +13,8 @@ from django.utils.http import url_has_allowed_host_and_scheme
 from django.views.decorators.cache import never_cache
 from django.views.decorators.csrf import ensure_csrf_cookie
 from .auth_forms import LoginForm, RegisterForm
-from .avatars import save_avatar, save_community_avatar
+from .avatars import avatar_upload, save_avatar, save_community_avatar
+from .security import auth_attempt_response
 from .notifications import notification_page
 from .calendar import activity_item, calendar_response, event_item
 from .contracts import (
@@ -73,6 +74,10 @@ def safe_next(request):
 def login_view(request):
     if request.user.is_authenticated:
         return redirect(safe_next(request))
+    if request.method == "POST":
+        limited = auth_attempt_response(request, "login")
+        if limited is not None:
+            return limited
     form = LoginForm(request, data=request.POST or None)
     if request.method == "POST" and form.is_valid():
         login(request, form.get_user())
@@ -88,6 +93,10 @@ def login_view(request):
 def register_view(request):
     if request.user.is_authenticated:
         return redirect(safe_next(request))
+    if request.method == "POST":
+        limited = auth_attempt_response(request, "register")
+        if limited is not None:
+            return limited
     next_url = safe_next(request)
     destination = urlsplit(next_url)
     view, _, event_id = destination.fragment.partition("/")
@@ -97,6 +106,16 @@ def register_view(request):
     initial_role = (
         "organizer" if request.GET.get("role") == "organizer" else "participant"
     )
+    if request.method == "POST" and request.POST.get("intent") == "credentials":
+        credentials = RegisterForm({
+            "email": request.POST.get("email", ""),
+            "password1": request.POST.get("password1", ""),
+        })
+        valid = credentials.is_valid()
+        return JsonResponse(
+            {"valid": valid, "errors": credentials.errors.get_json_data()},
+            status=200 if valid else 400,
+        )
     form = RegisterForm(
         request.POST or None,
         initial={"role": initial_role},
@@ -207,8 +226,10 @@ def dispatch_api(request, path):
         user = require_user(request)
         services.require_participant(user)
         output = BytesIO()
+        pass_path = f"/#pass/{user.pass_token}"
+        pass_url = settings.PUBLIC_APP_URL + pass_path if settings.PUBLIC_APP_URL else request.build_absolute_uri(pass_path)
         qrcode.make(
-            request.build_absolute_uri(f"/#pass/{user.pass_token}"),
+            pass_url,
             box_size=9,
             border=4,
         ).save(output, format="PNG")
@@ -232,7 +253,7 @@ def dispatch_api(request, path):
                 },
             )
         if method == "POST":
-            save_avatar(user, request.FILES.get("avatar"))
+            save_avatar(user, avatar_upload(request))
             return JsonResponse({"ok": True})
         if method == "DELETE":
             UserAvatar.objects.filter(user=user).delete()
@@ -263,17 +284,18 @@ def dispatch_api(request, path):
                 "FORBIDDEN", "Изменить фото может только создатель клуба", 403
             )
         if method == "POST":
-            save_community_avatar(club, request.FILES.get("avatar"))
+            save_community_avatar(club, avatar_upload(request))
             return JsonResponse({"ok": True})
         if method == "DELETE":
             CommunityAvatar.objects.filter(community=club).delete()
             return JsonResponse({"ok": True})
         return HttpResponseNotAllowed(["GET", "POST", "DELETE"])
     if method == "GET":
-        if resource == "events" and item_id and action == "webinar":
+        if resource in {"events", "activities"} and item_id and action == "webinar":
             from .webinars import status
 
-            return JsonResponse(status(require_user(request), item_id))
+            return JsonResponse(status(require_user(request), item_id if resource == "events" else None,
+                                       activity_id=item_id if resource == "activities" else None))
         if path == "notifications":
             return JsonResponse(
                 notification_page(
@@ -512,7 +534,10 @@ def dispatch_api(request, path):
     elif resource == "rooms" and item_id and not action and method == "PATCH":
         services.save_room(user, validate(RoomInput, body), room_id=item_id)
     elif resource == "activities" and item_id:
-        if action == "registration" and method == "POST":
+        if action == "webinar" and method == "POST":
+            from .webinars import operate
+            return JsonResponse(operate(user, None, body.get("operation"), activity_id=item_id))
+        elif action == "registration" and method == "POST":
             if services.register(user, item_id, body) is False:
                 raise FlowError(
                     "NO_SEATS", "Свободное место получил участник из листа ожидания"

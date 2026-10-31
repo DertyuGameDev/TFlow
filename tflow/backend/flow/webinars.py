@@ -3,13 +3,23 @@ import logging
 import time
 import uuid
 from urllib.error import HTTPError, URLError
-from urllib.request import Request, urlopen
 from urllib.parse import urlsplit
+from urllib.request import HTTPRedirectHandler, Request, build_opener
 import jwt
 from django.conf import settings
 from django.utils import timezone
 from .contracts import FlowError
-from .models import Event, Webinar
+from .models import Activity, Event, Webinar
+
+
+class NoMediaRedirects(HTTPRedirectHandler):
+    def redirect_request(self, request, response, code, message, headers, new_url):
+        # A redirect must never forward an administrative bearer token elsewhere.
+        return None
+
+
+def urlopen(request, timeout):
+    return build_opener(NoMediaRedirects()).open(request, timeout=timeout)
 
 logger = logging.getLogger(__name__)
 
@@ -20,16 +30,18 @@ def configuration_error():
     try:
         public = urlsplit(settings.LIVEKIT_URL)
         internal = urlsplit(settings.LIVEKIT_API_URL or settings.LIVEKIT_URL)
-        if public.scheme not in {"ws", "wss"} or not public.hostname or public.username is not None or public.query or public.fragment:
-            return "Публичный адрес LiveKit должен быть WebSocket-адресом без ключей и параметров."
+        if public.scheme not in {"ws", "wss", "http", "https"} or not public.hostname or public.username is not None or public.query or public.fragment:
+            return "Публичный адрес LiveKit должен использовать WS, WSS, HTTP или HTTPS без ключей и параметров."
         if internal.scheme not in {"http", "https", "ws", "wss"} or not internal.hostname or internal.username is not None or internal.query or internal.fragment:
             return "Некорректный внутренний адрес LiveKit API."
         # Accessing .port also rejects malformed/out-of-range ports early.
         _ = public.port, internal.port
-        if not settings.DEBUG and (public.scheme != "wss" or public.hostname in {"localhost", "127.0.0.1", "::1"}):
+        if not settings.DEBUG and (public.scheme not in {"wss", "https"} or public.hostname in {"localhost", "127.0.0.1", "::1"}):
             return "Для опубликованного сайта нужен публичный WSS-адрес LiveKit. Адрес localhost доступен только самому серверу."
     except ValueError:
         return "Некорректный адрес видеосервера LiveKit."
+    if not settings.DEBUG and len(settings.LIVEKIT_API_SECRET.encode("utf-8")) < 32:
+        return "Секрет LiveKit должен содержать не менее 32 байт для опубликованного сайта."
     return ""
 
 
@@ -37,10 +49,15 @@ def configured():
     return not configuration_error()
 
 
-def event_for_webinar(user, event_id):
+def event_for_webinar(user, event_id, *, activity_id=None):
+    activity = None
     try:
-        event = Event.objects.select_related("webinar").get(pk=event_id)
-    except Event.DoesNotExist as error:
+        if activity_id:
+            activity = Activity.objects.select_related("event", "room").get(pk=activity_id)
+            event = activity.event
+        else:
+            event = Event.objects.get(pk=event_id)
+    except (Event.DoesNotExist, Activity.DoesNotExist) as error:
         raise FlowError("NOT_FOUND", "Мероприятие не найдено", 404) from error
     owner = event.owner_id == user.pk and user.role == "organizer"
     if event.status != "published" and not owner:
@@ -49,31 +66,41 @@ def event_for_webinar(user, event_id):
         raise FlowError(
             "NOT_WEBINAR", "Видеокомната доступна для онлайн- и гибридных событий", 400
         )
+    if activity and not activity.room.is_online:
+        raise FlowError("NOT_WEBINAR", "У этой активности очная аудитория", 400)
     if not owner and user.role != "participant":
-        raise FlowError("FORBIDDEN", "Организатору доступна только студия своего события", 403)
+        raise FlowError(
+            "FORBIDDEN", "Организатору доступна только студия своего события", 403
+        )
     if not owner and not event.enrollments.filter(user=user).exists():
         raise FlowError(
             "NOT_REGISTERED", "Сначала зарегистрируйтесь на это событие", 403
         )
-    return event, owner
+    if activity and not owner and not activity.registrations.filter(user=user).exists():
+        raise FlowError("NOT_REGISTERED", "Сначала запишитесь на эту онлайн-активность", 403)
+    return event, owner, activity
 
 
-def status(user, event_id):
-    event, owner = event_for_webinar(user, event_id)
-    webinar = getattr(event, "webinar", None)
+def status(user, event_id, *, activity_id=None):
+    event, owner, activity = event_for_webinar(user, event_id, activity_id=activity_id)
+    webinar = Webinar.objects.filter(event=event, activity=activity).first()
     return {
         "configured": configured(),
         "configuration_error": configuration_error(),
         "host": owner,
         "active": bool(webinar and webinar.active),
         "session": str(webinar.room) if webinar else None,
-        "ended": event.ends_at <= timezone.now(),
+        "ended": min(event.ends_at, activity.ends_at if activity else event.ends_at) <= timezone.now(),
         "published": event.status == "published",
         "finished": bool(webinar and webinar.ended_at),
     }
 
 
 def signed_token(identity, name, grants):
+    if not configured():
+        raise FlowError(
+            "VIDEO_NOT_CONFIGURED", "Сервер трансляций не настроен безопасно", 503
+        )
     now = int(time.time())
     return jwt.encode(
         {
@@ -134,22 +161,25 @@ def room_api(method, room, **values):
         ) from error
 
 
-def stop_webinar(event):
-    webinar = Webinar.objects.filter(event=event, active=True).first()
-    if webinar:
+def stop_webinar(event, *, activity_id=None, all_rooms=False):
+    webinars = Webinar.objects.filter(event=event, active=True)
+    if not all_rooms:
+        webinars = webinars.filter(activity_id=activity_id)
+    for webinar in webinars:
         room_api("DeleteRoom", room_name(webinar))
         webinar.active = False
         webinar.ended_at = timezone.now()
         webinar.save(update_fields=["active", "ended_at"])
 
 
-def disconnect_viewer(user, event_id):
-    webinar = (
+def disconnect_viewer(user, event_id, *, activity_id=None):
+    webinars = (
         Webinar.objects.filter(event_id=event_id, active=True)
         .exclude(event__owner=user)
-        .first()
     )
-    if webinar:
+    if activity_id is not None:
+        webinars = webinars.filter(activity_id=activity_id)
+    for webinar in webinars:
         try:
             room_api("RemoveParticipant", room_name(webinar), identity=str(user.pk))
         except FlowError:
@@ -158,11 +188,11 @@ def disconnect_viewer(user, event_id):
             pass
 
 
-def operate(user, event_id, operation):
+def operate(user, event_id, operation, *, activity_id=None):
     from .services import schedule_write
 
     with schedule_write():
-        event, owner = event_for_webinar(user, event_id)
+        event, owner, activity = event_for_webinar(user, event_id, activity_id=activity_id)
         if operation not in {"start", "join", "end"}:
             raise FlowError("VALIDATION", "Неизвестное действие с эфиром", 400)
         if operation in {"start", "end"} and not owner:
@@ -176,15 +206,16 @@ def operate(user, event_id, operation):
                 503,
             )
         if operation == "end":
-            stop_webinar(event)
+            stop_webinar(event, activity_id=activity_id)
             return {"active": False}
-        if event.status != "published" or event.ends_at <= timezone.now():
+        ends_at = min(event.ends_at, activity.ends_at if activity else event.ends_at)
+        if event.status != "published" or ends_at <= timezone.now():
             raise FlowError(
                 "WEBINAR_CLOSED",
                 "Эфир доступен у опубликованного незавершённого события",
                 409,
             )
-        webinar, _ = Webinar.objects.get_or_create(event=event)
+        webinar, _ = Webinar.objects.get_or_create(event=event, activity=activity)
         if operation == "start" and not webinar.active:
             webinar.room = uuid.uuid4()
             online_room = event.rooms.filter(is_online=True).first()
@@ -193,6 +224,8 @@ def operate(user, event_id, operation):
                 if online_room
                 else event.capacity
             )
+            if activity:
+                viewer_limit = min(event.capacity, activity.capacity, activity.room.capacity)
             room_api(
                 "CreateRoom",
                 room_name(webinar),
@@ -216,7 +249,7 @@ def operate(user, event_id, operation):
             "canUpdateOwnMetadata": False,
         }
         return {
-            "url": settings.LIVEKIT_URL,
+            "url": settings.LIVEKIT_URL.replace("https://", "wss://", 1).replace("http://", "ws://", 1),
             "token": signed_token(str(user.pk), user.name, grants),
             "host": owner,
             "session": str(webinar.room),

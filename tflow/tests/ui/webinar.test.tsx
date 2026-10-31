@@ -1,9 +1,10 @@
-import { act, fireEvent, render, screen, waitFor } from "@testing-library/react";
+import { act, fireEvent, render, screen, waitFor, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { RoomEvent } from "livekit-client";
 import Webinar from "../../app/ui/webinar";
 import { deferred, event } from "../fixtures";
+import type { Activity } from "../../lib/types";
 
 const media = vi.hoisted(() => {
   class TestRoom {
@@ -98,6 +99,41 @@ describe("комната вебинара", () => {
     await waitFor(() => expect(screen.getByRole("button", { name: "Начать эфир" })).toBeEnabled());
   });
 
+
+  it("два онлайн-флоу используют разные API и комнаты, завершение одного не отключает второй", async () => {
+    const base: Activity = { id: "python", event_id: event.id, room_id: "online-one", room_name: "Python",
+      title: "Python", description: "", speaker: "", starts_at: event.starts_at, ends_at: event.ends_at,
+      capacity: 20, taken: 0, registered: 0, waitlisted: 0, waiting_count: 0, waitlist_position: 0, updated_at: 1, room_is_online: true };
+    const second = { ...base, id: "django", room_id: "online-two", title: "Django", room_name: "Django" };
+    const states = new Map<string, boolean>();
+    const send = vi.fn(async (path: string, method: string, body?: unknown) => {
+      const operation = (body as { operation?: string } | undefined)?.operation;
+      if (operation) states.set(path, operation !== "end");
+      return method === "GET"
+        ? { configured: true, host: true, active: !!states.get(path), session: path, ended: false, published: true }
+        : { url: "ws://video.example.test", token: `token-${path}`, session: path, host: true };
+    });
+    const user = userEvent.setup();
+    render(<><Webinar event={online} activity={base} user={host} send={send} /><Webinar event={online} activity={second} user={host} send={send} /></>);
+    const one = await screen.findByRole("region", { name: "Вебинар флоу: Python" });
+    const two = screen.getByRole("region", { name: "Вебинар флоу: Django" });
+    await user.click(await within(one).findByRole("button", { name: "Начать эфир" }));
+    await user.click(await within(two).findByRole("button", { name: "Начать эфир" }));
+    expect(media.rooms).toHaveLength(2);
+    expect(media.rooms[0].connect).toHaveBeenCalledWith("ws://video.example.test", "token-activities/python/webinar");
+    expect(media.rooms[1].connect).toHaveBeenCalledWith("ws://video.example.test", "token-activities/django/webinar");
+    await user.type(within(one).getByRole("textbox", { name: "Сообщение в чат" }), "Только Python");
+    await user.click(within(one).getByRole("button", { name: "Отправить" }));
+    expect(within(one).getByLabelText("Сообщения эфира")).toHaveTextContent("Только Python");
+    expect(within(two).getByLabelText("Сообщения эфира")).not.toHaveTextContent("Только Python");
+    expect(media.rooms[1].localParticipant.publishData).not.toHaveBeenCalled();
+    await user.click(within(one).getByRole("button", { name: "Завершить эфир" }));
+    await user.click(screen.getByRole("button", { name: "Да, завершить эфир" }));
+    expect(send).toHaveBeenCalledWith("activities/python/webinar", "POST", { operation: "end" });
+    expect(media.rooms[0].disconnect).toHaveBeenCalledOnce();
+    expect(media.rooms[1].disconnect).not.toHaveBeenCalled();
+    expect(within(two).getByRole("button", { name: "Выйти из комнаты" })).toBeVisible();
+  });
   it("вход не запрашивает микрофон/камеру автоматически и выход отключает комнату", async () => {
     const { user, room, view } = await enter();
     expect(room.startAudio).toHaveBeenCalledOnce();

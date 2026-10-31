@@ -74,7 +74,9 @@ class ActivityInput(forms.Form):
     speaker = forms.CharField(required=False)
     room_id = forms.CharField(required=False)
     new_room_name = forms.CharField(required=False)
-    new_room_capacity = forms.IntegerField(required=False, min_value=1, max_value=2**53 - 1)
+    new_room_capacity = forms.IntegerField(
+        required=False, min_value=1, max_value=2**53 - 1
+    )
     online_room = forms.BooleanField(required=False)
     starts_at = MillisecondsField()
     ends_at = MillisecondsField()
@@ -83,11 +85,11 @@ class ActivityInput(forms.Form):
     def clean(self):
         data = super().clean()
         if data.get("new_room_name") and data.get("room_id"):
-            self.add_error("room_id", "Выберите существующую аудиторию или создайте новую")
+            self.add_error(
+                "room_id", "Выберите существующую аудиторию или создайте новую"
+            )
         if data.get("new_room_capacity") and not data.get("new_room_name"):
             self.add_error("new_room_name", "Укажите название новой аудитории")
-        if data.get("online_room") and (data.get("new_room_name") or data.get("new_room_capacity")):
-            self.add_error("new_room_name", "Выберите онлайн-поток или создайте новую очную аудиторию")
         if (
             data.get("starts_at")
             and data.get("ends_at")
@@ -117,8 +119,11 @@ class ProfileInput(forms.Form):
     city = forms.CharField(required=False)
     phone = forms.CharField(required=False)
     birth_date = ProfileDateField(required=False, input_formats=["%Y-%m-%d"])
-    telegram = forms.RegexField(r"^@?[A-Za-z][A-Za-z0-9_]*$", required=False,
-                                error_messages={"invalid": "Укажите логин Telegram, например @username"})
+    telegram = forms.RegexField(
+        r"^@?[A-Za-z][A-Za-z0-9_]*$",
+        required=False,
+        error_messages={"invalid": "Укажите логин Telegram, например @username"},
+    )
     organization = forms.CharField(required=False)
     job_title = forms.CharField(required=False)
     education = forms.CharField(required=False)
@@ -128,7 +133,9 @@ class ProfileInput(forms.Form):
 
     def clean_phone(self):
         value = self.cleaned_data["phone"]
-        if value and (not re.fullmatch(r"\+?[\d ()\-]+", value) or not re.search(r"\d", value)):
+        if value and (
+            not re.fullmatch(r"\+?[\d ()\-]+", value) or not re.search(r"\d", value)
+        ):
             raise forms.ValidationError("Укажите телефон цифрами")
         return value
 
@@ -163,7 +170,9 @@ class ProfileRequirementsField(forms.Field):
     def to_python(self, value):
         if not isinstance(value, list) or len(value) > len(REQUIREMENT_KEYS):
             raise ValidationError("Выберите поля профиля из списка")
-        if any(not isinstance(key, str) or key not in REQUIREMENT_KEYS for key in value):
+        if any(
+            not isinstance(key, str) or key not in REQUIREMENT_KEYS for key in value
+        ):
             raise ValidationError("В списке есть неизвестное поле профиля")
         if len(set(value)) != len(value):
             raise ValidationError("Поля профиля не должны повторяться")

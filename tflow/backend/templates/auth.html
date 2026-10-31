@@ -1,19 +1,77 @@
 {% load static %}<!doctype html>
-<html lang="ru"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>{% if mode == 'register' %}Регистрация{% else %}Вход{% endif %} — ТФлоу</title><link rel="icon" href="{% static 'logo-mark.svg' %}?v=yellow-1"><script src="{% static 'theme.js' %}"></script><link rel="stylesheet" href="{% static 'auth.css' %}?v=role-cards-1"><link rel="stylesheet" href="{% static 'theme.css' %}?v=role-cards-1"><link rel="stylesheet" href="{% static 'interest-picker.css' %}"><script type="module" src="{% static 'registration-interests.js' %}"></script></head>
-<body><main class="auth-shell"><a class="auth-brand" href="/" aria-label="ТФлоу — главная"><img data-theme-logo data-logo-light-src="{% static 'logo.svg' %}" data-logo-dark-src="{% static 'logo-dark.svg' %}" src="{% static 'logo.svg' %}" alt="ТФлоу" width="200" height="55"></a>
-<section class="auth-card"><div class="auth-tools"><a class="back" href="/">← На главную</a><button type="button" class="theme-toggle" data-theme-toggle data-auth-theme-toggle aria-label="Переключить тему"><svg class="theme-moon" aria-hidden="true" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><path d="M20.9 13A9 9 0 0 1 11 3.1 9 9 0 1 0 20.9 13Z"/></svg><svg class="theme-sun" aria-hidden="true" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><circle cx="12" cy="12" r="4"/><path d="M12 2v2m0 16v2M2 12h2m16 0h2M5 5l1.5 1.5m11 11L19 19M5 19l1.5-1.5m11-11L19 5"/></svg></button></div><h1>{% if mode == 'register' %}Создать аккаунт{% else %}С возвращением{% endif %}</h1><p class="intro">{% if mode == 'register' %}{% if participant_signup %}Создайте аккаунт участника, чтобы записаться на мероприятие.{% else %}Выберите роль и заполните основные данные.{% endif %}{% else %}Войдите в свой аккаунт.{% endif %}</p>
-<form method="post" novalidate>{% csrf_token %}<input type="hidden" name="next" value="{{ next }}">
-{% if form.non_field_errors %}<div class="error-summary" role="alert">{{ form.non_field_errors }}</div>{% endif %}
-{% for field in form %}
-{% if field.is_hidden %}{{ field }}{% elif field.name == 'role' %}<fieldset class="registration-role">
-<legend>{{ field.label }}</legend>
-{{ field }}
-<p class="registration-role-note" id="role-note">Роль нельзя изменить после регистрации.</p>
-{% if field.errors %}<div class="field-error" id="{{ field.auto_id }}_error" role="alert">{{ field.errors }}</div>{% endif %}</fieldset>
-{% elif field.name == 'interests' %}<details class="registration-interests"{% if field.errors %} open{% endif %}><summary>Интересы <span>необязательно</span></summary><fieldset class="interest-field"><legend>{{ field.label }}</legend><p id="id_interests_helptext">{{ field.help_text }}</p>{{ field }}{% if field.errors %}<div class="field-error" id="{{ field.auto_id }}_error" role="alert">{{ field.errors }}</div>{% endif %}</fieldset></details>
-{% else %}<div class="field"><label for="{{ field.id_for_label }}">{{ field.label }}</label>{{ field }}{% if field.errors %}<div class="field-error" id="{{ field.auto_id }}_error" role="alert">{{ field.errors }}</div>{% endif %}</div>{% endif %}
-{% endfor %}
-{% if mode == 'register' %}<p class="password-help">{% if form.demo_mode %}Для демонстрации подойдёт любой непустой пароль.{% else %}Пароль — от 8 символов.{% endif %}</p>{% endif %}
-<button class="primary" type="submit">{% if mode == 'register' %}Зарегистрироваться{% else %}Войти{% endif %}<span aria-hidden="true">↗</span></button></form>
-<p class="switch">{% if mode == 'register' %}Уже есть аккаунт? <a href="/login/?next={{ next|urlencode }}">Войти</a>{% else %}Впервые здесь? <a href="/register/?next={{ next|urlencode }}">Зарегистрироваться</a>{% endif %}</p>
-</section><footer>ТФлоу · Мероприятия без накладок</footer></main></body></html>
+<html lang="ru">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width,initial-scale=1">
+  <title>{% if mode == 'register' %}Регистрация{% else %}Вход{% endif %} — ТФлоу</title>
+  <link rel="icon" href="{% static 'logo-mark.svg' %}?v=yellow-1">
+  <script src="{% static 'theme.js' %}"></script>
+  <link rel="stylesheet" href="{% static 'auth.css' %}?v=signup-cards-2">
+  <link rel="stylesheet" href="{% static 'theme.css' %}">
+  <link rel="stylesheet" href="{% static 'interest-picker.css' %}">
+  <script type="module" src="{% static 'registration-interests.js' %}"></script>
+  {% if mode == 'register' %}<script src="{% static 'auth.js' %}" defer></script>{% endif %}
+</head>
+<body>
+<main class="auth-shell">
+  <a class="auth-brand" href="/" aria-label="ТФлоу — главная"><img data-theme-logo data-logo-light-src="{% static 'logo.svg' %}" data-logo-dark-src="{% static 'logo-dark.svg' %}" src="{% static 'logo.svg' %}" alt="ТФлоу" width="200" height="55"></a>
+  <section class="auth-card">
+    <div class="auth-tools">
+      <a class="back" href="/" data-signup-home>← На главную</a>
+      {% if mode == 'register' %}<button class="back signup-back" type="button" data-signup-back hidden>← Назад</button>{% endif %}
+      <button type="button" class="theme-toggle" data-theme-toggle data-auth-theme-toggle aria-label="Переключить тему">
+        <svg class="theme-moon" aria-hidden="true" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><path d="M20.9 13A9 9 0 0 1 11 3.1 9 9 0 1 0 20.9 13Z"/></svg>
+        <svg class="theme-sun" aria-hidden="true" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><circle cx="12" cy="12" r="4"/><path d="M12 2v2m0 16v2M2 12h2m16 0h2M5 5l1.5 1.5m11 11L19 19M5 19l1.5-1.5m11-11L19 5"/></svg>
+      </button>
+    </div>
+    {% if mode == 'register' %}<p class="signup-progress" data-signup-progress aria-live="polite">Шаг 1 из 2</p>{% endif %}
+    <h1 id="auth-title" tabindex="-1">{% if mode == 'register' %}Создать аккаунт{% else %}С возвращением{% endif %}</h1>
+    <p class="intro" data-signup-intro>{% if mode == 'register' %}{% if participant_signup %}Создайте аккаунт участника, чтобы записаться на мероприятие.{% else %}Начните с почты и пароля.{% endif %}{% else %}Войдите в свой аккаунт.{% endif %}</p>
+    <form method="post" novalidate{% if mode == 'register' %} data-signup-form aria-labelledby="auth-title"{% endif %}>
+      {% csrf_token %}<input type="hidden" name="next" value="{{ next }}">
+      {% if form.non_field_errors %}<div class="error-summary" role="alert">{{ form.non_field_errors }}</div>{% endif %}
+      {% if mode == 'register' %}
+        <div class="error-summary" data-signup-error role="alert" hidden></div>
+        {% if form.first_name.errors or form.last_name.errors or form.password2.errors %}
+          <div class="error-summary" role="alert">{{ form.first_name.errors }}{{ form.last_name.errors }}{{ form.password2.errors }}</div>
+        {% endif %}
+        {% if form.interests.errors or form.role.errors %}
+          <div class="error-summary" role="alert">Проверьте выбор тегов и роли на втором шаге. Введите пароль ещё раз, чтобы продолжить.</div>
+        {% endif %}
+        <fieldset class="signup-step" data-signup-step="credentials">
+          <legend class="visually-hidden">Почта и пароль</legend>
+          {% include 'auth_field.html' with field=form.email %}
+          {% include 'auth_field.html' with field=form.password1 %}
+          <p class="password-help" id="id_password1_helptext">{% if form.demo_mode %}Для демонстрации подойдёт любой непустой пароль.{% else %}Пароль — от 8 символов.{% endif %}</p>
+          <button class="primary" type="submit" data-signup-next>Продолжить<span aria-hidden="true">→</span></button>
+        </fieldset>
+        <fieldset class="signup-step" data-signup-step="preferences" hidden>
+          <legend class="visually-hidden">Теги и роль на платформе</legend>
+          <fieldset class="interest-field">
+            <legend class="visually-hidden">Любимые теги</legend>
+            <p id="id_interests_helptext">{{ form.interests.help_text }}</p>
+            {{ form.interests }}
+            <div class="field-error" id="id_interests_error" role="alert"{% if not form.interests.errors %} hidden{% endif %}>{{ form.interests.errors }}</div>
+          </fieldset>
+          {% if participant_signup %}{{ form.role }}{% else %}
+          <fieldset class="registration-role">
+            <legend>{{ form.role.label }}</legend>
+            {{ form.role }}
+            <p class="registration-role-note" id="role-note">Роль нельзя изменить после регистрации.</p>
+            {% if form.role.errors %}<div class="field-error" id="id_role_error" role="alert">{{ form.role.errors }}</div>{% endif %}
+          </fieldset>
+          {% endif %}
+          <button class="primary" type="submit">Зарегистрироваться<span aria-hidden="true">↗</span></button>
+        </fieldset>
+        <noscript><style>[data-signup-step][hidden]{display:block!important}[data-signup-next],.signup-progress{display:none!important}</style></noscript>
+      {% else %}
+        {% for field in form %}{% include 'auth_field.html' %}{% endfor %}
+        <button class="primary" type="submit">Войти<span aria-hidden="true">↗</span></button>
+      {% endif %}
+    </form>
+    <p class="switch">{% if mode == 'register' %}Уже есть аккаунт? <a href="/login/?next={{ next|urlencode }}">Войти</a>{% else %}Впервые здесь? <a href="/register/?next={{ next|urlencode }}">Зарегистрироваться</a>{% endif %}</p>
+  </section>
+  <footer>ТФлоу · Мероприятия без накладок</footer>
+</main>
+</body>
+</html>

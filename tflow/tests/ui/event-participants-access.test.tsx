@@ -35,19 +35,23 @@ beforeEach(() => {
 });
 afterEach(() => history.replaceState({}, "", "/"));
 
-describe("доступ к анкетам со страницы события", () => {
-  it("загружает анкеты владельцу и ведёт сразу на полный список участников", async () => {
+describe("доступ к анкетам из управления событием", () => {
+  it("показывает флоу на странице события, а анкеты загружает в кабинете владельца", async () => {
     const user = userEvent.setup(), fetch = mount(owner);
-    await user.click(await screen.findByRole("button", { name: "Открыть профиль: Анна Петрова" }));
+    await user.click(await screen.findByRole("button", { name: "Управлять флоу" }));
+    await waitFor(() => expect(screen.getByRole("tab", { name: /^Программа/ })).toHaveAttribute("aria-selected", "true"));
+    expect(location.hash).toBe(`#manage/${event.id}/program`);
+    await user.click(screen.getByRole("tab", { name: "Событие" }));
+    await user.click(screen.getByRole("button", { name: "Открыть профиль: Анна Петрова" }));
     expect(screen.getByRole("dialog", { name: "Анна Петрова" })).toBeVisible();
     await user.click(screen.getByRole("button", { name: "Закрыть" }));
     await user.click(screen.getByRole("button", { name: "Все участники" }));
-    await waitFor(() => expect(screen.getByRole("tab", { name: /Участники\s*1/ })).toHaveAttribute("aria-selected", "true"));
-    expect(location.hash).toBe(`#manage/${event.id}/participants`);
+    expect(screen.getByRole("tab", { name: /Участники\s*1/ })).toHaveAttribute("aria-selected", "true");
     expect(fetch).toHaveBeenCalledWith(`/api/events/${event.id}/attendance`, expect.anything());
   });
 
   it.each([
+    ["владельцу на публичной странице", owner],
     ["гостю", null],
     ["участнику", { ...owner, userId: "participant-one", role: "participant" }],
     ["чужому организатору", { ...owner, userId: "other-host" }],

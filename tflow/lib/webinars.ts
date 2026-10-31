@@ -1,5 +1,8 @@
 import type { FlowEvent } from "./types";
 
+export const webinarPath = (eventId: string, activityId?: string) =>
+  `#webinar/${encodeURIComponent(eventId)}${activityId ? `/${encodeURIComponent(activityId)}` : ""}`;
+
 export const hasWebinar = (event: FlowEvent) =>
   event.format === "Онлайн" || event.format === "Гибрид";
 

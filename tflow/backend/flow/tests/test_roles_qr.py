@@ -1,4 +1,6 @@
 from datetime import timedelta
+from unittest.mock import patch
+import qrcode
 from django.test import Client, TestCase, override_settings
 from flow.models import (
     Activity,
@@ -16,6 +18,21 @@ from flow.serializers import milliseconds
 
 @override_settings(PASSWORD_HASHERS=FAST_HASHER)
 class RoleAndPassTests(Scenario, TestCase):
+    @override_settings(PUBLIC_APP_URL="https://gateway.example.test")
+    def test_qr_uses_configured_browser_origin_behind_a_proxy(self):
+        with patch("qrcode.make", wraps=qrcode.make) as generate:
+            response = self.participant.get("/api/profile/qr")
+        self.assertEqual(response.status_code, 200)
+        self.assertTrue(response.content.startswith(b"\x89PNG\r\n\x1a\n"))
+        self.assertEqual(generate.call_args.args[0], f"https://gateway.example.test/#pass/{self.person.pass_token}")
+
+    @override_settings(PUBLIC_APP_URL="")
+    def test_qr_can_fall_back_to_the_request_origin(self):
+        with patch("qrcode.make", wraps=qrcode.make) as generate:
+            response = self.participant.get("/api/profile/qr")
+        self.assertEqual(response.status_code, 200)
+        self.assertEqual(generate.call_args.args[0], f"http://testserver/#pass/{self.person.pass_token}")
+
     def test_one_profile_qr_admits_user_to_each_registered_event(self):
         self.publish()
         other_event = Event.objects.create(

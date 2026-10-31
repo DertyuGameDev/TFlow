@@ -1,6 +1,8 @@
 :root{--font-size-min:12px}
 @font-face{font-family:Golos;src:url('/static/fonts/golos.ttf') format('truetype');font-weight:100 900;font-display:swap}
 *{box-sizing:border-box}
+[hidden]{display:none!important}
+.visually-hidden{position:absolute;width:1px;height:1px;padding:0;margin:-1px;overflow:hidden;clip-path:inset(50%);white-space:nowrap;border:0}
 body{margin:0;background:#f6f7f8;color:#24272d;font:14px/1.5 Golos,Arial,sans-serif}
 a{color:inherit;text-decoration:none}
 button,input{font:inherit}
@@ -13,6 +15,14 @@ a:focus-visible,button:focus-visible,input:focus-visible{outline:3px solid #1769
 .back{display:inline-flex;align-items:center;min-height:32px;font-size:13px;color:#626b78;margin-bottom:12px}
 h1{font-size:28px;line-height:1.2;letter-spacing:-.8px;margin:0 0 8px}
 .intro{color:#626b78;font-size:13px;line-height:1.5;margin:0 0 14px}
+.signup-progress{font-size:12px;line-height:1.5;color:#626b78;margin:0 0 5px}
+.signup-step{min-width:0;border:0;padding:0;margin:0}
+.signup-back{border:0;background:transparent;padding:0;cursor:pointer}
+.primary:disabled{cursor:wait;opacity:.7}
+.signup-step .interest-field{margin-bottom:18px}
+.signup-step .interest-field>p{margin-top:0;line-height:1.5}
+.signup-step #id_interests.grouped-interests{max-height:clamp(150px,32dvh,280px);gap:14px}
+.signup-step .organizer-setting{margin-bottom:0}
 .field{display:grid;gap:5px;margin-bottom:13px;min-width:0}
 .field>label{font-size:13px;font-weight:500}
 .field input{width:100%;min-width:0;min-height:44px;padding:10px 12px;border:1px solid #dfe3e9;background:#fafbfc;border-radius:10px;color:#303640;font-size:16px;line-height:1.35}
@@ -34,6 +44,25 @@ h1{font-size:28px;line-height:1.2;letter-spacing:-.8px;margin:0 0 8px}
 .registration-role-option>input:checked+.registration-role-card .registration-role-icon{background:#ffdd2d;color:#24272d}
 .registration-role-option>input:focus-visible+.registration-role-card{outline:3px solid #1769e8;outline-offset:3px}
 .registration-role-note{margin:10px 0 0;font-size:12px;line-height:1.5;color:var(--theme-muted,#626b78)}
+
+.organizer-setting{margin-bottom:18px;padding:12px 14px 14px;border:1px solid #dfe3e9;border-radius:14px;background:#f6f7f8}
+.organizer-setting:has(input:checked){background:#fff8d8;border-color:#d8b72b}
+.organizer-switch{display:flex;align-items:center;justify-content:space-between;gap:8px;min-height:44px;user-select:none}
+.role-choice{appearance:none;border:0;background:transparent;padding:0;min-height:44px;font-size:13px;font-weight:600;line-height:1.4;min-width:0;text-align:left;white-space:nowrap;color:#626b78}
+.role-choice:disabled{cursor:default}
+.organizer-label{text-align:right}
+.organizer-setting:not(:has(input:checked)) .participant-label,.organizer-setting:has(input:checked) .organizer-label{color:#24272d;text-decoration:underline;text-decoration-thickness:2px;text-underline-offset:5px}
+.role-description{margin:5px 0 0;min-height:3.1em;font-size:13px;line-height:1.55;color:#626b78}
+.organizer-copy{display:none}
+.organizer-setting:has(input:checked) .participant-copy{display:none}
+.organizer-setting:has(input:checked) .organizer-copy{display:inline}
+.toggle-control{--toggle-travel:22px;position:relative;display:block;width:56px;height:44px;flex-shrink:0}
+.toggle-control input{position:absolute;inset:0;width:100%;height:100%;margin:0;opacity:0;z-index:1;cursor:pointer}
+.toggle-track{position:absolute;left:0;right:0;top:5px;height:34px;border-radius:999px;background:linear-gradient(#35373b,#202124);box-shadow:inset 0 2px 4px #0007;pointer-events:none}
+.toggle-track:before{content:'';position:absolute;width:28px;height:28px;left:3px;top:3px;border-radius:50%;background:#fff;box-shadow:0 1px 4px #0005;transition:transform .16s ease}
+.toggle-control input:checked+.toggle-track{background:#ffdd2d;box-shadow:inset 0 0 0 1px #ac8c00}
+.toggle-control input:checked+.toggle-track:before{transform:translateX(var(--toggle-travel));background:#24272d}
+.toggle-control input:focus-visible+.toggle-track{outline:3px solid #1769e8;outline-offset:3px}
 .primary{width:100%;min-height:48px;padding:11px 16px;border:0;border-radius:11px;font-size:15px;font-weight:600;display:flex;justify-content:space-between;align-items:center;background:#ffdd2d;color:#24272d;margin-top:16px}
 .primary:hover{background:#f3cf22}
 .switch{font-size:13px;text-align:center;margin:16px 0 0;color:#626b78}
@@ -48,6 +77,12 @@ footer{text-align:center;font-size:var(--font-size-min);color:#626b78;margin-top
 @media(forced-colors:active){.registration-role-option>input:checked+.registration-role-card{outline:2px solid Highlight;outline-offset:-3px}.registration-role-check{background:Highlight;color:HighlightText}}
 @media(max-width:310px){.registration-role-options{grid-template-columns:1fr}}
 
+
+@media(max-width:370px){.organizer-switch{gap:4px}.role-choice{font-size:12px}.toggle-control{--toggle-travel:14px;width:48px}}
+@media(max-width:350px){.auth-shell{padding-inline:14px}.auth-card{padding:20px 18px}h1{font-size:25px}.intro{font-size:12px}.organizer-setting{padding:12px 8px;margin-inline:-4px}}
+@media(max-width:300px){.organizer-setting{margin-inline:-16px}.toggle-control{--toggle-travel:10px;width:44px}}
+@media(prefers-reduced-motion:reduce){*{scroll-behavior:auto!important}.toggle-track:before{transition:none}}
+@media(forced-colors:active){.toggle-track{background:CanvasText;border:1px solid ButtonText;box-shadow:none}.toggle-track:before{background:Canvas;border:1px solid ButtonText;box-shadow:none}}
 
 .interest-field{border:0;padding:0;margin:0 0 22px;min-width:0}
 .interest-field legend{padding:0;font-size:12px;font-weight:500}

@@ -1,7 +1,6 @@
 from datetime import timedelta
 from unittest.mock import patch
 
-from django.db import IntegrityError, transaction
 from django.test import TestCase, override_settings
 
 from flow.calendar import activity_item
@@ -10,7 +9,12 @@ from flow.serializers import milliseconds
 from .test_api import FAST_HASHER, Scenario
 
 
-@override_settings(PASSWORD_HASHERS=FAST_HASHER)
+@override_settings(
+    PASSWORD_HASHERS=FAST_HASHER,
+    LIVEKIT_URL="wss://video.example.test",
+    LIVEKIT_API_KEY="test-key",
+    LIVEKIT_API_SECRET="test-only-livekit-secret-at-least-32-bytes",
+)
 class OnlineRoomTests(Scenario, TestCase):
     def setUp(self):
         super().setUp()
@@ -133,10 +137,10 @@ class OnlineRoomTests(Scenario, TestCase):
             )
         self.assertFalse(self.event.rooms.filter(is_online=True).exists())
 
-    def test_database_still_enforces_one_stream_after_form_limit_migrations(self):
+    def test_database_allows_multiple_online_rooms(self):
         self.create_online()
-        with self.assertRaises(IntegrityError), transaction.atomic():
-            Room.objects.create(event=self.event, name="Второй эфир", is_online=True, capacity=50)
+        Room.objects.create(event=self.event, name="Второй эфир", is_online=True, capacity=50)
+        self.assertEqual(self.event.rooms.filter(is_online=True).count(), 2)
 
     def test_cannot_hide_online_program_by_switching_to_physical_format(self):
         self.create_online()

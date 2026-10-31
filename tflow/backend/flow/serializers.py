@@ -143,7 +143,7 @@ def event_json(event):
         starts_at=milliseconds(event.starts_at),
         ends_at=milliseconds(event.ends_at),
         updated_at=milliseconds(event.updated_at),
-        organizer=event.owner.name,
+        organizer=event.owner.name or "Организатор",
         saved=int(event.saved),
         activity_count=event.activity_count,
         participant_count=event.participant_count,

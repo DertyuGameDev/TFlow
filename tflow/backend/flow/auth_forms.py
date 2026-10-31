@@ -50,12 +50,13 @@ class RegisterForm(UserCreationForm):
     email = forms.EmailField(
         label="Электронная почта",
         validators=[validate_text],
-        widget=forms.EmailInput(attrs={"autocomplete": "email"}),
+        widget=forms.EmailInput(attrs={"autocomplete": "email", "autofocus": True}),
     )
     first_name = forms.CharField(
         label="Имя",
+        required=False,
         validators=[validate_text],
-        widget=forms.TextInput(attrs={"autocomplete": "given-name", "autofocus": True}),
+        widget=forms.TextInput(attrs={"autocomplete": "given-name"}),
     )
     last_name = forms.CharField(
         label="Фамилия (необязательно)",
@@ -74,10 +75,15 @@ class RegisterForm(UserCreationForm):
         label="Пароль",
         validators=[validate_text],
         strip=False,
-        widget=forms.PasswordInput(attrs={"autocomplete": "new-password"}),
+        widget=forms.PasswordInput(attrs={
+            "autocomplete": "new-password",
+            "minlength": 8,
+            "aria-describedby": "id_password1_helptext",
+        }),
     )
     password2 = forms.CharField(
         label="Повторите пароль",
+        required=False,
         validators=[validate_text],
         strip=False,
         widget=forms.PasswordInput(attrs={"autocomplete": "new-password"}),
@@ -98,10 +104,16 @@ class RegisterForm(UserCreationForm):
     def __init__(self, *args, participant_only=False, **kwargs):
         super().__init__(*args, **kwargs)
         self.demo_mode = settings.DEMO_MODE
+        if self.demo_mode:
+            self.fields["password1"].widget.attrs.pop("minlength", None)
         if participant_only:
             self.fields["role"].widget = forms.HiddenInput()
             self.fields["role"].disabled = True
             self.initial["role"] = "participant"
+
+    def validate_password_for_user(self, user, password_field_name="password1"):
+        # The compact form has one password field; keep Django's full policy.
+        super().validate_password_for_user(user, password_field_name)
 
     def save(self, commit=True):
         user = super().save(commit=False)
