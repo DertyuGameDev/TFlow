@@ -18,7 +18,7 @@
     "db:migrate": "node scripts/python.mjs manage.py migrate --noinput",
     "test:calendar": "node --experimental-strip-types lib/calendar.test.mjs",
     "setup:video": "node scripts/setup-video.mjs",
-    "test:frontend": "npm run test:calendar && node --experimental-strip-types lib/activities.test.mjs"
+    "test:frontend": "npm run test:calendar && node --experimental-strip-types lib/activities.test.mjs && node --experimental-strip-types lib/screen-share.test.mjs"
   },
   "dependencies": {
     "@zxing/browser": "^0.2.1",
