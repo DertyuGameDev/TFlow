@@ -62,17 +62,19 @@ class RegisterForm(UserCreationForm):
     email = forms.EmailField(
         label="Электронная почта",
         validators=[validate_text],
-        widget=forms.EmailInput(attrs={"autocomplete": "email"}),
+        widget=forms.EmailInput(attrs={"autocomplete": "email", "autofocus": True}),
     )
     first_name = forms.CharField(
         label="Имя",
+        required=False,
         validators=[validate_text],
         min_length=1,
         max_length=80,
-        widget=forms.TextInput(attrs={"autocomplete": "given-name", "autofocus": True}),
+        widget=forms.TextInput(attrs={"autocomplete": "given-name"}),
     )
     last_name = forms.CharField(
         label="Фамилия",
+        required=False,
         validators=[validate_text],
         min_length=1,
         max_length=80,
@@ -83,16 +85,21 @@ class RegisterForm(UserCreationForm):
         required=False,
         choices=INTEREST_CHOICES,
         widget=InterestCategoriesWidget,
-        help_text="Можно выбрать несколько тем или пропустить этот шаг. Прокрутите список, чтобы увидеть все направления.",
+        help_text="Выберите несколько тегов или оставьте на потом.",
     )
     password1 = forms.CharField(
         label="Пароль",
         validators=[validate_text],
         strip=False,
-        widget=forms.PasswordInput(attrs={"autocomplete": "new-password"}),
+        widget=forms.PasswordInput(attrs={
+            "autocomplete": "new-password",
+            "minlength": 8,
+            "aria-describedby": "id_password1_helptext",
+        }),
     )
     password2 = forms.CharField(
         label="Повторите пароль",
+        required=False,
         validators=[validate_text],
         strip=False,
         widget=forms.PasswordInput(attrs={"autocomplete": "new-password"}),
@@ -117,6 +124,10 @@ class RegisterForm(UserCreationForm):
                 "last_name", "Имя и фамилия вместе должны быть не длиннее 80 символов"
             )
         return data
+
+    def validate_password_for_user(self, user, password_field_name="password1"):
+        # The compact form has one password field; keep Django's full policy.
+        super().validate_password_for_user(user, password_field_name)
 
     def save(self, commit=True):
         user = super().save(commit=False)

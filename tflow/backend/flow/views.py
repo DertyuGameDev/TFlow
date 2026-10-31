@@ -89,6 +89,16 @@ def register_view(request):
     initial_role = (
         "organizer" if request.GET.get("role") == "organizer" else "participant"
     )
+    if request.method == "POST" and request.POST.get("intent") == "credentials":
+        credentials = RegisterForm({
+            "email": request.POST.get("email", ""),
+            "password1": request.POST.get("password1", ""),
+        })
+        valid = credentials.is_valid()
+        return JsonResponse(
+            {"valid": valid, "errors": credentials.errors.get_json_data()},
+            status=200 if valid else 400,
+        )
     form = RegisterForm(request.POST or None, initial={"role": initial_role})
     if request.method == "POST" and form.is_valid():
         try:

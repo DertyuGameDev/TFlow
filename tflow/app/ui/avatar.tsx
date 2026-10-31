@@ -1,10 +1,10 @@
 import { useEffect, useState, type FormEvent } from "react";
-import { ImagePlus, Trash2 } from "lucide-react";
+import { ImagePlus, Trash2, UserRound } from "lucide-react";
 import type { Profile } from "../../lib/types";
 import { FormError, Submit, type Send } from "./forms";
 
 export function Avatar({profile, className = ""}: {profile: Pick<Profile, "name" | "avatar_url">; className?: string}) {
-  return <span className={`profile-avatar ${className}`}>{profile.avatar_url ? <img src={profile.avatar_url} alt=""/> : profile.name.slice(0, 1)}</span>;
+  return <span className={`profile-avatar ${className}`}>{profile.avatar_url ? <img src={profile.avatar_url} alt=""/> : profile.name ? profile.name.slice(0, 1) : <UserRound size={24} aria-hidden="true"/>}</span>;
 }
 
 export function AvatarForm({profile, send, done}: {profile: Profile; send: Send; done: () => void}) {

@@ -515,8 +515,6 @@ class AuthenticationRegressionTests(TestCase):
             {"password2": "mismatch"},
             {"role": "admin"},
             {"email": "invalid"},
-            {"first_name": ""},
-            {"last_name": ""},
         ]:
             with self.subTest(changes=changes):
                 response = self.client.post("/register/", self.signup(**changes))
@@ -573,7 +571,7 @@ class AuthenticationRegressionTests(TestCase):
     def test_template_escapes_submitted_html(self):
         response = self.client.post(
             "/register/",
-            self.signup(first_name='<script>alert("x")</script>', password2="wrong"),
+            self.signup(email='<script>alert("x")</script>@example.test', password2="wrong"),
         )
         self.assertNotContains(response, '<script>alert("x")</script>')
         self.assertContains(response, "&lt;script&gt;")

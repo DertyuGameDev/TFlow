@@ -357,7 +357,7 @@ function ProfileView({
             width={260}
             height={260}
           />
-          <h2>{profile.name}</h2>
+          <h2>{profile.name || "Личный QR"}</h2>
           <p>Покажите этот QR на входе</p>
           <button
             className="button secondary copy-pass"
@@ -403,7 +403,7 @@ function ProfileView({
                 </span>
               </button>
               <div>
-                <h2>{profile.name}</h2>
+                <h2>{profile.name || "Заполните профиль"}</h2>
                 <span>{organizer ? "Организатор" : "Участник"}</span>
               </div>
               <button
