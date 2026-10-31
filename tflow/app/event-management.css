@@ -1,0 +1,483 @@
+.event-management {
+  margin-bottom: 36px;
+  min-width: 0;
+  color: var(--theme-text, #222329);
+}
+.management-heading {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 22px;
+  flex-wrap: wrap;
+  margin-bottom: 28px;
+}
+.management-heading > div:first-child {
+  min-width: 0;
+  flex: 1 1 400px;
+}
+.management-heading h1 {
+  font-size: clamp(27px, 3vw, 36px);
+  line-height: 1.2;
+  margin: 12px 0;
+  overflow-wrap: anywhere;
+}
+.management-heading p,
+.management-section-heading p {
+  font-size: 14px;
+  line-height: 1.7;
+  color: var(--flow-muted);
+  margin: 7px 0 0;
+}
+.management-actions {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  flex-wrap: wrap;
+}
+.management-tabs {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  border-bottom: 1px solid var(--flow-border);
+  margin-bottom: 28px;
+}
+.management-tabs button {
+  position: relative;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  min-height: 54px;
+  padding: 12px 14px;
+  border: 0;
+  border-bottom: 3px solid transparent;
+  background: none;
+  color: var(--flow-muted);
+  font: inherit;
+  font-size: 15px;
+  min-width: 0;
+}
+.event-management .management-tabs button[aria-selected="true"] {
+  color: var(--theme-text, #222329);
+  font-weight: 600;
+  border-bottom-color: #ffdd2d;
+}
+.management-tabs small,
+.management-count {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-width: 22px;
+  padding: 2px 6px;
+  border-radius: 7px;
+  background: var(--theme-raised, #f2f3f5);
+  color: var(--flow-muted);
+  font-size: 12px;
+  font-weight: 500;
+}
+.management-tabs button:focus-visible {
+  outline: 2px solid var(--theme-warm-text, #967b23);
+  outline-offset: -4px;
+  border-radius: 8px 8px 0 0;
+}
+.management-panel[hidden] {
+  display: none;
+}
+.management-panel {
+  display: grid;
+  gap: 24px;
+  min-width: 0;
+}
+.management-draft {
+  display: flex;
+  align-items: flex-start;
+  gap: 10px;
+  font-size: 14px;
+  line-height: 1.7;
+  color: var(--theme-warm-text, #756224);
+  background: var(--theme-warm, #fff9df);
+  padding: 14px 17px;
+  border-radius: 12px;
+  margin: 0;
+}
+.management-draft > svg {
+  margin-top: 3px;
+}
+.management-metrics {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  margin: 0;
+  gap: 16px;
+}
+.management-metrics > div {
+  min-width: 0;
+  padding: 18px 20px;
+  border: 1px solid var(--flow-border);
+  border-radius: 14px;
+  background: var(--theme-panel, #fff);
+}
+.management-metrics dt {
+  font-size: 13px;
+  color: var(--flow-muted);
+  line-height: 1.6;
+  margin-bottom: 7px;
+}
+.management-metrics dd {
+  margin: 0;
+  font-size: 28px;
+  font-weight: 650;
+  line-height: 1.3;
+}
+.management-metrics dd small {
+  font-size: 15px;
+  font-weight: 400;
+  color: var(--flow-muted);
+}
+.management-card {
+  border: 1px solid var(--flow-border);
+  border-radius: 18px;
+  padding: 24px;
+  background: var(--theme-panel, #fff);
+  min-width: 0;
+}
+.management-section-heading {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 16px;
+  flex-wrap: wrap;
+  min-width: 0;
+}
+.management-section-heading h2 {
+  font-size: 22px;
+  line-height: 1.4;
+  display: flex;
+  align-items: center;
+  gap: 9px;
+}
+.management-section-heading h3 {
+  font-size: 17px;
+  line-height: 1.5;
+}
+.management-section-heading > .text-button {
+  min-height: 44px;
+  font-size: 14px;
+}
+.management-description {
+  white-space: pre-line;
+  overflow-wrap: anywhere;
+  font-size: 15px;
+  line-height: 1.8;
+  margin: 20px 0;
+  color: var(--flow-muted);
+}
+.management-hint {
+  font-size: 14px;
+  line-height: 1.7;
+  color: var(--flow-muted);
+  margin: 20px 0;
+}
+.management-facts {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 22px 30px;
+  margin: 24px 0 0;
+}
+.management-facts > div {
+  min-width: 0;
+}
+.management-facts dt {
+  display: flex;
+  align-items: center;
+  gap: 7px;
+  font-size: 13px;
+  color: var(--flow-muted);
+  margin-bottom: 7px;
+}
+.management-facts dd {
+  margin: 0;
+  font-size: 15px;
+  line-height: 1.7;
+  overflow-wrap: anywhere;
+}
+.management-other-actions {
+  border-top: 1px solid var(--flow-border);
+  margin-top: 26px;
+  padding-top: 20px;
+  display: flex;
+  gap: 12px;
+  flex-wrap: wrap;
+}
+.management-empty {
+  padding: 38px 24px;
+  border: 1px dashed var(--flow-border);
+  border-radius: 17px;
+  text-align: center;
+  background: var(--theme-panel, #fafbfc);
+  display: flex;
+  align-items: center;
+  flex-direction: column;
+  gap: 14px;
+}
+.management-empty > svg {
+  color: var(--flow-muted);
+}
+.management-empty h3 {
+  font-size: 21px;
+  line-height: 1.4;
+}
+.management-empty p {
+  max-width: 520px;
+  font-size: 15px;
+  line-height: 1.8;
+  color: var(--flow-muted);
+}
+.management-empty small {
+  font-size: 12px;
+  line-height: 1.7;
+  color: var(--flow-muted);
+  max-width: 460px;
+}
+.management-empty .button {
+  margin-top: 4px;
+}
+.management-program > section + section {
+  margin-top: 24px;
+}
+.management-program > section > h3 {
+  font-size: 16px;
+  line-height: 1.5;
+  margin: 0 0 12px;
+}
+.management-activity {
+  display: grid;
+  grid-template-columns: 105px minmax(0, 1fr) auto;
+  gap: 18px;
+  align-items: start;
+  padding: 20px 0;
+  border-top: 1px solid var(--flow-border);
+  min-width: 0;
+}
+.management-activity-time {
+  font-size: 14px;
+  line-height: 1.7;
+  font-variant-numeric: tabular-nums;
+  padding-top: 2px;
+}
+.management-activity-time small {
+  display: block;
+  font-size: 12px;
+  color: var(--flow-muted);
+}
+.management-activity-time time {
+  white-space: nowrap;
+}
+.management-activity-copy {
+  min-width: 0;
+}
+.management-activity h4 {
+  font-size: 17px;
+  line-height: 1.5;
+  font-weight: 600;
+  margin: 0;
+  overflow-wrap: anywhere;
+}
+.management-activity p {
+  font-size: 14px;
+  line-height: 1.7;
+  color: var(--flow-muted);
+  margin: 6px 0;
+}
+.management-activity-copy > small {
+  font-size: 12px;
+  line-height: 1.6;
+  color: var(--flow-muted);
+}
+.management-room-list {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 10px;
+  margin-top: 16px;
+}
+.management-room-list button {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 22px;
+  text-align: left;
+  min-width: 0;
+  border: 1px solid var(--flow-border);
+  border-radius: 11px;
+  background: var(--theme-raised, #fafbfc);
+  padding: 13px 15px;
+  color: inherit;
+  flex: 1 1 180px;
+}
+.management-room-list strong {
+  display: block;
+  font-size: 14px;
+  line-height: 1.6;
+  overflow-wrap: anywhere;
+}
+.management-room-list small {
+  font-size: 12px;
+  color: var(--flow-muted);
+}
+.management-room-list svg {
+  color: var(--flow-muted);
+}
+.management-registration {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 20px;
+}
+.management-registration > div {
+  min-width: 0;
+}
+.management-registration h3 {
+  font-size: 17px;
+  line-height: 1.5;
+}
+.management-registration p {
+  font-size: 14px;
+  line-height: 1.7;
+  margin: 7px 0;
+  color: var(--flow-muted);
+}
+.management-registration small {
+  font-size: 12px;
+  line-height: 1.7;
+  color: var(--flow-muted);
+}
+.registration-settings-form .requirement-options {
+  border: 0;
+  padding: 0;
+}
+.registration-settings-form .requirement-options label {
+  display: flex;
+  align-items: center;
+  flex-direction: row;
+  gap: 10px;
+  min-height: 44px;
+  font-size: 14px;
+  cursor: pointer;
+}
+.registration-settings-form .requirement-options input {
+  width: 18px;
+  height: 18px;
+  min-height: 18px;
+  flex: 0 0 18px;
+  padding: 0;
+  margin: 0;
+  accent-color: #947820;
+}
+@media (max-width: 760px) {
+  .management-heading {
+    gap: 18px;
+  }
+  .management-heading > div:first-child {
+    flex-basis: 100%;
+  }
+  .management-actions {
+    width: 100%;
+  }
+  .management-actions > .button {
+    flex: 1;
+    font-size: 14px;
+  }
+  .management-tabs {
+    margin-bottom: 22px;
+  }
+  .management-tabs button {
+    font-size: 14px;
+    padding: 12px 6px;
+    gap: 6px;
+  }
+  .management-metrics {
+    gap: 9px;
+  }
+  .management-metrics > div {
+    padding: 14px 10px;
+  }
+  .management-metrics dt {
+    font-size: 12px;
+  }
+  .management-metrics dd {
+    font-size: 24px;
+  }
+  .management-metrics dd small {
+    font-size: 12px;
+  }
+  .management-card {
+    padding: 20px;
+  }
+  .management-facts {
+    grid-template-columns: 1fr;
+    gap: 20px;
+  }
+  .management-section-heading h2 {
+    font-size: 20px;
+  }
+  .management-activity {
+    grid-template-columns: 94px minmax(0, 1fr);
+    gap: 10px 14px;
+  }
+  .management-activity > .button {
+    grid-column: 2;
+    justify-self: start;
+  }
+  .management-activity h4 {
+    font-size: 16px;
+  }
+  .management-registration {
+    align-items: flex-start;
+    flex-direction: column;
+    gap: 14px;
+  }
+  .management-registration > .button {
+    width: 100%;
+  }
+  .management-empty {
+    padding: 30px 18px;
+  }
+  .management-empty h3 {
+    font-size: 20px;
+  }
+}
+@media (max-width: 420px) {
+  .management-actions > .button {
+    flex-basis: 100%;
+  }
+  .management-tabs button {
+    font-size: 13px;
+  }
+  .management-tabs button > svg {
+    display: none;
+  }
+  .management-other-actions > .button {
+    width: 100%;
+  }
+  .management-activity {
+    grid-template-columns: 94px minmax(0, 1fr);
+  }
+}
+@media (max-width: 350px) {
+  .management-tabs small {
+    display: none;
+  }
+  .management-tabs button {
+    padding-inline: 4px;
+  }
+  .management-metrics dd {
+    font-size: 22px;
+  }
+  .management-metrics dt {
+    font-size: 12px;
+  }
+  .management-card {
+    padding: 17px;
+  }
+  .management-empty > .button {
+    font-size: 14px;
+  }
+}
