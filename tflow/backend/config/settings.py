@@ -7,6 +7,7 @@ PROJECT_DIR = BASE_DIR.parent
 DATA_DIR = BASE_DIR / "data"
 IS_VERCEL = os.environ.get("VERCEL") == "1"
 DEBUG = os.environ.get("DJANGO_DEBUG", "0" if IS_VERCEL else "1") == "1"
+DEMO_MODE = DEBUG and not IS_VERCEL and os.environ.get("TFLOW_DEMO_MODE", "0") == "1"
 if not IS_VERCEL:
     DATA_DIR.mkdir(exist_ok=True)
 SECRET_KEY = os.environ.get("DJANGO_SECRET_KEY", "")
@@ -85,6 +86,8 @@ AUTH_PASSWORD_VALIDATORS = [
     {"NAME": "django.contrib.auth.password_validation.CommonPasswordValidator"},
     {"NAME": "django.contrib.auth.password_validation.NumericPasswordValidator"},
 ]
+if DEMO_MODE:
+    AUTH_PASSWORD_VALIDATORS = []
 DATABASES = {
     "default": {
         "ENGINE": "django.db.backends.sqlite3",

@@ -93,7 +93,7 @@ export function NotificationCenter({
       <header className="flow-heading">
         <div>
           <h1>Центр уведомлений</h1>
-          <p>Отмены, переносы и изменения ваших событий</p>
+          <p>Новые встречи клубов и изменения ваших событий</p>
         </div>
         <button
           className="button secondary"
@@ -176,6 +176,8 @@ export function NotificationCenter({
               <h2>
                 {notice.kind === "event_cancelled"
                   ? "Мероприятие отменено организатором"
+                  : notice.kind === "club_event"
+                    ? "Новое событие клуба"
                   : "Обновление события"}
               </h2>
               <p>{notice.message}</p>
@@ -215,7 +217,7 @@ export function NotificationCenter({
           <p>
             {unreadOnly
               ? "Новые сообщения появятся здесь. Вся история доступна во вкладке «Все»."
-              : "Сообщим здесь, если организатор отменит, перенесёт или изменит ваше мероприятие."}
+              : "Сообщим о новых встречах ваших клубов, отменах, переносах и изменениях мероприятий."}
           </p>
         </div>
       )}

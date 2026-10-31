@@ -19,6 +19,10 @@
       button.setAttribute("aria-pressed", String(theme === "dark"));
       button.setAttribute("aria-label", theme === "dark" ? "Включить светлую тему" : "Включить тёмную тему");
     });
+    document.querySelectorAll("img[data-theme-logo]").forEach(img => {
+      const source = theme === "dark" ? img.dataset.logoDarkSrc : img.dataset.logoLightSrc;
+      if (source && img.getAttribute("src") !== source) img.setAttribute("src", source);
+    });
     window.dispatchEvent(new Event("tflow-theme-change"));
   }
   const resolved = () => preference ?? (system.matches ? "dark" : "light");

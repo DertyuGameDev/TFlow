@@ -1,0 +1,8 @@
+.account-menu{position:relative;flex-shrink:0}
+.account-menu-trigger{display:flex;align-items:center;justify-content:center;padding:0;border:0;cursor:pointer}
+.account-menu-trigger:focus-visible{outline:2px solid var(--theme-warm-text,#967b23);outline-offset:3px}
+.account-dropdown{position:absolute;z-index:60;top:calc(100% + 12px);right:0;width:240px;max-width:calc(100vw - 24px);padding:8px;border:1px solid var(--flow-border);border-radius:14px;background:var(--theme-panel,#fff);color:var(--theme-text,#222329);box-shadow:0 14px 40px #0002}
+.account-dropdown-name{margin:0 4px 5px;padding:9px 7px 12px;border-bottom:1px solid var(--flow-border);font-size:13px;color:var(--flow-muted);overflow-wrap:anywhere}
+.account-dropdown [role=menuitem]{display:flex;align-items:center;gap:10px;box-sizing:border-box;width:100%;min-height:44px;padding:10px;border:0;border-radius:8px;background:transparent;color:inherit;text-align:left;text-decoration:none;font:inherit;font-size:14px;cursor:pointer}
+.account-dropdown [role=menuitem]:hover,.account-dropdown [role=menuitem]:focus-visible{background:var(--theme-raised,#f2f3f5);outline:2px solid transparent}
+.account-dropdown form{margin:0}

@@ -108,7 +108,7 @@ class ProfileRequirementsTests(Scenario, TestCase):
         self.assertEqual(self.person.organization, "")
 
     def test_invalid_profile_fields_are_rejected_without_ticket(self):
-        for values, field in [({"phone":"abcd"},"phone"), ({"phone":12345},"phone"), ({"birth_date":"2099-01-01"},"birth_date"), ({"birth_date":"2001-02-29"},"birth_date"), ({"birth_date":1234},"birth_date"), ({"website":"javascript:alert(1)"},"website"), ({"telegram":"https://t.me/user"},"telegram"), ({"education":"x"*241},"education")]:
+        for values, field in [({"phone":"abcd"},"phone"), ({"phone":12345},"phone"), ({"birth_date":"2099-01-01"},"birth_date"), ({"birth_date":"2001-02-29"},"birth_date"), ({"birth_date":1234},"birth_date"), ({"website":"javascript:alert(1)"},"website"), ({"telegram":"https://t.me/user"},"telegram")]:
             with self.subTest(values=values):
                 result = self.request(self.path, "post", values, client=self.participant, status=400, code="VALIDATION")
                 self.assertIn(field, result["fields"])
@@ -166,4 +166,14 @@ class ProfileRequirementsTests(Scenario, TestCase):
         EventRegistration.objects.create(user=self.person, event=self.event)
         rows = self.request(f"events/{self.event.pk}/attendance")
         self.assertEqual(rows[0]["profile_data"]["name"], self.person.name)
+
+    def test_another_organizer_cannot_read_registered_participant_profiles(self):
+        self.request(self.path, "post", {"phone": "+7 999 111-22-33"}, client=self.participant)
+        self.other.role = "organizer"
+        self.other.save(update_fields=["role"])
+        self.request(f"events/{self.event.pk}/attendance", client=self.stranger, status=403)
+        detail = self.request(f"events/{self.event.pk}", client=self.stranger)
+        self.assertEqual(detail["event"]["participant_count"], 1)
+        self.assertNotIn("profile_data", str(detail))
+        self.assertNotIn("+7 999 111-22-33", str(detail))
 

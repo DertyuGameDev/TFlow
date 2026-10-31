@@ -164,11 +164,17 @@ def operate(user, event_id, operation):
         webinar, _ = Webinar.objects.get_or_create(event=event)
         if operation == "start" and not webinar.active:
             webinar.room = uuid.uuid4()
+            online_room = event.rooms.filter(is_online=True).first()
+            viewer_limit = (
+                min(event.capacity, online_room.capacity)
+                if online_room
+                else event.capacity
+            )
             room_api(
                 "CreateRoom",
                 room_name(webinar),
                 empty_timeout=300,
-                max_participants=event.capacity + 1,
+                max_participants=viewer_limit + 1,
             )
             webinar.active, webinar.started_at, webinar.ended_at = (
                 True,

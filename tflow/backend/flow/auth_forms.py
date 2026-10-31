@@ -1,4 +1,5 @@
 from django import forms
+from django.conf import settings
 from django.contrib.auth.forms import AuthenticationForm, UserCreationForm
 from .models import User
 from .interests import INTEREST_CHOICES
@@ -68,16 +69,12 @@ class RegisterForm(UserCreationForm):
         label="Имя",
         required=False,
         validators=[validate_text],
-        min_length=1,
-        max_length=80,
         widget=forms.TextInput(attrs={"autocomplete": "given-name"}),
     )
     last_name = forms.CharField(
-        label="Фамилия",
+        label="Фамилия (необязательно)",
         required=False,
         validators=[validate_text],
-        min_length=1,
-        max_length=80,
         widget=forms.TextInput(attrs={"autocomplete": "family-name"}),
     )
     interests = forms.MultipleChoiceField(
@@ -117,13 +114,15 @@ class RegisterForm(UserCreationForm):
             "password2",
         ]
 
-    def clean(self):
-        data = super().clean()
-        if len(full_name(data.get("first_name", ""), data.get("last_name", ""))) > 80:
-            self.add_error(
-                "last_name", "Имя и фамилия вместе должны быть не длиннее 80 символов"
-            )
-        return data
+    def __init__(self, *args, participant_only=False, **kwargs):
+        super().__init__(*args, **kwargs)
+        self.demo_mode = settings.DEMO_MODE
+        if self.demo_mode:
+            self.fields["password1"].widget.attrs.pop("minlength", None)
+        if participant_only:
+            self.fields["role"].widget = forms.HiddenInput()
+            self.fields["role"].disabled = True
+            self.initial["role"] = "participant"
 
     def validate_password_for_user(self, user, password_field_name="password1"):
         # The compact form has one password field; keep Django's full policy.
@@ -138,12 +137,7 @@ class RegisterForm(UserCreationForm):
         return user
 
     def clean_interests(self):
-        value = ", ".join(dict.fromkeys(self.cleaned_data["interests"]))
-        if len(value) > 300:
-            raise forms.ValidationError(
-                "Выберите меньше интересов — оставьте самые важные для вас."
-            )
-        return value
+        return ", ".join(dict.fromkeys(self.cleaned_data["interests"]))
 
     def clean_role(self):
         return self.cleaned_data.get("role") or "participant"

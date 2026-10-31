@@ -1,5 +1,5 @@
 "use client";
-import { useEffect, useRef, type ReactNode } from "react";
+import { useEffect, useRef, type ReactNode, type RefObject } from "react";
 import { X } from "lucide-react";
 export function Modal({
   title,
@@ -8,6 +8,7 @@ export function Modal({
   onClose,
   wide = false,
   dismissible = true,
+  initialFocusRef,
 }: {
   title: string;
   subtitle?: string;
@@ -15,6 +16,7 @@ export function Modal({
   onClose: () => void;
   wide?: boolean;
   dismissible?: boolean;
+  initialFocusRef?: RefObject<HTMLElement | null>;
 }) {
   const ref = useRef<HTMLDialogElement>(null);
   const backdropPress = useRef(false);
@@ -22,13 +24,14 @@ export function Modal({
     const dialog = ref.current;
     const previous = document.activeElement as HTMLElement | null;
     dialog?.showModal();
+    initialFocusRef?.current?.focus();
     const old = document.body.style.overflow;
     document.body.style.overflow = "hidden";
     return () => {
       document.body.style.overflow = old;
       previous?.focus();
     };
-  }, []);
+  }, [initialFocusRef]);
   return (
     <dialog
       ref={ref}

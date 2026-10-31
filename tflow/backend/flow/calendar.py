@@ -52,4 +52,4 @@ def activity_item(activity):
     return {"id": f"activity:{activity.pk}", "title": activity.title,
             "description": "\n".join(filter(None, [activity.event.title, activity.description, activity.speaker])),
             "starts_at": activity.starts_at, "ends_at": activity.ends_at, "updated_at": activity.updated_at,
-            "location": " · ".join(filter(None, [activity.event.city, activity.event.venue, activity.event.address, activity.room.name]))}
+            "location": "Онлайн · ТФлоу" if activity.room.is_online else " · ".join(filter(None, [activity.event.city, activity.event.venue, activity.event.address, activity.room.name]))}

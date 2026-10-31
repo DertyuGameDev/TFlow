@@ -1,6 +1,7 @@
 import json
 import logging
 from pathlib import Path
+from urllib.parse import urlsplit
 from django.conf import settings
 from django.contrib.auth import login, logout
 from django.core.exceptions import RequestDataTooBig
@@ -12,7 +13,7 @@ from django.utils.http import url_has_allowed_host_and_scheme
 from django.views.decorators.cache import never_cache
 from django.views.decorators.csrf import ensure_csrf_cookie
 from .auth_forms import LoginForm, RegisterForm
-from .avatars import save_avatar
+from .avatars import save_avatar, save_community_avatar
 from .notifications import notification_page
 from .calendar import activity_item, calendar_response, event_item
 from .contracts import (
@@ -29,6 +30,7 @@ from .models import (
     Activity,
     Bookmark,
     Community,
+    CommunityAvatar,
     EventRegistration,
     Membership,
     Registration,
@@ -86,6 +88,12 @@ def login_view(request):
 def register_view(request):
     if request.user.is_authenticated:
         return redirect(safe_next(request))
+    next_url = safe_next(request)
+    destination = urlsplit(next_url)
+    view, _, event_id = destination.fragment.partition("/")
+    participant_signup = (
+        destination.path == "/" and view in {"event", "webinar"} and bool(event_id)
+    )
     initial_role = (
         "organizer" if request.GET.get("role") == "organizer" else "participant"
     )
@@ -99,7 +107,11 @@ def register_view(request):
             {"valid": valid, "errors": credentials.errors.get_json_data()},
             status=200 if valid else 400,
         )
-    form = RegisterForm(request.POST or None, initial={"role": initial_role})
+    form = RegisterForm(
+        request.POST or None,
+        initial={"role": initial_role},
+        participant_only=participant_signup,
+    )
     if request.method == "POST" and form.is_valid():
         try:
             user = form.save()
@@ -107,11 +119,16 @@ def register_view(request):
             form.add_error("email", "Этот адрес уже зарегистрирован")
         else:
             login(request, user)
-            return redirect(safe_next(request))
+            return redirect(next_url)
     return render(
         request,
         "auth.html",
-        {"form": form, "mode": "register", "next": safe_next(request)},
+        {
+            "form": form,
+            "mode": "register",
+            "next": next_url,
+            "participant_signup": participant_signup,
+        },
     )
 
 
@@ -236,6 +253,34 @@ def dispatch_api(request, path):
             {"error": "Метод не поддерживается", "code": "METHOD_NOT_ALLOWED"},
             status=405,
         )
+    if resource == "communities" and item_id and action == "avatar":
+        club = Community.objects.filter(pk=item_id).first()
+        if not club:
+            raise FlowError("NOT_FOUND", "Клуб не найден", 404)
+        if method == "GET":
+            avatar = CommunityAvatar.objects.filter(community=club).first()
+            if not avatar:
+                raise FlowError("NOT_FOUND", "Фото клуба ещё не загружено", 404)
+            return HttpResponse(
+                bytes(avatar.image),
+                content_type="image/webp",
+                headers={
+                    "Cache-Control": "no-store",
+                    "X-Content-Type-Options": "nosniff",
+                },
+            )
+        actor = require_user(request)
+        if club.owner_id != actor.pk:
+            raise FlowError(
+                "FORBIDDEN", "Изменить фото может только создатель клуба", 403
+            )
+        if method == "POST":
+            save_community_avatar(club, request.FILES.get("avatar"))
+            return JsonResponse({"ok": True})
+        if method == "DELETE":
+            CommunityAvatar.objects.filter(community=club).delete()
+            return JsonResponse({"ok": True})
+        return HttpResponseNotAllowed(["GET", "POST", "DELETE"])
     if method == "GET":
         if resource == "events" and item_id and action == "webinar":
             from .webinars import status
@@ -327,7 +372,9 @@ def dispatch_api(request, path):
                     {
                         "event": event_json(event),
                         "rooms": list(
-                            event.rooms.values("id", "event_id", "name", "capacity")
+                            event.rooms.values(
+                                "id", "event_id", "name", "capacity", "is_online"
+                            )
                         ),
                         "activities": [
                             activity_json(a)
@@ -359,16 +406,27 @@ def dispatch_api(request, path):
             ) from error
         if not isinstance(body, dict):
             raise FlowError("VALIDATION", "Ожидается объект с полями формы", 400)
-        if any(isinstance(value, (dict, list)) and not (
-            resource == "events" and action == "requirements" and method == "PATCH"
-            and key == "required_profile_fields" and isinstance(value, list)
-        ) for key, value in body.items()):
+        if any(
+            isinstance(value, (dict, list))
+            and not (
+                resource == "events"
+                and action == "requirements"
+                and method == "PATCH"
+                and key == "required_profile_fields"
+                and isinstance(value, list)
+            )
+            for key, value in body.items()
+        ):
 
             raise FlowError(
                 "VALIDATION", "Поля формы должны содержать простые значения", 400
             )
     if path == "profile/become-organizer" and method == "POST":
-        raise FlowError("ROLE_FIXED", "Роль выбирается при регистрации и не может быть изменена", 403)
+        raise FlowError(
+            "ROLE_FIXED",
+            "Роль выбирается при регистрации и не может быть изменена",
+            403,
+        )
     elif path == "profile" and method == "PATCH":
         services.save_profile(user, body)
     elif path == "notifications" and method == "PATCH":
@@ -381,18 +439,21 @@ def dispatch_api(request, path):
             raise FlowError("NOT_FOUND", "Действие не найдено", 404)
         club = services.save_community(user, validate(CommunityInput, body), item_id)
         return JsonResponse({"id": club.pk}, status=201 if method == "POST" else 200)
+    elif resource == "communities" and item_id and action == "subscription" and method == "PATCH":
+        services.set_community_subscription(user, item_id, body.get("enabled"))
     elif (
         resource == "communities"
         and item_id
         and action == "join"
         and method in {"POST", "DELETE"}
     ):
-        if not Community.objects.filter(pk=item_id).exists():
-            raise FlowError("NOT_FOUND", "Сообщество не найдено", 404)
-        if method == "POST":
-            Membership.objects.get_or_create(user=user, community_id=item_id)
-        else:
-            Membership.objects.filter(user=user, community_id=item_id).delete()
+        with services.schedule_write():
+            if not Community.objects.filter(pk=item_id).exists():
+                raise FlowError("NOT_FOUND", "Сообщество не найдено", 404)
+            if method == "POST":
+                Membership.objects.get_or_create(user=user, community_id=item_id)
+            else:
+                Membership.objects.filter(user=user, community_id=item_id).delete()
     elif resource == "events":
         if not item_id and method == "POST":
             event = services.create_event(user, validate(EventInput, body))

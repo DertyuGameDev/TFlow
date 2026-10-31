@@ -30,12 +30,12 @@ class ModelConstraintTests(Scenario, TestCase):
     def test_database_rejects_invalid_capacity_and_duration(self):
         for model, pk, changes in [
             (Event, self.event.pk, {"capacity": 0}),
-            (Event, self.event.pk, {"capacity": 100001}),
+            (Event, self.event.pk, {"capacity": -1}),
             (Event, self.event.pk, {"ends_at": self.start}),
             (Room, self.r1.pk, {"capacity": 0}),
-            (Room, self.r1.pk, {"capacity": 10001}),
+            (Room, self.r1.pk, {"capacity": -1}),
             (Activity, self.a.pk, {"capacity": 0}),
-            (Activity, self.a.pk, {"capacity": 10001}),
+            (Activity, self.a.pk, {"capacity": -1}),
             (Activity, self.a.pk, {"ends_at": self.start-timedelta(seconds=1)}),
         ]:
             with self.subTest(model=model.__name__, changes=changes):

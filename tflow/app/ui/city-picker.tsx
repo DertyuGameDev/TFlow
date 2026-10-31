@@ -39,7 +39,7 @@ export function CityPicker({defaultValue = "", value, onChange, cities = CITY_SU
       <input ref={input} id={id} name="city" role="combobox" aria-autocomplete="list" aria-expanded={expanded}
         aria-controls={`${id}-list`} aria-activedescendant={expanded && active >= 0 ? `${id}-option-${active}` : undefined}
         aria-invalid={error?true:undefined} aria-describedby={error?`${id}-error`:undefined}
-        placeholder="Начните вводить город" autoComplete="off" maxLength={80} minLength={required ? 2 : undefined}
+        placeholder="Начните вводить город" autoComplete="off"
         required={required} disabled={disabled} value={current}
         onFocus={show}
         onChange={event => {change(event.target.value); show();}}
