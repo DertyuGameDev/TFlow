@@ -68,6 +68,7 @@ import { NotificationCenter } from "./ui/notification-center";
 import { Clubs } from "./ui/clubs";
 import { OrganizerManage } from "./ui/organizer-manage";
 import { OrganizerTutorial } from "./ui/organizer-tutorial";
+import { OrganizerMascot } from "./ui/organizer-mascot";
 import { EventParticipants } from "./ui/event-participants";
 import { ThemeToggle } from "./ui/theme-toggle";
 const Webinar = lazy(() => import("./ui/webinar"));
@@ -1214,76 +1215,85 @@ export function TFlow({ user }: { user: UserIdentity | null }) {
                     </button>
                   )}
                 </Heading>
-                <OrganizerTutorial
-                  key={user.userId}
-                  userId={user.userId}
-                  events={own}
-                  onAction={(action, event) => {
-                    if (action === "create" || !event)
-                      setDialog({ type: "create" });
-                    else if (action === "schedule")
-                      setDialog({ type: "schedule", event });
-                    else if (action === "preview") go("event", event.id);
-                    else if (action === "entry")
-                      go(hasWebinar(event) ? "webinar" : "scan", event.id);
-                    else
-                      go(
-                        "manage",
-                        event.id,
-                        action === "program" || action === "participants"
-                          ? action
-                          : undefined,
-                      );
-                  }}
-                />
-                {own.length > 0 ? (
-                  <>
-                    <div className="metric-grid overview-metrics">
-                      <div>
-                        <span>Событий</span>
-                        <strong>{own.length}</strong>
-                      </div>
-                      <div>
-                        <span>Регистраций</span>
-                        <strong>
-                          {own.reduce((n, e) => n + e.participant_count, 0)}
-                        </strong>
-                      </div>
-                      <div>
-                        <span>Уже вошли</span>
-                        <strong>
-                          {own.reduce((n, e) => n + e.checked_in_count, 0)}
-                        </strong>
-                      </div>
-                    </div>
-                    <div className="host-events">
-                      {own.map((e) => (
-                        <OrganizerEvent
-                          event={e}
-                          key={e.id}
-                          onMove={() => setDialog({ type: "move", event: e })}
-                          onDelete={() =>
-                            setDialog({ type: "delete", event: e })
-                          }
-                        />
-                      ))}
-                    </div>
-                  </>
-                ) : (
-                  <Empty
-                    icon={CalendarDays}
-                    title="Начните с вашей встречи"
-                    text="Название, время и место — этого хватит для начала. Остальное можно добавить позже."
-                  >
-                    <button
-                      className="button primary"
-                      onClick={() => setDialog({ type: "create" })}
-                    >
-                      <Plus size={18} />
-                      Создать событие
-                    </button>
-                  </Empty>
-                )}
+                <div
+                  className={`organizer-dashboard${own.length === 0 ? " is-empty" : ""}`}
+                >
+                  <div className="organizer-dashboard-content">
+                    <OrganizerTutorial
+                      key={user.userId}
+                      userId={user.userId}
+                      events={own}
+                      onAction={(action, event) => {
+                        if (action === "create" || !event)
+                          setDialog({ type: "create" });
+                        else if (action === "schedule")
+                          setDialog({ type: "schedule", event });
+                        else if (action === "preview") go("event", event.id);
+                        else if (action === "entry")
+                          go(hasWebinar(event) ? "webinar" : "scan", event.id);
+                        else
+                          go(
+                            "manage",
+                            event.id,
+                            action === "program" || action === "participants"
+                              ? action
+                              : undefined,
+                          );
+                      }}
+                    />
+                    {own.length > 0 ? (
+                      <>
+                        <div className="metric-grid overview-metrics">
+                          <div>
+                            <span>Событий</span>
+                            <strong>{own.length}</strong>
+                          </div>
+                          <div>
+                            <span>Регистраций</span>
+                            <strong>
+                              {own.reduce((n, e) => n + e.participant_count, 0)}
+                            </strong>
+                          </div>
+                          <div>
+                            <span>Уже вошли</span>
+                            <strong>
+                              {own.reduce((n, e) => n + e.checked_in_count, 0)}
+                            </strong>
+                          </div>
+                        </div>
+                        <div className="host-events">
+                          {own.map((e) => (
+                            <OrganizerEvent
+                              event={e}
+                              key={e.id}
+                              onMove={() =>
+                                setDialog({ type: "move", event: e })
+                              }
+                              onDelete={() =>
+                                setDialog({ type: "delete", event: e })
+                              }
+                            />
+                          ))}
+                        </div>
+                      </>
+                    ) : (
+                      <Empty
+                        icon={CalendarDays}
+                        title="Начните с вашей встречи"
+                        text="Название, время и место — этого хватит для начала. Остальное можно добавить позже."
+                      >
+                        <button
+                          className="button primary"
+                          onClick={() => setDialog({ type: "create" })}
+                        >
+                          <Plus size={18} />
+                          Создать событие
+                        </button>
+                      </Empty>
+                    )}
+                  </div>
+                  <OrganizerMascot />
+                </div>
               </>
             )}
             {route.view === "organizer" && !user && <OrganizerIntro />}
