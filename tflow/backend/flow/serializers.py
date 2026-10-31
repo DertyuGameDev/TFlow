@@ -8,6 +8,7 @@ from .models import (
     CommunityAvatar,
     Event,
     EventRegistration,
+    EventWaitlistEntry,
     Membership,
     Registration,
     UserAvatar,
@@ -108,6 +109,13 @@ def visible_events(user):
                     user_id=user.pk if user.is_authenticated else "",
                 )
             ),
+            event_waitlist_id=Subquery(EventWaitlistEntry.objects.filter(
+                event_id=OuterRef("pk"), user_id=user.pk if user.is_authenticated else "",
+            ).values("id")[:1]),
+            event_waiting_count=Coalesce(Subquery(
+                EventWaitlistEntry.objects.filter(event_id=OuterRef("pk"))
+                .order_by().values("event_id").annotate(n=Count("id")).values("n")
+            ), Value(0)),
         )
         .order_by("starts_at", "id")
     )
@@ -143,6 +151,11 @@ def event_json(event):
         checked_in_count=event.checked_in_count,
         enrolled=int(event.enrolled),
         checked_in=int(event.checked_in),
+        event_waitlisted=int(bool(event.event_waitlist_id)),
+        event_waiting_count=event.event_waiting_count,
+        event_waitlist_position=(EventWaitlistEntry.objects.filter(
+            event_id=event.pk, pk__lte=event.event_waitlist_id,
+        ).count() if event.event_waitlist_id else 0),
     )
     return data
 
@@ -242,10 +255,13 @@ def bootstrap(user):
                 user_id=user.pk if user.is_authenticated else "",
             )
         ),
-        subscribed=Exists(Membership.objects.filter(
-            community_id=OuterRef("pk"), notify_events=True,
-            user_id=user.pk if user.is_authenticated else "",
-        )),
+        subscribed=Exists(
+            Membership.objects.filter(
+                community_id=OuterRef("pk"),
+                notify_events=True,
+                user_id=user.pk if user.is_authenticated else "",
+            )
+        ),
     ).order_by("name")
     schedule = (
         activities_for(user).filter(registrations__user=user) if participant else []

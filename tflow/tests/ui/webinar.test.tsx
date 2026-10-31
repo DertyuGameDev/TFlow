@@ -1,9 +1,9 @@
-import { act, render, screen, waitFor } from "@testing-library/react";
+import { act, fireEvent, render, screen, waitFor } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import { RoomEvent } from "livekit-client";
 import Webinar from "../../app/ui/webinar";
-import { event } from "../fixtures";
+import { deferred, event } from "../fixtures";
 
 const media = vi.hoisted(() => {
   class TestRoom {
@@ -21,6 +21,7 @@ const media = vi.hoisted(() => {
       }),
       setCameraEnabled: vi.fn().mockResolvedValue(undefined),
       setScreenShareEnabled: vi.fn().mockResolvedValue(undefined),
+      publishData: vi.fn().mockResolvedValue(undefined),
     };
     startAudio = vi.fn().mockResolvedValue(undefined);
     connect = vi.fn().mockResolvedValue(undefined);
@@ -61,6 +62,25 @@ async function enter() {
 beforeEach(() => { media.rooms.length = 0; });
 
 describe("комната вебинара", () => {
+  it("подтверждает посещение только после соединения, а ошибка учёта не отключает зрителя", async () => {
+    const user=userEvent.setup(), pending=deferred<void>();
+    const send=vi.fn(async(_path:string,method:string,body?:unknown)=>{
+      if(method==="GET") return {configured:true,host:false,active:true,session:"session-one",ended:false,published:true};
+      if((body as {operation:string}).operation==="confirm") throw new Error("Temporary attendance failure");
+      return {url:"ws://video.example.test",token:"test-token",session:"session-one",host:false};
+    });
+    render(<Webinar event={online} user={{...host,userId:"viewer",role:"participant"}} send={send}/>);
+    await screen.findByRole("button",{name:"Войти в вебинар"});
+    // The connection is controlled on the newly-created test room during join.
+    send.mockImplementationOnce(async()=>{const room=media.rooms[0]; room.connect.mockImplementationOnce(()=>pending.promise); return {url:"ws://video.example.test",token:"test-token",session:"session-one",host:false};});
+    await user.click(screen.getByRole("button",{name:"Войти в вебинар"}));
+    expect(send.mock.calls.some((call)=>(call[2] as {operation?:string})?.operation==="confirm")).toBe(false);
+    await act(async()=>pending.resolve());
+    await waitFor(()=>expect(send).toHaveBeenCalledWith(`events/${event.id}/webinar`,"POST",{operation:"confirm",session:"session-one"}));
+    expect(await screen.findByText(/Посещение пока не подтверждено/)).toBeVisible();
+    expect(media.rooms[0].disconnect).not.toHaveBeenCalled();
+    expect(screen.getByRole("button",{name:"Подтвердить посещение"})).toBeEnabled();
+  });
   it("вход не запрашивает микрофон/камеру автоматически и выход отключает комнату", async () => {
     const { user, room, view } = await enter();
     expect(room.startAudio).toHaveBeenCalledOnce();
@@ -111,5 +131,57 @@ describe("комната вебинара", () => {
     await user.selectOptions(screen.getByRole("combobox", { name: "Выбрать микрофон" }), "second-mic");
     expect(await screen.findByRole("alert")).toHaveTextContent("другой микрофон");
     expect(screen.getByRole("combobox", { name: "Выбрать микрофон" })).toHaveValue("default");
+  });
+
+  it("отправляет по Enter, оставляет Shift+Enter для новой строки и сохраняет отправку кнопкой", async () => {
+    const { user, room } = await enter();
+    const input = screen.getByRole("textbox", { name: "Сообщение в чат" });
+    await user.type(input, "Первая строка");
+    await user.keyboard("{Shift>}{Enter}{/Shift}");
+    await user.type(input, "Вторая строка");
+    expect(input).toHaveValue("Первая строка\nВторая строка");
+    expect(room.localParticipant.publishData).not.toHaveBeenCalled();
+    await user.keyboard("{Enter}");
+    await waitFor(() => expect(input).toHaveValue(""));
+    expect(input).toHaveFocus();
+    expect(room.localParticipant.publishData).toHaveBeenCalledExactlyOnceWith(
+      new TextEncoder().encode(JSON.stringify({ text: "Первая строка\nВторая строка" })),
+      { reliable: true, topic: "tflow-chat" },
+    );
+    expect(screen.getByLabelText("Сообщения эфира")).toHaveTextContent("Первая строка Вторая строка");
+    await user.type(input, "С кнопки");
+    await user.click(screen.getByRole("button", { name: "Отправить" }));
+    await waitFor(() => expect(room.localParticipant.publishData).toHaveBeenCalledTimes(2));
+    expect(input).toHaveValue("");
+  });
+
+  it("не отправляет пустой текст и не дублирует сообщение во время отправки", async () => {
+    const { user, room } = await enter();
+    const input = screen.getByRole("textbox", { name: "Сообщение в чат" });
+    await user.type(input, "   ");
+    await user.keyboard("{Enter}");
+    expect(room.localParticipant.publishData).not.toHaveBeenCalled();
+    await user.clear(input);
+    await user.type(input, "Один раз");
+    const sending = deferred<void>();
+    room.localParticipant.publishData.mockImplementationOnce(() => sending.promise);
+    await user.keyboard("{Enter}{Enter}");
+    expect(room.localParticipant.publishData).toHaveBeenCalledOnce();
+    expect(screen.getByRole("button", { name: "Отправить" })).toBeDisabled();
+    await act(async () => sending.resolve());
+    expect(input).toHaveValue("");
+  });
+
+  it("не отправляет при подтверждении ввода IME и удержании Enter", async () => {
+    const { user, room } = await enter();
+    const input = screen.getByRole("textbox", { name: "Сообщение в чат" });
+    await user.type(input, "Сообщение");
+    fireEvent.keyDown(input, { key: "Enter", isComposing: true });
+    fireEvent.keyDown(input, { key: "Enter", keyCode: 229 });
+    fireEvent.keyDown(input, { key: "Enter", repeat: true });
+    expect(room.localParticipant.publishData).not.toHaveBeenCalled();
+    expect(input).toHaveValue("Сообщение");
+    await user.keyboard("{Enter}");
+    expect(room.localParticipant.publishData).toHaveBeenCalledOnce();
   });
 });

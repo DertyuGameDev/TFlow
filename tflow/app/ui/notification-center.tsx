@@ -178,6 +178,8 @@ export function NotificationCenter({
                   ? "Мероприятие отменено организатором"
                   : notice.kind === "club_event"
                     ? "Новое событие клуба"
+                  : notice.kind === "event_waitlist"
+                    ? "Место на мероприятии освободилось"
                   : "Обновление события"}
               </h2>
               <p>{notice.message}</p>

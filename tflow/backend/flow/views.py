@@ -24,6 +24,7 @@ from .contracts import (
     MoveEventInput,
     RequirementsInput,
     RoomInput,
+    SwapActivitiesInput,
     validate,
 )
 from .models import (
@@ -439,7 +440,12 @@ def dispatch_api(request, path):
             raise FlowError("NOT_FOUND", "Действие не найдено", 404)
         club = services.save_community(user, validate(CommunityInput, body), item_id)
         return JsonResponse({"id": club.pk}, status=201 if method == "POST" else 200)
-    elif resource == "communities" and item_id and action == "subscription" and method == "PATCH":
+    elif (
+        resource == "communities"
+        and item_id
+        and action == "subscription"
+        and method == "PATCH"
+    ):
         services.set_community_subscription(user, item_id, body.get("enabled"))
     elif (
         resource == "communities"
@@ -480,6 +486,12 @@ def dispatch_api(request, path):
             services.move_event(user, item_id, validate(MoveEventInput, body))
         elif item_id and action == "registration" and method == "POST":
             services.enroll_event(user, item_id, body)
+        elif item_id and action == "waitlist" and method == "POST":
+            queued = services.join_event_waitlist(user, item_id, body)
+            return JsonResponse({"ok": True, "waitlisted": queued, "registered": not queued})
+        elif item_id and action == "waitlist" and method == "DELETE":
+            registered = services.leave_event_waitlist(user, item_id)
+            return JsonResponse({"ok": True, "waitlisted": False, "registered": registered})
         elif item_id and action == "requirements" and method == "PATCH":
             services.set_requirements(user, item_id, validate(RequirementsInput, body))
         elif item_id and action == "registration" and method == "DELETE":
@@ -487,7 +499,7 @@ def dispatch_api(request, path):
         elif item_id and action == "webinar" and method == "POST":
             from .webinars import operate
 
-            return JsonResponse(operate(user, item_id, body.get("operation")))
+            return JsonResponse(operate(user, item_id, body.get("operation"), body.get("session")))
         elif item_id and action == "check-in" and method == "POST":
             person, entry, repeated = services.check_in(
                 user, item_id, body.get("qr", "")
@@ -513,7 +525,11 @@ def dispatch_api(request, path):
     elif resource == "rooms" and item_id and not action and method == "PATCH":
         services.save_room(user, validate(RoomInput, body), room_id=item_id)
     elif resource == "activities" and item_id:
-        if action == "registration" and method == "POST":
+        if action == "swap" and method == "POST":
+            from .program_schedule import swap_activities
+
+            return JsonResponse(swap_activities(user, item_id, **validate(SwapActivitiesInput, body)))
+        elif action == "registration" and method == "POST":
             if services.register(user, item_id, body) is False:
                 raise FlowError(
                     "NO_SEATS", "Свободное место получил участник из листа ожидания"
