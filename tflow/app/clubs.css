@@ -7,6 +7,7 @@
 .club-avatar-link,.club-avatar-edit{display:inline-flex;align-items:center;justify-content:center;flex-shrink:0;border:0;padding:0;border-radius:50%;background:none}
 .profile-avatar.club-avatar{width:88px;height:88px;border-radius:50%;font-size:34px;font-weight:600;box-shadow:0 0 0 1px var(--flow-border)}
 .profile-avatar.club-avatar-large{width:104px;height:104px;font-size:40px}
+:root[data-theme] .clubs-page .profile-avatar.club-avatar:not(:has(img)){background:#ffdd2d;color:#272514;box-shadow:0 0 0 3px var(--theme-panel,#fff);text-transform:uppercase}
 .clubs-card h2,.clubs-card>p,.clubs-card>.clubs-counts{text-align:center}
 .clubs-card h2 button{width:100%;text-align:center}
 .clubs-card h2{min-height:2.6em}
