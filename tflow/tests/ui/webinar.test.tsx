@@ -1,6 +1,6 @@
 import { act, fireEvent, render, screen, waitFor } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
-import { beforeEach, describe, expect, it, vi } from "vitest";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { RoomEvent } from "livekit-client";
 import Webinar from "../../app/ui/webinar";
 import { deferred, event } from "../fixtures";
@@ -60,8 +60,31 @@ async function enter() {
   return { user, send, view, room: media.rooms[0] };
 }
 beforeEach(() => { media.rooms.length = 0; });
+afterEach(() => { vi.useRealTimers(); });
 
 describe("комната вебинара", () => {
+  it("не отключает комнату устаревшим статусом во время долгого старта на VM", async () => {
+    vi.useFakeTimers();
+    const access = deferred<unknown>(), connection = deferred<void>();
+    const send = vi.fn(async (_path: string, method: string) => method === "GET"
+      ? { configured: true, host: true, active: false, session: null, ended: false, published: true }
+      : access.promise);
+    render(<Webinar event={online} user={host} send={send} />);
+    await act(async () => {});
+    fireEvent.click(screen.getByRole("button", { name: "Начать эфир" }));
+    const room = media.rooms[0];
+    room.connect.mockImplementationOnce(() => connection.promise);
+    await act(async () => { await vi.advanceTimersByTimeAsync(5000); });
+    expect(send.mock.calls.filter(([, method]) => method === "GET")).toHaveLength(1);
+    await act(async () => access.resolve({ url: "ws://video.example.test", token: "test-token", session: "new-session", host: true }));
+    await act(async () => { await vi.advanceTimersByTimeAsync(5000); });
+    expect(room.disconnect).not.toHaveBeenCalled();
+    expect(screen.getByRole("button", { name: "Подключаемся…" })).toBeDisabled();
+    await act(async () => connection.resolve());
+    expect(screen.getByRole("button", { name: "Выйти из комнаты" })).toBeEnabled();
+  });
+
+
   it("подтверждает посещение только после соединения, а ошибка учёта не отключает зрителя", async () => {
     const user=userEvent.setup(), pending=deferred<void>();
     const send=vi.fn(async(_path:string,method:string,body?:unknown)=>{

@@ -23,7 +23,7 @@ def validate(values):
         raise ValueError("Media configuration must identify the owned vm1")
     for key in ("api_key", "api_secret", "relay_secret"):
         if not re.fullmatch(r"[A-Za-z0-9_-]{24,128}", values.get(key, "")):
-            raise ValueError("Media credentials must be random URL-safe values")
+            raise ValueError(f"Invalid media configuration: {key} must contain 24–128 URL-safe characters")
     return values
 
 
