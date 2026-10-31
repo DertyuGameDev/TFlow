@@ -2,12 +2,22 @@ import { spawn, spawnSync } from 'node:child_process';
 import { existsSync } from 'node:fs';
 import { resolve } from 'node:path';
 
+if(existsSync(resolve('backend/.env.mail')))process.loadEnvFile(resolve('backend/.env.mail'));
+if(existsSync(resolve('backend/.env.video')))process.loadEnvFile(resolve('backend/.env.video'));
+
 const python=resolve(process.platform==='win32'?'.venv/Scripts/python.exe':'.venv/bin/python');
 if(!existsSync(python)){console.error('Run npm run setup first.');process.exit(1);}
 const migration=spawnSync(python,['manage.py','migrate','--noinput'],{cwd:resolve('backend'),stdio:'inherit'});
 if(migration.status!==0)process.exit(migration.status??1);
 const children=[];let exiting=false;
 function stop(code=0){if(exiting)return;exiting=true;for(const child of children)child.kill('SIGTERM');setTimeout(()=>process.exit(code),200).unref();}
+const videoBinary=process.env.LIVEKIT_SERVER_BINARY || [resolve('backend/data/tools/livekit-server'),'/opt/homebrew/bin/livekit-server','/usr/local/bin/livekit-server'].find(path=>existsSync(path));
+if(videoBinary && !process.env.LIVEKIT_URL){
+  const video=spawn(videoBinary,['--dev','--bind','127.0.0.1'],{stdio:['ignore','ignore','inherit']});
+  children.push(video);
+  video.on('error',()=>console.error('Video server could not start.'));
+  video.on('exit',code=>{if(!exiting&&code)console.error('Video server stopped; the website remains available.');});
+}
 const server=spawn(python,['manage.py','runserver','127.0.0.1:8000','--noreload'],{cwd:resolve('backend'),stdio:'inherit'});
 children.push(server);
 server.on('exit',code=>stop(code??1));
@@ -20,6 +30,12 @@ if(!ready){console.error('Django did not become ready on 127.0.0.1:8000.');stop(
 else{
   const frontend=spawn(process.execPath,['node_modules/vite/bin/vite.js'],{stdio:'inherit'});
   children.push(frontend);frontend.on('exit',code=>stop(code??1));
+  const emailEnabled=process.env.NOTIFICATION_EMAIL_ENABLED ?? (process.env.EMAIL_HOST_USER&&process.env.EMAIL_HOST_PASSWORD?'1':'0');
+  if(emailEnabled==='1'){
+    const mailer=spawn(python,['manage.py','send_notification_emails','--watch'],{cwd:resolve('backend'),stdio:'inherit'});
+    children.push(mailer);
+    mailer.on('exit',code=>{if(!exiting&&code)console.error('Email worker stopped; pending messages stay in the database.');});
+  }
   console.log('\nТФлоу: http://127.0.0.1:5173/ · API: Django 127.0.0.1:8000\n');
 }
 for(const signal of ['SIGINT','SIGTERM'])process.on(signal,()=>stop());

@@ -1,4 +1,4 @@
-import interestCategories from "../backend/flow/interest_categories.json";
+import categoryGroups from "../backend/flow/interest_categories.json";
 import { CITY_SUGGESTIONS } from "./cities";
 
 export type UserIdentity = { userId: string; displayName: string; email: string; fullName: string | null; role: "participant" | "organizer" };
@@ -17,12 +17,14 @@ export type Activity = {
   taken: number; registered: number; waiting_count: number; waitlisted: number; waitlist_position: number;
   event_title?: string; city?: string; venue?: string; event_cover?: string;
 };
-export type Community = { id: string; name: string; description: string; topic: string; color: string; member_count: number; joined: number };
-export type Notice = { id: string; event_id: string; message: string; created_at: number; read: number };
-export type Bootstrap = { events: FlowEvent[]; tickets: FlowEvent[]; schedule: Activity[]; waitlist: Activity[]; communities: Community[]; notifications: Notice[]; profile: Profile | null };
+export type Community = { id: string; name: string; description: string; topic: string; color: string; member_count: number; joined: number; owner_id: string | null; event_count: number };
+export type Notice = { id: string; event_id: string | null; kind: "info" | "event_cancelled"; message: string; created_at: number; read: number };
+export type NoticePage = { items: Notice[]; next_cursor: string | null };
+export type Bootstrap = { events: FlowEvent[]; tickets: FlowEvent[]; schedule: Activity[]; waitlist: Activity[]; communities: Community[]; notifications: Notice[]; unread_notification_count: number; profile: Profile | null };
 export type EventDetail = { event: FlowEvent; rooms: Room[]; activities: Activity[] };
 export type Attendee = { id: string; name: string; email: string; city: string; about: string; interests: string; activities: string[] };
 export type AttendanceRow = { id: string; name: string; email: string; city: string; created_at: number; checked_in_at: number | null };
 export type ScanResult = { admitted: boolean; already_checked_in: boolean; checked_in_at: number; attendee: Attendee };
-export const TOPICS = interestCategories;
+export const CATEGORY_GROUPS = categoryGroups;
+export const TOPICS = CATEGORY_GROUPS.flatMap(group => group.categories);
 export const CITIES = [...CITY_SUGGESTIONS, "Онлайн"];

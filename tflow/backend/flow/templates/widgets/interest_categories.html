@@ -1,0 +1,8 @@
+<div{% if widget.attrs.id %} id="{{ widget.attrs.id }}"{% endif %} class="grouped-interests">
+{% for group, options, index in widget.optgroups %}
+  <div class="interest-choice-group">
+    <span class="interest-group-title">{{ group }}</span>
+    <div class="interest-choice-items">{% for option in options %}<div>{% include option.template_name with widget=option %}</div>{% endfor %}</div>
+  </div>
+{% endfor %}
+</div>

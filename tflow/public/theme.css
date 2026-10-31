@@ -1,0 +1,161 @@
+/* Dark palette. Existing light values remain as fallbacks in component styles. */
+:root {
+  color-scheme: light;
+}
+
+:root[data-theme="dark"] {
+  color-scheme: dark;
+  --theme-page: #111318;
+  --theme-surface: #1b1e25;
+  --theme-soft: #22262e;
+  --theme-hover: #2b303a;
+  --theme-border: #363d48;
+  --theme-text: #f1f3f7;
+  --theme-muted: #afb8c7;
+  --theme-subtle: #949faf;
+  --theme-link: #9bc0ff;
+  --theme-focus: #a5c7ff;
+  --theme-highlight: #352f1b;
+  --theme-highlight-text: #efd47f;
+  --theme-highlight-border: #736031;
+  --theme-success: #1c3329;
+  --theme-success-text: #9ad8b0;
+  --theme-success-border: #416550;
+  --theme-danger: #3b2329;
+  --theme-danger-text: #ffaaa8;
+  --theme-danger-border: #82484f;
+  --theme-info: #202f48;
+  --theme-info-text: #b2cdff;
+  --theme-info-border: #49638b;
+  background: var(--theme-page);
+}
+
+.theme-toggle {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
+  width: 38px;
+  height: 38px;
+  padding: 8px;
+  border: 1px solid var(--theme-border, #e4e7eb);
+  border-radius: 12px;
+  background: var(--theme-surface, #fff);
+  color: var(--theme-muted, #626b78);
+  cursor: pointer;
+}
+.theme-toggle:hover {
+  background: var(--theme-hover, #f3f5f7);
+  color: var(--theme-text, #24272d);
+}
+.theme-toggle:focus-visible {
+  outline: 3px solid var(--theme-focus, #1769e8);
+  outline-offset: 3px;
+}
+.theme-toggle svg {
+  width: 20px;
+  height: 20px;
+}
+.theme-icon-sun {
+  display: none;
+}
+[data-theme="dark"] .theme-icon-moon {
+  display: none;
+}
+[data-theme="dark"] .theme-icon-sun {
+  display: block;
+}
+
+/* The supplied logo is monochrome; photos, covers and QR pixels stay intact. */
+[data-theme="dark"] :is(.brand-logo, .auth-brand) img {
+  filter: brightness(0) invert(1);
+}
+[data-theme="dark"]
+  :is(
+    .personal-info,
+    .metric-grid > div,
+    .host-event,
+    .clubs-card,
+    .simple-directory > article,
+    .advanced-program,
+    .registration-card
+  ) {
+  background: var(--theme-surface);
+}
+[data-theme="dark"] .personal-pass > img {
+  background: #fff;
+  border-radius: 12px;
+}
+[data-theme="dark"] :is(.discovery-search, .small-search) {
+  background: var(--theme-surface);
+}
+[data-theme="dark"] .modal {
+  box-shadow: 0 25px 100px #0008;
+}
+[data-theme="dark"] .modal::backdrop {
+  background: #07090dbf;
+}
+[data-theme="dark"] .skip-link {
+  color: #24272d;
+}
+[data-theme="dark"] .filter-button b {
+  color: #24272d;
+}
+[data-theme="dark"] .cal-draft {
+  background: color-mix(in srgb, var(--cal-fill), var(--theme-surface) 50%);
+}
+[data-theme="dark"] .cal-color-ticket {
+  --cal-accent: #8eb4ff;
+}
+[data-theme="dark"] .cal-color-activity {
+  --cal-accent: #7fd0b4;
+}
+[data-theme="dark"] .cal-color-owned {
+  --cal-accent: #dfc363;
+}
+
+.auth-header {
+  display: grid;
+  grid-template-columns: 38px minmax(0, 1fr) 38px;
+  align-items: center;
+  gap: 10px;
+  margin-bottom: 16px;
+}
+.auth-header .auth-brand {
+  grid-column: 2;
+  margin: 0 auto;
+}
+.auth-header .theme-toggle {
+  grid-column: 3;
+}
+
+@media (max-width: 760px) {
+  .flow-account .theme-toggle {
+    width: 34px;
+    height: 34px;
+    min-width: 34px;
+    padding: 6px;
+  }
+  .flow-topbar .brand .brand-logo {
+    width: min(150px, 100%);
+  }
+}
+@media (max-width: 350px) {
+  .flow-topbar .brand .brand-logo {
+    width: 112px;
+  }
+  .flow-app .flow-topbar-inner {
+    gap: 8px;
+  }
+  .flow-account .theme-toggle {
+    width: 30px;
+    height: 34px;
+    min-width: 30px;
+    padding: 5px;
+  }
+}
+@media (max-width: 310px) {
+  .flow-topbar .brand .brand-logo {
+    width: 44px;
+  }
+}

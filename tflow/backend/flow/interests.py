@@ -1,6 +1,14 @@
 import json
 from pathlib import Path
 
-# Shared with React's event topics and profile picker.
-INTEREST_CATEGORIES = json.loads(Path(__file__).with_name("interest_categories.json").read_text(encoding="utf-8"))
-INTEREST_CHOICES = [(category, category) for category in INTEREST_CATEGORIES]
+# The same grouped categories are used by event forms and profile interests.
+CATEGORY_GROUPS = json.loads(
+    Path(__file__).with_name("interest_categories.json").read_text(encoding="utf-8")
+)
+INTEREST_CATEGORIES = [
+    category for group in CATEGORY_GROUPS for category in group["categories"]
+]
+INTEREST_CHOICES = [
+    (group["name"], [(category, category) for category in group["categories"]])
+    for group in CATEGORY_GROUPS
+]

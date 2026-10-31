@@ -59,6 +59,12 @@ class EventInput(forms.Form):
         return data
 
 
+class CommunityInput(forms.Form):
+    name = forms.CharField(min_length=3, max_length=160)
+    description = forms.CharField(min_length=10, max_length=1000)
+    topic = forms.CharField(min_length=2, max_length=80)
+
+
 class ActivityInput(forms.Form):
     title = forms.CharField(min_length=3, max_length=160)
     description = forms.CharField(required=False, max_length=5000)

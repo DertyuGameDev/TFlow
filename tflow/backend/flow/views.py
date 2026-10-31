@@ -13,9 +13,11 @@ from django.views.decorators.cache import never_cache
 from django.views.decorators.csrf import ensure_csrf_cookie
 from .auth_forms import LoginForm, RegisterForm
 from .avatars import save_avatar
+from .notifications import notification_page
 from .calendar import activity_item, calendar_response, event_item
 from .contracts import (
     ActivityInput,
+    CommunityInput,
     EventInput,
     FlowError,
     MoveEventInput,
@@ -217,6 +219,18 @@ def dispatch_api(request, path):
             status=405,
         )
     if method == "GET":
+        if resource == "events" and item_id and action == "webinar":
+            from .webinars import status
+
+            return JsonResponse(status(require_user(request), item_id))
+        if path == "notifications":
+            return JsonResponse(
+                notification_page(
+                    require_user(request),
+                    before=request.GET.get("before"),
+                    unread=request.GET.get("unread") == "1",
+                )
+            )
         if path == "schedule/calendar":
             user = require_user(request)
             activities = Activity.objects.filter(
@@ -339,6 +353,14 @@ def dispatch_api(request, path):
         user.save(update_fields=list(values))
     elif path == "notifications" and method == "PATCH":
         user.notifications.update(read=True)
+    elif resource == "notifications" and item_id and not action and method == "PATCH":
+        if not user.notifications.filter(pk=item_id).update(read=True):
+            raise FlowError("NOT_FOUND", "Уведомление не найдено", 404)
+    elif resource == "communities" and not action and method in {"POST", "PATCH"}:
+        if (method == "POST" and item_id) or (method == "PATCH" and not item_id):
+            raise FlowError("NOT_FOUND", "Действие не найдено", 404)
+        club = services.save_community(user, validate(CommunityInput, body), item_id)
+        return JsonResponse({"id": club.pk}, status=201 if method == "POST" else 200)
     elif (
         resource == "communities"
         and item_id
@@ -364,6 +386,8 @@ def dispatch_api(request, path):
                 Bookmark.objects.filter(user=user, event_id=item_id).delete()
         elif item_id and not action and method == "PATCH":
             services.update_event(user, item_id, validate(EventInput, body))
+        elif item_id and not action and method == "DELETE":
+            services.delete_event(user, item_id)
         elif item_id and action == "publish" and method == "POST":
             services.publish_event(user, item_id)
         elif item_id and action == "move" and method == "PATCH":
@@ -372,6 +396,10 @@ def dispatch_api(request, path):
             services.enroll_event(user, item_id)
         elif item_id and action == "registration" and method == "DELETE":
             services.cancel_event(user, item_id)
+        elif item_id and action == "webinar" and method == "POST":
+            from .webinars import operate
+
+            return JsonResponse(operate(user, item_id, body.get("operation")))
         elif item_id and action == "check-in" and method == "POST":
             person, entry, repeated = services.check_in(
                 user, item_id, body.get("qr", "")

@@ -3,12 +3,14 @@ from django.db import transaction
 from django.db.models import Q
 from django.utils import timezone
 from .contracts import FlowError
+from .mailing import create_notifications
 from .models import (
     Activity,
     CheckIn,
     Community,
     Event,
     EventRegistration,
+    Membership,
     Notification,
     Registration,
     Room,
@@ -55,25 +57,44 @@ def become_organizer(user):
     return user
 
 
-def check_community(data):
+def check_community(data, user, previous_id=None):
     if (
         data.get("community_id")
         and not Community.objects.filter(pk=data["community_id"]).exists()
     ):
         raise FlowError("INVALID_REFERENCE", "Сообщество не найдено", 400)
+    club_id = data.get("community_id")
+    if (
+        club_id
+        and club_id != previous_id
+        and not (
+            Community.objects.filter(pk=club_id, owner=user).exists()
+            or Membership.objects.filter(community_id=club_id, user=user).exists()
+        )
+    ):
+        raise FlowError(
+            "CLUB_MEMBERSHIP",
+            "Сначала вступите в клуб, чтобы добавить в него событие",
+            403,
+        )
 
 
 def create_event(user, data):
     with schedule_write():
         require_organizer(user)
-        check_community(data)
+        check_community(data, user)
         return Event.objects.create(owner=user, **data)
 
 
 def update_event(user, event_id, data):
     with schedule_write():
         event = owned_event(event_id, user)
-        check_community(data)
+        check_community(data, user, event.community_id)
+        webinar = getattr(event, "webinar", None)
+        if data["format"] == "Очно" and webinar and webinar.active:
+            raise FlowError(
+                "WEBINAR_ACTIVE", "Завершите эфир перед сменой формата на очный"
+            )
         if event.enrollments.count() > data["capacity"]:
             raise FlowError(
                 "BELOW_REGISTERED",
@@ -96,7 +117,7 @@ def update_event(user, event_id, data):
                     "user_id", flat=True
                 )
             )
-            Notification.objects.bulk_create(
+            create_notifications(
                 [
                     Notification(
                         user_id=uid,
@@ -114,6 +135,64 @@ def publish_event(user, event_id):
         event = owned_event(event_id, user)
         event.status, event.updated_at = "published", timezone.now()
         event.save(update_fields=["status", "updated_at"])
+
+
+def save_community(user, data, community_id=None):
+    from .interests import INTEREST_CATEGORIES
+
+    if data["topic"] not in INTEREST_CATEGORIES:
+        raise FlowError("VALIDATION", "Выберите категорию клуба из списка", 400)
+    with schedule_write():
+        if community_id:
+            try:
+                club = Community.objects.get(pk=community_id, owner=user)
+            except Community.DoesNotExist as error:
+                raise FlowError(
+                    "FORBIDDEN", "Изменять клуб может только его создатель", 403
+                ) from error
+            for key, value in data.items():
+                setattr(club, key, value)
+            club.save()
+        else:
+            club = Community.objects.create(owner=user, color="yellow", **data)
+            Membership.objects.create(community=club, user=user)
+        return club
+
+
+def delete_event(user, event_id):
+    with schedule_write():
+        event = owned_event(event_id, user)
+        from .webinars import stop_webinar
+
+        stop_webinar(event)
+        title = event.title
+        users = (
+            set(event.enrollments.values_list("user_id", flat=True))
+            | set(event.check_ins.values_list("user_id", flat=True))
+            | set(
+                Registration.objects.filter(activity__event=event).values_list(
+                    "user_id", flat=True
+                )
+            )
+            | set(
+                WaitlistEntry.objects.filter(activity__event=event).values_list(
+                    "user_id", flat=True
+                )
+            )
+        ) - {user.pk}
+        # Activities protect their rooms, so remove them before collecting rooms.
+        event.activities.all().delete()
+        event.delete()
+        create_notifications(
+            [
+                Notification(
+                    user_id=uid,
+                    kind="event_cancelled",
+                    message=f"Организатор отменил мероприятие «{title}». Ваша регистрация и записи на его активности отменены.",
+                )
+                for uid in users
+            ]
+        )
 
 
 def save_room(user, data, *, event_id=None, room_id=None):
@@ -205,7 +284,7 @@ def save_activity(user, data, *, event_id=None, activity_id=None):
             updated_at=activity.updated_at
         )
         if activity_id:
-            Notification.objects.bulk_create(
+            create_notifications(
                 [
                     Notification(
                         user_id=uid,
@@ -277,10 +356,14 @@ def promote_waitlist_locked(activity):
         entry.delete()
         if created:
             free -= 1
-            Notification.objects.create(
-                user=entry.user,
-                event=activity.event,
-                message=f"Место освободилось! Вы автоматически записаны на «{activity.title}» из листа ожидания. Время и аудитория — в вашей программе.",
+            create_notifications(
+                [
+                    Notification(
+                        user=entry.user,
+                        event=activity.event,
+                        message=f"Место освободилось! Вы автоматически записаны на «{activity.title}» из листа ожидания. Время и аудитория — в вашей программе.",
+                    )
+                ]
             )
         if free <= 0:
             break
@@ -382,13 +465,16 @@ def cancel_event(user, event_id):
     with schedule_write():
         if CheckIn.objects.filter(user=user, event_id=event_id).exists():
             raise FlowError(
-                "ALREADY_CHECKED_IN", "Вход уже подтверждён. Отменить этот билет нельзя"
+                "ALREADY_CHECKED_IN", "Вход уже подтверждён. Отменить регистрацию нельзя"
             )
         activities = list(
             Activity.objects.filter(
                 event_id=event_id, registrations__user=user
             ).select_related("event")
         )
+        from .webinars import disconnect_viewer
+
+        disconnect_viewer(user, event_id)
         WaitlistEntry.objects.filter(user=user, activity__event_id=event_id).delete()
         Registration.objects.filter(user=user, activity__event_id=event_id).delete()
         EventRegistration.objects.filter(user=user, event_id=event_id).delete()
@@ -452,12 +538,12 @@ def move_event(user, event_id, data):
                 "user_id", flat=True
             )
         )
-        Notification.objects.bulk_create(
+        create_notifications(
             [
                 Notification(
                     user_id=uid,
                     event=event,
-                    message=f"Мероприятие «{event.title}» перенесено. Проверьте дату и место в своих билетах.",
+                    message=f"Мероприятие «{event.title}» перенесено. Проверьте дату и место в календаре.",
                 )
                 for uid in recipients
             ]
