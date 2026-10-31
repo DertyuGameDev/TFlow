@@ -64,6 +64,25 @@ beforeEach(() => { media.rooms.length = 0; });
 afterEach(() => { vi.useRealTimers(); });
 
 describe("комната вебинара", () => {
+  it("подтверждает посещение только после соединения, а ошибка учёта не отключает зрителя", async () => {
+    const user=userEvent.setup(), pending=deferred<void>();
+    const send=vi.fn(async(_path:string,method:string,body?:unknown)=>{
+      if(method==="GET") return {configured:true,host:false,active:true,session:"session-one",ended:false,published:true};
+      if((body as {operation:string}).operation==="confirm") throw new Error("Temporary attendance failure");
+      return {url:"ws://video.example.test",token:"test-token",session:"session-one",host:false};
+    });
+    render(<Webinar event={online} user={{...host,userId:"viewer",role:"participant"}} send={send}/>);
+    await screen.findByRole("button",{name:"Войти в вебинар"});
+    // The connection is controlled on the newly-created test room during join.
+    send.mockImplementationOnce(async()=>{const room=media.rooms[0]; room.connect.mockImplementationOnce(()=>pending.promise); return {url:"ws://video.example.test",token:"test-token",session:"session-one",host:false};});
+    await user.click(screen.getByRole("button",{name:"Войти в вебинар"}));
+    expect(send.mock.calls.some((call)=>(call[2] as {operation?:string})?.operation==="confirm")).toBe(false);
+    await act(async()=>pending.resolve());
+    await waitFor(()=>expect(send).toHaveBeenCalledWith(`events/${event.id}/webinar`,"POST",{operation:"confirm",session:"session-one"}));
+    expect(await screen.findByText(/Посещение пока не подтверждено/)).toBeVisible();
+    expect(media.rooms[0].disconnect).not.toHaveBeenCalled();
+    expect(screen.getByRole("button",{name:"Подтвердить посещение"})).toBeEnabled();
+  });
   it("не отключает комнату устаревшим статусом во время долгого старта на VM", async () => {
     vi.useFakeTimers();
     const access = deferred<unknown>(), connection = deferred<void>();

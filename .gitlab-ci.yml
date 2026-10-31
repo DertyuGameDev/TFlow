@@ -148,6 +148,15 @@ spirit-readiness:
     expire_in: 1 day
     paths: [.spirit-cli/dp]
 
+provision-owned-video:
+  extends: .spirit-control
+  timeout: 15m
+  before_script:
+    - apt-get update -qq
+    - apt-get install -y --no-install-recommends openssh-client ca-certificates
+  script:
+    - python tflow/deploy/spirit/provision_video.py
+
 spirit-recover-network:
   extends: .spirit-control
   needs:

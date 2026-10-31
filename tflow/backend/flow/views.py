@@ -25,6 +25,7 @@ from .contracts import (
     MoveEventInput,
     RequirementsInput,
     RoomInput,
+    SwapActivitiesInput,
     validate,
 )
 from .models import (
@@ -508,7 +509,7 @@ def dispatch_api(request, path):
         elif item_id and action == "webinar" and method == "POST":
             from .webinars import operate
 
-            return JsonResponse(operate(user, item_id, body.get("operation")))
+            return JsonResponse(operate(user, item_id, body.get("operation"), session=body.get("session")))
         elif item_id and action == "check-in" and method == "POST":
             person, entry, repeated = services.check_in(
                 user, item_id, body.get("qr", "")
@@ -534,9 +535,13 @@ def dispatch_api(request, path):
     elif resource == "rooms" and item_id and not action and method == "PATCH":
         services.save_room(user, validate(RoomInput, body), room_id=item_id)
     elif resource == "activities" and item_id:
-        if action == "webinar" and method == "POST":
+        if action == "swap" and method == "POST":
+            from .program_schedule import swap_activities
+
+            return JsonResponse(swap_activities(user, item_id, **validate(SwapActivitiesInput, body)))
+        elif action == "webinar" and method == "POST":
             from .webinars import operate
-            return JsonResponse(operate(user, None, body.get("operation"), activity_id=item_id))
+            return JsonResponse(operate(user, None, body.get("operation"), session=body.get("session"), activity_id=item_id))
         elif action == "registration" and method == "POST":
             if services.register(user, item_id, body) is False:
                 raise FlowError(

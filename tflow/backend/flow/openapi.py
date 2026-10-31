@@ -22,6 +22,7 @@ from .contracts import (
     ProfileRequirementsField,
     RequirementsInput,
     RoomInput,
+    SwapActivitiesInput,
 )
 from .profile_data import PROFILE_LABELS, REQUIREMENT_KEYS
 
@@ -104,6 +105,7 @@ def build_schema():
         for form in (
             EventInput,
             ActivityInput,
+            SwapActivitiesInput,
             RoomInput,
             CommunityInput,
             MoveEventInput,
@@ -540,6 +542,11 @@ def build_schema():
         body="ActivityInput",
     )
     add(
+        "/activities/{activity_id}/swap", "post", "Поменять пункты программы местами", "Программа",
+        body="SwapActivitiesInput", result={"type": "object"},
+        description="Только владелец события. Длительности и аудитории сохраняются. В одной аудитории меняется порядок, промежуточные пункты сдвигаются с сохранением перерывов. preview=true проверяет итоговое расписание без сохранения. expected_event_updated_at защищает от устаревшего предпросмотра. При конфликте откатываются все изменения.",
+    )
+    add(
         "/events/{event_id}/attendance",
         "get",
         "Участники и анкеты",
@@ -591,11 +598,11 @@ def build_schema():
         "Управление вебинаром и вход",
         "Вебинары",
         body=object_schema(
-            {"operation": {"type": "string", "enum": ["start", "join", "end"]}},
+            {"operation": {"type": "string", "enum": ["start", "join", "end", "confirm"]}, "session": {"type": "string"}},
             ["operation"],
         ),
         result={"type": "object"},
-        description="Организатор запускает (start) и завершает (end) свой эфир; зарегистрированный участник подключается через join.",
+        description="Организатор запускает (start) и завершает (end) свой эфир; зарегистрированный участник получает доступ через join. После подключения confirm с session проверяет присутствие на LiveKit и учитывает посещение. Выдача токена сама по себе посещение не подтверждает.",
     )
     for method in ("get", "post"):
         add(

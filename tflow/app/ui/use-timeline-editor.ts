@@ -8,6 +8,7 @@ import {
 import type { Activity, FlowEvent } from "../../lib/types";
 import {
   createProgramRange,
+  moveProgramRange,
   PROGRAM_MINUTE,
   programRangeConflict,
   resizeProgramRange,
@@ -23,7 +24,7 @@ type Gesture = {
   x: number;
   anchor: number;
   activity?: Activity;
-  edge?: ProgramEdge;
+  edge?: ProgramEdge | "move";
   target: HTMLElement;
 };
 
@@ -62,7 +63,7 @@ export function useTimelineEditor({
   function begin(
     e: PointerEvent<HTMLElement>,
     activity?: Activity,
-    edge?: ProgramEdge,
+    edge?: ProgramEdge | "move",
   ) {
     if (
       e.button !== 0 ||
@@ -97,10 +98,12 @@ export function useTimelineEditor({
   }
   function rangeAt(current: Gesture, x: number) {
     const value = timeAt(x);
+    if (current.activity && current.edge === "move")
+      return moveProgramRange(current.activity, Math.abs(x - current.x) < 4 ? 0 : value - current.anchor, event.starts_at, event.ends_at);
     return current.activity
       ? resizeProgramRange(
           current.activity,
-          current.edge!,
+          current.edge === "start" ? "start" : "end",
           (current.edge === "start"
             ? current.activity.starts_at
             : current.activity.ends_at) +
@@ -198,6 +201,14 @@ export function useTimelineEditor({
       resizeProgramRange(activity, edge, value, event.starts_at, event.ends_at),
     );
   }
+  function moveWithKeyboard(e: KeyboardEvent<HTMLElement>, activity: Activity) {
+    if (!e.altKey || !["ArrowLeft", "ArrowRight"].includes(e.key)) return;
+    e.preventDefault();
+    if (gesture.current || locked.current || e.repeat) return;
+    void save(activity, moveProgramRange(activity,
+      (e.key === "ArrowLeft" ? -1 : 1) * (e.shiftKey ? 15 * PROGRAM_MINUTE : step),
+      event.starts_at, event.ends_at));
+  }
   const pointerHandlers = {
     onPointerMove(e: PointerEvent<HTMLElement>) {
       const current = gesture.current;
@@ -235,6 +246,7 @@ export function useTimelineEditor({
     cancel,
     createAtStart,
     resizeWithKeyboard,
+    moveWithKeyboard,
     pointerHandlers,
   };
 }

@@ -69,6 +69,7 @@ class CommunityInput(forms.Form):
 
 
 class ActivityInput(forms.Form):
+    expected_updated_at = forms.IntegerField(required=False, min_value=1)
     title = forms.CharField()
     description = forms.CharField(required=False)
     speaker = forms.CharField(required=False)
@@ -102,6 +103,12 @@ class ActivityInput(forms.Form):
 class RoomInput(forms.Form):
     name = forms.CharField()
     capacity = forms.IntegerField(min_value=1, max_value=2**53 - 1)
+
+
+class SwapActivitiesInput(forms.Form):
+    other_id = forms.CharField(max_length=100)
+    expected_event_updated_at = forms.IntegerField(required=False, min_value=1)
+    preview = forms.BooleanField(required=False)
 
 
 class ProfileDateField(forms.DateField):

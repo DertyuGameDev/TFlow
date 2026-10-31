@@ -8,6 +8,17 @@ export type ProgramRange = {
 export type ProgramEdge = "start" | "end";
 export const PROGRAM_MINUTE = 60000;
 
+export function moveProgramRange(
+  activity: ProgramRange,
+  delta: number,
+  start: number,
+  end: number,
+): ProgramRange {
+  const duration = activity.ends_at - activity.starts_at;
+  const from = Math.max(start, Math.min(end - duration, activity.starts_at + delta));
+  return { starts_at: from, ends_at: from + duration };
+}
+
 export function timelineTimeAt(
   clientX: number,
   left: number,

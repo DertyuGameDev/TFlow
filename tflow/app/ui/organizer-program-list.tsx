@@ -1,5 +1,5 @@
 import { useMemo, useState } from "react";
-import { ChevronLeft, ChevronRight, Pencil, Search } from "lucide-react";
+import { ArrowLeftRight, ChevronLeft, ChevronRight, Pencil, Search } from "lucide-react";
 import type { Activity } from "../../lib/types";
 import { dateKey, dateLabel, timeLabel } from "../../lib/time";
 import "../organizer-program.css";
@@ -10,10 +10,12 @@ export function OrganizerProgramList({
   activities,
   editingId,
   onEdit,
+  onSwap,
 }: {
   activities: Activity[];
   editingId?: string;
   onEdit: (activity: Activity) => void;
+  onSwap?: (activity: Activity) => void;
 }) {
   const [query, setQuery] = useState(""),
     [page, setPage] = useState(0);
@@ -99,6 +101,7 @@ export function OrganizerProgramList({
                       : ""}
                   </small>
                 </div>
+                <div className="management-program-actions">
                 <button
                   type="button"
                   className="button secondary small-button management-program-edit"
@@ -108,6 +111,18 @@ export function OrganizerProgramList({
                   <Pencil size={16} />
                   Изменить
                 </button>
+                {onSwap && activities.length > 1 && (
+                  <button
+                    type="button"
+                    className="button secondary small-button"
+                    aria-label={`Поменять местами ${item.title}`}
+                    onClick={() => onSwap(item)}
+                  >
+                    <ArrowLeftRight size={16} />
+                    Поменять местами
+                  </button>
+                )}
+                </div>
               </li>
             ))}
           </ol>

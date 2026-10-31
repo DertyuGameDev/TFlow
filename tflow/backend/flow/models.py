@@ -292,15 +292,17 @@ class CheckIn(models.Model):
     user = models.ForeignKey(User, on_delete=models.CASCADE, related_name="check_ins")
     event = models.ForeignKey(Event, on_delete=models.CASCADE, related_name="check_ins")
     checked_by = models.ForeignKey(
-        User, on_delete=models.PROTECT, related_name="performed_check_ins"
+        User, on_delete=models.PROTECT, related_name="performed_check_ins", null=True, blank=True
     )
+    source = models.CharField(max_length=12, choices=[("qr", "QR на входе"), ("webinar", "Подключение к вебинару")], default="qr")
     created_at = models.DateTimeField(default=timezone.now)
 
     class Meta:
         constraints = [
             models.UniqueConstraint(
                 fields=["user", "event"], name="unique_event_check_in"
-            )
+            ),
+            models.CheckConstraint(condition=(models.Q(source="qr", checked_by__isnull=False) | models.Q(source="webinar", checked_by__isnull=True)), name="check_in_source_verifier"),
         ]
 
 

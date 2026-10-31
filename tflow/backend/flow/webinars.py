@@ -9,7 +9,7 @@ import jwt
 from django.conf import settings
 from django.utils import timezone
 from .contracts import FlowError
-from .models import Activity, Event, Webinar
+from .models import Activity, CheckIn, Event, Webinar
 
 
 class NoMediaRedirects(HTTPRedirectHandler):
@@ -142,6 +142,8 @@ def room_api(method, room, **values):
         with urlopen(request, timeout=5) as response:
             return json.load(response)
     except HTTPError as error:
+        if error.code == 404 and method == "GetParticipant":
+            raise FlowError("ATTENDANCE_UNCONFIRMED", "Подключение к эфиру ещё не подтверждено. Повторите проверку", 409) from error
         if error.code == 404 and method in {"DeleteRoom", "RemoveParticipant"}:
             return {}
         logger.warning("LiveKit %s returned HTTP %s", method, error.code)
@@ -188,12 +190,12 @@ def disconnect_viewer(user, event_id, *, activity_id=None):
             pass
 
 
-def operate(user, event_id, operation, *, activity_id=None):
+def operate(user, event_id, operation, session=None, *, activity_id=None):
     from .services import schedule_write
 
     with schedule_write():
         event, owner, activity = event_for_webinar(user, event_id, activity_id=activity_id)
-        if operation not in {"start", "join", "end"}:
+        if operation not in {"start", "join", "end", "confirm"}:
             raise FlowError("VALIDATION", "Неизвестное действие с эфиром", 400)
         if operation in {"start", "end"} and not owner:
             raise FlowError(
@@ -240,6 +242,16 @@ def operate(user, event_id, operation, *, activity_id=None):
             webinar.save()
         if not webinar.active:
             raise FlowError("WEBINAR_NOT_STARTED", "Организатор ещё не начал эфир", 409)
+        if operation == "confirm":
+            if owner:
+                raise FlowError("FORBIDDEN", "Посещение учитывается только для участника", 403)
+            if session != str(webinar.room):
+                raise FlowError("STALE_WEBINAR", "Эфир изменился. Подключитесь заново", 409)
+            participant = room_api("GetParticipant", room_name(webinar), identity=str(user.pk))
+            if participant.get("identity") != str(user.pk) or participant.get("state") not in {"JOINED", "ACTIVE", 1, 2}:
+                raise FlowError("ATTENDANCE_UNCONFIRMED", "Сервер ещё не подтвердил подключение к эфиру", 409)
+            entry, _ = CheckIn.objects.get_or_create(user=user, event=event, defaults={"source": "webinar", "checked_by": None})
+            return {"ok": True, "confirmed": True, "checked_in_at": round(entry.created_at.timestamp() * 1000)}
         grants = {
             "roomJoin": True,
             "room": room_name(webinar),

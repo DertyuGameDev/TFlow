@@ -101,6 +101,8 @@ export default function Webinar({
     [draft, setDraft] = useState(""),
     [chatBusy, setChatBusy] = useState(false),
     [audioBlocked, setAudioBlocked] = useState(false);
+  const [attendanceError, setAttendanceError] = useState("");
+  const [attendanceBusy, setAttendanceBusy] = useState(false);
   const [captureContext] = useState(screenShareContext);
   const [screenPending, setScreenPending] = useState(false);
   const [screenFailed, setScreenFailed] = useState(false);
@@ -114,6 +116,17 @@ export default function Webinar({
   const host = user.role === "organizer" && event.owner_id === user.userId;
   function update() {
     if (alive.current) setTick((value) => value + 1);
+  }
+  async function confirmAttendance(current: Room, currentSession: string) {
+    setAttendanceBusy(true);
+    try {
+      await send(endpoint, "POST", {operation: "confirm", session: currentSession});
+      if (alive.current && roomRef.current === current) setAttendanceError("");
+    } catch {
+      if (alive.current && roomRef.current === current) setAttendanceError("Вы в эфире. Посещение пока не подтверждено сервером.");
+    } finally {
+      if (alive.current) setAttendanceBusy(false);
+    }
   }
   async function leave() {
     screenOperation.current = null;
@@ -263,6 +276,7 @@ export default function Webinar({
         published: true,
       });
       update();
+      if (!host) void confirmAttendance(room, access.session);
     } catch (cause) {
       if (room) await room.disconnect();
       if (alive.current) {
@@ -452,6 +466,11 @@ export default function Webinar({
         )}
       </header>
       <FormError error={error} />
+      {connected && attendanceError && <div className="webinar-attendance-notice" role="status">
+        <p>{attendanceError}</p><button className="button secondary" disabled={attendanceBusy} onClick={() => {
+          if (roomRef.current && session.current) void confirmAttendance(roomRef.current, session.current);
+        }}>{attendanceBusy ? "Проверяем…" : "Подтвердить посещение"}</button>
+      </div>}
       {!connected ? (
         <div className="webinar-lobby">
           <Video size={35} />

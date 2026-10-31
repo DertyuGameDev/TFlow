@@ -141,3 +141,8 @@
     grid-row: 1;
   }
 }
+
+.management-program-actions{display:flex;flex-wrap:wrap;gap:8px;justify-content:flex-end;min-width:0}
+.management-program-timeline summary{cursor:pointer;font-weight:600;min-height:44px;padding-block:10px}
+.management-program-timeline[open] summary{margin-bottom:16px}
+@media(max-width:600px){.management-program-actions{grid-column:1/-1;grid-row:3;justify-content:flex-start}}

@@ -15,6 +15,7 @@ import {
   Pencil,
   Plus,
   Search,
+  ArrowLeftRight,
 } from "lucide-react";
 import type { Activity, FlowEvent, Room } from "../../lib/types";
 import { PROGRAM_MINUTE, type ProgramRange } from "../../lib/program-editing";
@@ -45,6 +46,7 @@ export function ProgramTimeline({
   rooms: availableRooms = [],
   onCreate,
   onReschedule,
+  onSwap,
 }: {
   event: FlowEvent;
   activities: Activity[];
@@ -52,6 +54,7 @@ export function ProgramTimeline({
   rooms?: Room[];
   onCreate?: (range: ProgramRange) => void;
   onReschedule?: (activity: Activity, range: ProgramRange) => Promise<void>;
+  onSwap?: (activity: Activity) => void;
 }) {
   const id = useId();
   const viewport = useRef<HTMLDivElement>(null);
@@ -349,7 +352,7 @@ export function ProgramTimeline({
         {onCreate ? " Новый пункт — выделите время на основной линии." : ""}
         {onReschedule && (
           <span className="sr-only">
-            Стрелки влево и вправо меняют выбранную границу. Shift увеличивает
+            Alt и стрелки влево и вправо перемещают пункт целиком. Стрелки на краях меняют выбранную границу. Shift увеличивает
             шаг до 15 минут. Esc отменяет перетаскивание.
           </span>
         )}
@@ -361,7 +364,7 @@ export function ProgramTimeline({
             : editor.preview
               ? `${editor.preview.activity?.title ?? "Новый пункт"}: ${timeLabel(editor.preview.range.starts_at)}–${timeLabel(editor.preview.range.ends_at)} МСК`
               : editor.notice ||
-                `Потяните края отрезка: шаг ${step / PROGRAM_MINUTE} мин, сохранение после отпускания.`}
+                `Перетащите отрезок для переноса, края — для изменения длины. Шаг ${step / PROGRAM_MINUTE} мин.`}
         </div>
       )}
       <FormError error={editor.error} />
@@ -495,11 +498,15 @@ export function ProgramTimeline({
                     />
                     <button
                       type="button"
-                      className={`timeline-segment ${multiple ? "timeline-cluster" : ""}`}
+                      className={`timeline-segment ${multiple ? "timeline-cluster" : onReschedule ? "timeline-movable" : ""}`}
                       aria-label={label}
                       aria-pressed={selectedNode}
                       title={`${label} · ${node.roomName}`}
                       onClick={() => selectSegment(segment)}
+                      disabled={editor.saving}
+                      onPointerDown={onReschedule && !multiple ? (e) => { setSelectedId(item.id); editor.begin(e, item, "move"); } : undefined}
+                      {...editor.pointerHandlers}
+                      onKeyDown={onReschedule && !multiple ? (e) => editor.moveWithKeyboard(e, item) : undefined}
                     >
                       <span
                         className="timeline-node-label"
@@ -625,6 +632,11 @@ export function ProgramTimeline({
                 <ChevronRight size={18} />
               </button>
             </div>
+            {onSwap && activities.length > 1 && <button
+              className="button secondary small-button"
+              disabled={editing}
+              onClick={() => onSwap(selectedItem!)}
+            ><ArrowLeftRight size={16} />Поменять местами</button>}
             <button
               className="button secondary small-button"
               onClick={() => onEdit(selected)}

@@ -38,6 +38,8 @@ import { EventParticipants } from "./event-participants";
 import type { Send } from "./forms";
 import { ActivityForm } from "./program-item-form";
 import { OrganizerProgramList } from "./organizer-program-list";
+import { ProgramTimeline } from "./program-timeline";
+import { ProgramSwap } from "./program-swap";
 import type { ProgramRange } from "../../lib/program-editing";
 import { OrganizerTutorial } from "./organizer-tutorial";
 import "../event-management.css";
@@ -123,6 +125,8 @@ export function OrganizerManage({
   const [query, setQuery] = useState("");
   const [filter, setFilter] = useState("all");
   const [settingsOpen, setSettingsOpen] = useState(false);
+  const [swapping, setSwapping] = useState<Activity | null>(null);
+  const [timelineOpen, setTimelineOpen] = useState(false);
   const [programFormVersion, setProgramFormVersion] = useState(0);
   const [programNotice, setProgramNotice] = useState("");
   const id = useId();
@@ -482,6 +486,7 @@ export function OrganizerManage({
         </header>
         <OrganizerProgramList
           activities={detail.activities}
+          onSwap={setSwapping}
           editingId={activityEditorKey}
           onEdit={(activity) => {
             setProgramNotice("");
@@ -532,7 +537,19 @@ export function OrganizerManage({
             />
           )}
         </section>
+        <details className="management-card management-program-timeline" onToggle={(event) => setTimelineOpen(event.currentTarget.open)}>
+          <summary>Переместить на шкале</summary>
+          {timelineOpen && <ProgramTimeline event={e} activities={detail.activities} rooms={detail.rooms} onEdit={onActivity}
+            onCreate={(range) => onActivity(undefined, range)} onSwap={setSwapping}
+            onReschedule={async (activity, range) => {
+              const current = detail.activities.find((item) => item.id === activity.id);
+              if (!current || current.updated_at !== activity.updated_at) throw new Error("Этот пункт уже изменился. Обновите программу.");
+              await send(`activities/${current.id}`, "PATCH", {title: current.title, description: current.description, speaker: current.speaker, room_id: current.room_id, capacity: current.capacity, starts_at: range.starts_at, ends_at: range.ends_at, expected_updated_at: current.updated_at});
+              await refresh();
+            }}/>}
+        </details>
       </section>
+      {swapping && <ProgramSwap activity={swapping} detail={detail} send={send} refresh={refresh} onClose={() => setSwapping(null)}/>}
       <section
         role="tabpanel"
         id={`${id}-panel-participants`}

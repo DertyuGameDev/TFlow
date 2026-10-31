@@ -729,7 +729,7 @@ body{font-size:16px;color:#222329;background:#fff}
 
 .registration-card>.registration-role-note{display:block;font-size:14px;line-height:1.6}
 
-.event-time-filter{flex-shrink:0;align-self:flex-start;margin-bottom:18px}
+.event-time-filter{flex-shrink:0;align-self:flex-start;margin-bottom:18px;max-width:100%;flex-wrap:wrap}
 .program-new-room{padding:16px;border:1px solid var(--flow-border);border-radius:12px;min-width:0}
 .program-new-room legend{font-weight:600;padding:0 6px;font-size:14px}
 .program-new-room>.event-field-hint{margin:0 0 14px}
