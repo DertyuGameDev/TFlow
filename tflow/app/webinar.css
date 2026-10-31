@@ -3,3 +3,5 @@
 .webinar-panel{scroll-margin-top:100px}
 @media(max-width:760px){.flow-main:has(.webinar-layout) .registration-card{display:none}.webinar-panel{margin-bottom:220px}.webinar-stage:fullscreen{width:100vw;height:100vh;border-radius:0;aspect-ratio:auto;background:#000}}
 .webinar-stage:fullscreen{width:100vw;height:100vh;border-radius:0;aspect-ratio:auto;background:#000}
+.webinar-screen-help{margin-top:16px;font-size:13px;line-height:1.7;color:#718097}.webinar-screen-help p{margin:0}.webinar-screen-links{display:flex;flex-wrap:wrap;align-items:center;gap:10px 16px;margin-top:10px}.webinar-screen-links .text-button{font-size:13px;min-height:36px}.webinar-screen-links input{flex:1 1 100%;min-width:0;width:100%;font:inherit;padding:9px 12px;border:1px solid #dfe4ec;border-radius:8px;background:#fff;color:#303640}.webinar-screen-links [role=status]{flex-basis:100%}
+:root[data-theme="dark"] .webinar-screen-help{color:var(--theme-muted)}:root[data-theme="dark"] .webinar-screen-links input{background:var(--theme-bg);border-color:var(--theme-border);color:var(--theme-text)}

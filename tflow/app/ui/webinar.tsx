@@ -1,6 +1,8 @@
 import { useEffect, useRef, useState } from "react";
 import {
   LogOut,
+  Copy,
+  ExternalLink,
   Maximize,
   Mic,
   MicOff,
@@ -19,9 +21,11 @@ import {
   Track,
   setLogLevel,
   LogLevel,
+  createLocalScreenTracks,
   type Participant,
 } from "livekit-client";
 import type { FlowEvent, UserIdentity } from "../../lib/types";
+import { publishScreenShare, screenShareContext, screenShareError, screenShareUnavailable } from "../../lib/screen-share";
 import { FormError, type Send } from "./forms";
 import { Modal } from "./dialog";
 import "../webinar.css";
@@ -91,11 +95,20 @@ export default function Webinar({
     [draft, setDraft] = useState(""),
     [chatBusy, setChatBusy] = useState(false),
     [audioBlocked, setAudioBlocked] = useState(false);
+  const [captureContext] = useState(screenShareContext);
+  const [screenPending, setScreenPending] = useState(false);
+  const [screenFailed, setScreenFailed] = useState(false);
+  const [copyFeedback, setCopyFeedback] = useState("");
+  const screenOperation = useRef<symbol | null>(null);
+  const screenUnavailable = screenShareUnavailable(captureContext);
+  const roomUrl = `${location.origin}/#webinar/${encodeURIComponent(event.id)}`;
   const host = user.role === "organizer" && event.owner_id === user.userId;
   function update() {
     if (alive.current) setTick((value) => value + 1);
   }
   async function leave() {
+    screenOperation.current = null;
+    setScreenPending(false);
     const current = roomRef.current;
     roomRef.current = null;
     session.current = null;
@@ -132,6 +145,7 @@ export default function Webinar({
     const timer = setInterval(() => void loadStatus(), 5000);
     return () => {
       alive.current = false;
+      screenOperation.current = null;
       statusSequence.current++;
       clearInterval(timer);
       void roomRef.current?.disconnect();
@@ -190,6 +204,8 @@ export default function Webinar({
       roomRef.current = room;
       session.current = access.session;
       room
+        .on(RoomEvent.TrackPublished, update)
+        .on(RoomEvent.TrackUnpublished, update)
         .on(RoomEvent.TrackSubscribed, update)
         .on(RoomEvent.TrackUnsubscribed, update)
         .on(RoomEvent.LocalTrackPublished, update)
@@ -198,6 +214,7 @@ export default function Webinar({
         .on(RoomEvent.TrackUnmuted, update)
         .on(RoomEvent.ParticipantConnected, update)
         .on(RoomEvent.ParticipantDisconnected, update)
+        .on(RoomEvent.TrackSubscriptionFailed, () => setError("Не удалось получить видео ведущего. Выйдите из комнаты и подключитесь снова."))
         .on(RoomEvent.DataReceived, receive)
         .on(RoomEvent.AudioPlaybackStatusChanged, () =>
           setAudioBlocked(!room!.canPlaybackAudio),
@@ -206,6 +223,8 @@ export default function Webinar({
         if (alive.current && roomRef.current === room) {
           roomRef.current = null;
           session.current = null;
+          screenOperation.current = null;
+          setScreenPending(false);
           setConnected(false);
           update();
           void loadStatus();
@@ -248,7 +267,7 @@ export default function Webinar({
       if (alive.current) setBusy(false);
     }
   }
-  async function control(kind: "camera" | "microphone" | "screen") {
+  async function control(kind: "camera" | "microphone") {
     const room = roomRef.current;
     if (!room || busy || deviceBusy || !host) return;
     setDeviceBusy(true);
@@ -257,12 +276,8 @@ export default function Webinar({
       const local = room.localParticipant;
       if (kind === "camera")
         await local.setCameraEnabled(!local.isCameraEnabled);
-      else if (kind === "microphone")
-        await local.setMicrophoneEnabled(!local.isMicrophoneEnabled);
       else
-        await local.setScreenShareEnabled(!local.isScreenShareEnabled, {
-          audio: true,
-        });
+        await local.setMicrophoneEnabled(!local.isMicrophoneEnabled);
     } catch {
       setError(
         "Не удалось включить устройство или показ экрана. Проверьте разрешения браузера.",
@@ -270,6 +285,42 @@ export default function Webinar({
     } finally {
       setDeviceBusy(false);
       update();
+    }
+  }
+  async function shareScreen() {
+    const room = roomRef.current;
+    if (!room || !host || busy || screenOperation.current) return;
+    if (screenUnavailable) {
+      setError(screenUnavailable);
+      return;
+    }
+    const operation = Symbol();
+    screenOperation.current = operation;
+    setScreenPending(true);
+    setScreenFailed(false);
+    setError("");
+    const isCurrent = () => alive.current && roomRef.current === room && screenOperation.current === operation;
+    try {
+      if (room.localParticipant.isScreenShareEnabled)
+        await room.localParticipant.setScreenShareEnabled(false);
+      else
+        await publishScreenShare({
+          capture: () => createLocalScreenTracks({ audio: false }),
+          publish: track => room.localParticipant.publishTrack(track),
+          unpublish: track => room.localParticipant.unpublishTrack(track),
+          isCurrent,
+        });
+    } catch (cause) {
+      if (isCurrent()) {
+        setScreenFailed(true);
+        setError(screenShareError(cause, captureContext));
+      }
+    } finally {
+      if (isCurrent()) {
+        screenOperation.current = null;
+        setScreenPending(false);
+        update();
+      }
     }
   }
   async function end() {
@@ -421,7 +472,7 @@ export default function Webinar({
               ref={stage}
             >
               {main ? (
-                <Media track={main} muted={host} />
+                <Media key={main.sid ?? main.mediaStreamID} track={main} muted={host} />
               ) : (
                 <div className="webinar-camera-off">
                   <VideoOff size={36} />
@@ -505,12 +556,12 @@ export default function Webinar({
                   </button>
                   <button
                     className="button secondary"
-                    disabled={busy || deviceBusy}
-                    onClick={() => void control("screen")}
+                    disabled={busy || screenPending || !!screenUnavailable}
+                    onClick={() => void shareScreen()}
                   >
                     <MonitorUp size={18} />
                     <span>
-                      {room?.localParticipant.isScreenShareEnabled
+                      {screenPending ? "Ожидаем выбор экрана…" : room?.localParticipant.isScreenShareEnabled
                         ? "Остановить показ"
                         : "Показать экран"}
                     </span>
@@ -536,6 +587,22 @@ export default function Webinar({
                 </button>
               )}
             </div>
+            {host && <div className="webinar-screen-help">
+              <p>{screenUnavailable ?? (screenPending
+                ? "Выберите окно или вкладку в окне браузера. Если выбор не появился в предпросмотре VS Code, откройте комнату в обычном браузере."
+                : captureContext.embedded
+                  ? "Встроенный предпросмотр может ограничивать показ экрана. Для трансляции откройте эту же комнату в обычном браузере."
+                  : "Для показа экрана выберите окно или вкладку. Звук голоса передаётся через микрофон.")}</p>
+              {(screenUnavailable || captureContext.embedded || screenPending || screenFailed) && <div className="webinar-screen-links">
+                <a className="text-button" href={roomUrl} target="_blank" rel="noopener noreferrer"><ExternalLink size={16} />Открыть комнату в браузере</a>
+                <button className="text-button" onClick={async () => {
+                  try { await navigator.clipboard.writeText(roomUrl); setCopyFeedback("Ссылка скопирована"); }
+                  catch { setCopyFeedback("Скопируйте адрес комнаты из поля ниже"); }
+                }}><Copy size={16} />Скопировать ссылку</button>
+                <input aria-label="Ссылка на комнату вебинара" value={roomUrl} readOnly onFocus={event => event.currentTarget.select()} />
+                <span role="status">{copyFeedback}</span>
+              </div>}
+            </div>}
           </div>
           <aside className="webinar-chat">
             <h3>Чат эфира</h3>
