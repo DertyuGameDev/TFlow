@@ -2198,14 +2198,14 @@ export function TFlow({
         )}
         <footer className="flow-footer">
           <span>ТФлоу · События и люди</span>
-          <nav aria-label="Ссылки внизу страницы">
+          <nav className="flow-footer-links" aria-label="Ссылки внизу страницы">
             <a href="#organizer">
               {organizer ? "Кабинет организатора" : "Организаторам"}
             </a>
             <a href="#clubs">Клубы по интересам</a>
             <a href="#places">Площадки</a>
+            <span>Время по МСК</span>
           </nav>
-          <span className="flow-footer-time">Время по МСК</span>
         </footer>
       </main>
       <nav
