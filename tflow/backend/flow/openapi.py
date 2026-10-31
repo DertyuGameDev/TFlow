@@ -259,6 +259,7 @@ def build_schema():
     schemas["Bootstrap"] = object_schema(
         {
             "events": array("Event"),
+            "activities": array("Activity"),
             "tickets": array("Event"),
             "schedule": array("Activity"),
             "waitlist": array("Activity"),
