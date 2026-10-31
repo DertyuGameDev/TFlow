@@ -4,9 +4,16 @@ import { beforeEach, expect, it, vi } from "vitest";
 import HttpWebinar from "../../app/ui/http-webinar";
 import { event } from "../fixtures";
 
-vi.mock("hls.js", () => ({ default: class { static isSupported() { return false; } } }));
+const mse = vi.hoisted(() => ({ supported: false, players: [] as { loadSource: ReturnType<typeof vi.fn>; destroy: ReturnType<typeof vi.fn> }[] }));
+vi.mock("hls.js", () => ({ default: class {
+  static isSupported() { return mse.supported; }
+  static Events = { MANIFEST_PARSED: "manifest", ERROR: "error" };
+  loadSource = vi.fn(); destroy = vi.fn(); attachMedia = vi.fn(); on = vi.fn();
+  constructor() { mse.players.push(this); }
+} }));
 const waiting = { host: false, active: false, configured: true, ended: false, published: true, session: null };
 beforeEach(() => {
+  mse.supported = false; mse.players.length = 0;
   vi.stubGlobal("fetch", vi.fn(async () => ({ ok: true, json: async () => waiting })));
   vi.spyOn(HTMLMediaElement.prototype, "pause").mockImplementation(() => {});
   vi.spyOn(HTMLMediaElement.prototype, "load").mockImplementation(() => {});
@@ -45,4 +52,17 @@ it("blocks an early start and unlocks automatically only after the server allows
   await waitFor(() => expect(start).toBeEnabled(), { timeout: 3500 });
   expect(screen.queryByText(/До начала можно проверить камеру/)).not.toBeInTheDocument();
   view.unmount();
+});
+
+it("prefers the HLS.js player when native HLS also advertises support and cleans it up", async () => {
+  mse.supported = true;
+  vi.spyOn(HTMLMediaElement.prototype, "canPlayType").mockReturnValue("probably");
+  const live = { ...waiting, active: true, session: "session", ready: true, playlist: "/api/private/index.m3u8" };
+  vi.stubGlobal("fetch", vi.fn(async (url: string) => ({ ok: true, json: async () => url.endsWith("/chat") ? { messages: [] } : live })));
+  const view = render(<HttpWebinar event={event} initialStatus={live}/>);
+  await userEvent.click(screen.getByRole("button", { name: "Смотреть эфир" }));
+  await waitFor(() => expect(mse.players[0]?.loadSource).toHaveBeenCalledWith(live.playlist));
+  expect(screen.getByLabelText("Видео и звук ведущего")).not.toHaveAttribute("src");
+  view.unmount();
+  expect(mse.players[0].destroy).toHaveBeenCalled();
 });

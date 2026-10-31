@@ -90,9 +90,8 @@ export default function HttpWebinar({ event, activity, initialStatus, accessKey 
     if (!element || !joined || !status.ready || !status.playlist) return;
     let disposed = false;
     const play = () => { void element.play().catch(() => { if (!disposed) setAudioHelp(true); }); };
-    if (element.canPlayType("application/vnd.apple.mpegurl")) {
-      element.src = status.playlist; element.addEventListener("loadedmetadata", play); play();
-    } else if (Hls.isSupported()) {
+    // Prefer MSE: Chromium native HLS can reject live MPEG-TS playlists.
+    if (Hls.isSupported()) {
       const player = new Hls({ backBufferLength: 2, maxBufferLength: 8, liveSyncDurationCount: 2,
         xhrSetup: xhr => { xhr.withCredentials = true; if (accessKey) xhr.setRequestHeader("X-TFlow-Access-Key", accessKey); } });
       hls.current = player; player.attachMedia(element); player.loadSource(status.playlist);
@@ -100,6 +99,8 @@ export default function HttpWebinar({ event, activity, initialStatus, accessKey 
       player.on(Hls.Events.ERROR, (_event, data) => {
         if (data.fatal && !disposed) setError("Передача прервалась. Нажмите «Выйти из просмотра» и подключитесь снова.");
       });
+    } else if (element.canPlayType("application/vnd.apple.mpegurl")) {
+      element.src = status.playlist; element.addEventListener("loadedmetadata", play); play();
     } else setError("Браузер не поддерживает прямые трансляции. Откройте комнату в Chrome или Safari.");
     return () => { disposed = true; element.removeEventListener("loadedmetadata", play); hls.current?.destroy(); hls.current = null; element.pause(); element.removeAttribute("src"); element.load(); };
   }, [joined, status.session, status.ready, status.playlist, accessKey]);
