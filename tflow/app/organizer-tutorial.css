@@ -423,19 +423,22 @@
   color: var(--theme-text, #303640);
 }
 .tutorial-practice {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  gap: 16px;
-  flex-wrap: wrap;
+  display: grid;
+  gap: 10px;
   margin-top: 22px;
   padding: 16px;
   border-radius: 12px;
   background: var(--theme-raised, #f5f6f8);
 }
-.tutorial-practice > div {
+.tutorial-practice-controls {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  align-items: center;
+  gap: 16px;
+}
+.tutorial-practice-controls > label {
   min-width: 0;
-  flex: 1 1 230px;
+  margin: 0;
 }
 .tutorial-practice strong {
   display: block;
@@ -448,24 +451,26 @@
   font-size: 12px;
   line-height: 1.6;
   color: var(--flow-muted);
-  margin: 5px 0 0;
+  margin: 0;
   overflow-wrap: anywhere;
 }
 .tutorial-practice select {
   width: 100%;
-  min-height: 42px;
+  min-width: 0;
+  height: 48px;
   border: 1px solid var(--flow-border);
   border-radius: 8px;
   font: inherit;
-  font-size: 13px;
+  font-size: 15px;
   background: var(--theme-panel, #fff);
   color: var(--theme-text, #303640);
-  margin-top: 8px;
-  padding: 7px;
+  padding: 10px 12px;
 }
-.tutorial-practice > .button {
-  font-size: 13px;
-  min-height: 44px;
+.tutorial-practice .tutorial-practice-controls > .button {
+  font-size: 15px;
+  line-height: 20px;
+  min-height: 48px;
+  padding: 12px 16px;
 }
 .tutorial-footer {
   display: flex;
@@ -557,10 +562,13 @@
     height: 56px;
   }
   .tutorial-practice {
-    gap: 12px;
     padding: 14px;
   }
-  .tutorial-practice > .button {
+  .tutorial-practice-controls {
+    grid-template-columns: minmax(0, 1fr);
+    gap: 12px;
+  }
+  .tutorial-practice-controls > .button {
     width: 100%;
   }
   .tutorial-practice select {
