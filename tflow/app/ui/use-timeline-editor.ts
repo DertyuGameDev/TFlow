@@ -39,6 +39,7 @@ export function useTimelineEditor({
   canvas,
   onCreate,
   onReschedule,
+  deferredSave = false,
 }: {
   event: FlowEvent;
   activities: Activity[];
@@ -49,9 +50,11 @@ export function useTimelineEditor({
   canvas: RefObject<HTMLDivElement | null>;
   onCreate?: (range: ProgramRange) => void;
   onReschedule?: (activity: Activity, range: ProgramRange) => Promise<void>;
+  deferredSave?: boolean;
 }) {
   const gesture = useRef<Gesture | null>(null),
     locked = useRef(false);
+  const draggedClick = useRef(false);
   const [preview, setPreview] = useState<Preview | null>(null);
   const [dragging, setDragging] = useState(false),
     [saving, setSaving] = useState(false);
@@ -79,6 +82,7 @@ export function useTimelineEditor({
     )
       return;
     if (activity ? !onReschedule : !onCreate) return;
+    draggedClick.current = false;
     e.preventDefault();
     const anchor = timeAt(e.clientX);
     gesture.current = {
@@ -144,6 +148,7 @@ export function useTimelineEditor({
   }
   function cancel() {
     if (!gesture.current) return;
+    draggedClick.current = true;
     release();
     setPreview(null);
     setNotice("Изменение отменено.");
@@ -173,7 +178,9 @@ export function useTimelineEditor({
     try {
       await onReschedule(activity, range);
       setNotice(
-        `Время «${activity.title}» сохранено: ${timeLabel(range.starts_at)}–${timeLabel(range.ends_at)}.`,
+        deferredSave
+          ? `Новое время: ${timeLabel(range.starts_at)}–${timeLabel(range.ends_at)}. Нажмите галочку, чтобы сохранить.`
+          : `Время «${activity.title}» сохранено: ${timeLabel(range.starts_at)}–${timeLabel(range.ends_at)}.`,
       );
     } catch (cause) {
       setError(
@@ -237,6 +244,7 @@ export function useTimelineEditor({
       const current = gesture.current;
       if (!current || current.pointerId !== e.pointerId) return;
       const range = rangeAt(current, e.clientX);
+      draggedClick.current = Boolean(current.activity && Math.abs(e.clientX - current.x) >= 4);
       release();
       if (current.activity) void save(current.activity, range);
       else {
@@ -257,6 +265,7 @@ export function useTimelineEditor({
     saving,
     error,
     notice,
+    shouldIgnoreClick: (detail: number) => detail !== 0 && draggedClick.current,
     begin,
     cancel,
     createAtStart,

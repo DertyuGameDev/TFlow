@@ -90,6 +90,25 @@ function drag(target: HTMLElement, from: number, to: number, finish = true) {
 }
 
 describe("действия на графике программы", () => {
+  it("не сбрасывает перенесённое время последующим кликом и честно просит сохранить черновик", async () => {
+    const activity = item(0), onSelect = vi.fn(), onReschedule = vi.fn().mockResolvedValue(undefined);
+    const {container} = render(<ProgramTimeline event={event} activities={[activity]} onSelect={onSelect} onEdit={vi.fn()} onReschedule={onReschedule}/>);
+    measureCanvas(container);
+    const block = screen.getByRole("button", {name:"Лекция 0 · 10:00–10:30"});
+    drag(block, 75, 225);
+    fireEvent.click(block, {detail:1});
+    expect(onSelect).not.toHaveBeenCalled();
+    expect(onReschedule).toHaveBeenCalledExactlyOnceWith(activity, {starts_at:activity.starts_at+1800000, ends_at:activity.ends_at+1800000});
+    await waitFor(() => expect(screen.getByRole("status")).toHaveTextContent("Нажмите галочку"));
+  });
+  it("даёт выбрать любой пункт плотной группы для правки прямо на графике", async () => {
+    const user = userEvent.setup(), onSelect = vi.fn();
+    render(<ProgramTimeline event={event} activities={[item(0,1), item(1,1)]} onSelect={onSelect} onEdit={vi.fn()}/>);
+    await user.click(screen.getByRole("button", {name:/2 пунктов/}));
+    expect(onSelect).not.toHaveBeenCalled();
+    await user.click(screen.getByRole("button", {name:/Лекция 1/}));
+    expect(onSelect).toHaveBeenCalledExactlyOnceWith(item(1,1));
+  });
   it("перетаскивает блок целиком с сохранением длины и даёт клавиатурную альтернативу", async () => {
     const activity = item(0), onReschedule = vi.fn().mockResolvedValue(undefined);
     const {container} = render(<ProgramTimeline event={event} activities={[activity]} onEdit={vi.fn()} onReschedule={onReschedule}/>);

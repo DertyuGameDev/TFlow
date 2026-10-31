@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState } from "react";
-import { Check, Settings2, X } from "lucide-react";
+import { ArrowLeftRight, Check, Settings2, X } from "lucide-react";
 import type { Activity, FlowEvent, Room } from "../../lib/types";
 import { dateKey, dateLabel, fromLocalInput, localInput } from "../../lib/time";
 import type { ProgramRange } from "../../lib/program-editing";
@@ -17,6 +17,7 @@ export function ProgramGraphEditor({
   onDone,
   onCancel,
   onDetails,
+  onSwap,
 }: {
   event: FlowEvent;
   rooms: Room[];
@@ -28,6 +29,7 @@ export function ProgramGraphEditor({
   onDone: (id: string) => void;
   onCancel: () => void;
   onDetails?: () => void;
+  onSwap?: () => void;
 }) {
   const multiDay = dateKey(event.starts_at) !== dateKey(event.ends_at - 1);
   const format = (value: number) =>
@@ -258,6 +260,9 @@ export function ProgramGraphEditor({
           </button>
         )}
       </div>
+      {onSwap && <button type="button" className="text-button program-graph-swap" disabled={busy} onClick={onSwap}>
+        <ArrowLeftRight size={16} /> Поменять местами
+      </button>}
       {busy && (
         <span className="program-graph-saving" role="status">
           Сохраняем…

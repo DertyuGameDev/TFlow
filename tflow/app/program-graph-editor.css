@@ -7,9 +7,9 @@
 .timeline-inline-move {
   position: absolute;
   left: 0;
-  top: -14px;
+  top: -22px;
   width: 100%;
-  height: 28px;
+  height: 44px;
   padding: 0;
   border: 0;
   background: none;
@@ -17,8 +17,9 @@
   touch-action: none;
 }
 .timeline-inline-move .timeline-event-line {
-  top: 14px;
+  top: 22px;
 }
+.program-graph-swap { justify-self: start; min-height: 44px; font-size: 13px; }
 .timeline-inline-content {
   position: absolute;
   top: 20px;

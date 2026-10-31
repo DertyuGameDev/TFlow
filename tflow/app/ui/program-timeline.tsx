@@ -134,6 +134,7 @@ export function ProgramTimeline({
     roomId: room || (rooms.length === 1 ? rooms[0][0] : undefined),
     onCreate,
     onReschedule,
+    deferredSave: Boolean(onSelect),
   });
   const selected =
     selectedItem && editor.preview?.activity?.id === selectedItem.id
@@ -294,6 +295,11 @@ export function ProgramTimeline({
     });
   }
   function selectItem(item: Activity) {
+    if (onSelect) {
+      onSelect(item);
+      setListOpen(false);
+      return;
+    }
     setSelectedId(item.id);
     const element = viewport.current;
     if (element && zoom > 1)
@@ -307,7 +313,7 @@ export function ProgramTimeline({
       });
   }
   function selectSegment(segment: TimelineSegment) {
-    if (onSelect) {
+    if (onSelect && segment.items.length === 1) {
       onSelect(segment.items[0]);
       return;
     }
@@ -423,7 +429,7 @@ export function ProgramTimeline({
       </div>
       <p className="timeline-caption" id={`${id}-hint`}>
         {onSelect ? (
-          "Выделите отрезок. Название и время вписываются прямо в нём."
+          "Тяните цветной отрезок, чтобы перенести активность целиком. Края меняют длительность. Нажмите на пункт, чтобы изменить название и время."
         ) : (
           <>
             Пунктов: {items.length} · время по МСК. Выберите отрезок для
@@ -444,14 +450,13 @@ export function ProgramTimeline({
       </p>
       {(onCreate || onReschedule) && (
         <div className="timeline-edit-feedback" role="status">
-          {onSelect
-            ? "Enter — сохранить · Esc — отменить"
-            : editor.saving
-              ? "Сохраняем время…"
+          {editor.saving
+              ? onSelect ? "Выбираем время…" : "Сохраняем время…"
               : editor.preview
                 ? `${editor.preview.activity?.title ?? "Новый пункт"}: ${timeLabel(editor.preview.range.starts_at)}–${timeLabel(editor.preview.range.ends_at)} МСК`
-                : editor.notice ||
-                  `Перетащите отрезок для переноса, края — для изменения длины. Шаг ${step / PROGRAM_MINUTE} мин.`}
+                : editor.notice || (onSelect
+                  ? inlineEditor ? "Не сохранено · галочка или Enter — сохранить · Esc — отменить" : "Шаг — 1 минута · Alt + стрелки — перенос · Shift — 15 минут"
+                  : `Перетащите отрезок для переноса, края — для изменения длины. Шаг ${step / PROGRAM_MINUTE} мин.`)}
         </div>
       )}
       <FormError error={editor.error} />
@@ -618,7 +623,7 @@ export function ProgramTimeline({
                         aria-label={label}
                         aria-pressed={selectedNode}
                         title={`${label} · ${node.roomName}`}
-                        onClick={() => selectSegment(segment)}
+                        onClick={(event) => { if (!editor.shouldIgnoreClick(event.detail)) selectSegment(segment); }}
                         disabled={editor.saving}
                         onPointerDown={
                           onReschedule && !multiple
@@ -794,7 +799,7 @@ export function ProgramTimeline({
             : `Найти пункт в списке · ${items.length}`}
         </button>
       )}
-      {!onSelect && listOpen && (
+      {listOpen && (!onSelect || groupIds) && (
         <div className="timeline-list" id={`${id}-list`}>
           {groupIds && (
             <div className="timeline-group-heading">

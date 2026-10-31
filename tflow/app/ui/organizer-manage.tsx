@@ -573,6 +573,10 @@ export function OrganizerManage({
                         setProgramNotice("Сохранено");
                       }}
                       onCancel={() => setGraphDraft(null)}
+                      onSwap={graphActivity && detail.activities.length > 1 ? () => {
+                        setGraphDraft(null);
+                        setSwapping(graphActivity);
+                      } : undefined}
                       onDetails={
                         graphActivity
                           ? () => onActivity(graphActivity)
