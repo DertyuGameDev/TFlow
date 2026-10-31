@@ -1,4 +1,5 @@
 import json
+import os
 import unittest
 import tempfile
 from pathlib import Path
@@ -7,7 +8,7 @@ from unittest.mock import patch
 from control import ControlError
 from provision_video import media_command
 
-from install_video import ADDRESS, HOST, DNS_HOOK, RENEW_HOOK, failure_reason, livekit_config, resolve_values, validate
+from install_video import ADDRESS, HOST, DNS_HOOK, RENEW_HOOK, failure_reason, prepare_tls_directory, livekit_config, resolve_values, validate
 
 
 class OwnedVideoConfigTests(unittest.TestCase):
@@ -93,3 +94,23 @@ class OwnedVideoConfigTests(unittest.TestCase):
         self.assertEqual(failure_reason("private-token DNS relay HTTP 403; detail"),"dns_relay_http_403")
         self.assertEqual(failure_reason("private-token DNS relay connection failed"),"dns_relay_connection_failed")
         self.assertEqual(failure_reason("private-token"),"command_failed")
+
+    @patch("install_video.shutil.chown")
+    def test_tls_directory_remains_traversable_with_private_process_umask(self, chown):
+        with tempfile.TemporaryDirectory() as directory:
+            target = Path(directory) / "tls"
+            previous = os.umask(0o077)
+            try:
+                prepare_tls_directory(target)
+            finally:
+                os.umask(previous)
+            self.assertEqual(target.stat().st_mode & 0o777,0o750)
+            chown.assert_called_once_with(target,group="tflow-video")
+
+    @patch("install_video.shutil.chown")
+    def test_reused_certificate_directory_permissions_are_repaired(self, chown):
+        with tempfile.TemporaryDirectory() as directory:
+            target = Path(directory) / "tls"
+            target.mkdir(mode=0o700)
+            prepare_tls_directory(target)
+            self.assertEqual(target.stat().st_mode & 0o777,0o750)
