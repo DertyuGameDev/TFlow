@@ -8,7 +8,16 @@ import {
   type CSSProperties,
   type ReactNode,
 } from "react";
-import { ArrowLeft, Check, Clock3, Minus, Pencil, Plus, X } from "lucide-react";
+import {
+  ArrowLeft,
+  Check,
+  ChevronRight,
+  Clock3,
+  Minus,
+  Pencil,
+  Plus,
+  X,
+} from "lucide-react";
 import { flowMarkers } from "../../lib/flow-markers";
 import { readableFlow } from "../../lib/readable-flow";
 import {
@@ -84,6 +93,8 @@ export function FlowSchedule({
     tools = useRef<HTMLDivElement>(null),
     viewport = useRef<HTMLDivElement>(null),
     details = useRef<HTMLDivElement>(null),
+    currentTrigger = useRef<HTMLButtonElement | null>(null),
+    focusCurrentDetails = useRef(false),
     zoomAnchor = useRef<{
       time: number;
       page: boolean;
@@ -100,6 +111,14 @@ export function FlowSchedule({
     ),
   );
   const openId = selectedId || opened;
+  const currentActivities = activities
+    .filter((activity) => activity.starts_at <= now && now < activity.ends_at)
+    .sort(
+      (a, b) => a.ends_at - b.ends_at || a.title.localeCompare(b.title, "ru"),
+    );
+  const nextActivity = activities
+    .filter((activity) => activity.starts_at > now)
+    .sort((a, b) => a.starts_at - b.starts_at)[0];
   const openItem = layout.placements.find(
     (item) => item.activity.id === openId,
   );
@@ -164,10 +183,14 @@ export function FlowSchedule({
     };
   }, [activities.length > 0]);
   useEffect(() => {
-    if (openId)
-      viewport.current
-        ?.querySelector<HTMLElement>(".flow-details")
-        ?.scrollIntoView({ block: "nearest", inline: "nearest" });
+    if (openId) {
+      const panel = details.current;
+      panel?.scrollIntoView({ block: "nearest", inline: "nearest" });
+      if (focusCurrentDetails.current) {
+        panel?.focus({ preventScroll: true });
+        focusCurrentDetails.current = false;
+      }
+    }
   }, [openId]);
   useEffect(() => {
     if (openMarker)
@@ -181,7 +204,7 @@ export function FlowSchedule({
       const target = event.target as Element;
       if (
         !target.closest?.(
-          ".flow-event.is-open, .flow-short-marker, .flow-details",
+          ".flow-event.is-open, .flow-short-marker, .flow-details, .flow-current",
         )
       )
         setOpened("");
@@ -192,6 +215,11 @@ export function FlowSchedule({
   }, [opened, selectedId]);
   function close() {
     setOpened("");
+    if (currentTrigger.current?.dataset.currentId === openId) {
+      currentTrigger.current.focus({ preventScroll: true });
+      currentTrigger.current = null;
+      return;
+    }
     const buttons =
       viewport.current?.querySelectorAll<HTMLButtonElement>(".flow-select");
     const focusId = markerByActivity.get(openId)?.id ?? openId;
@@ -258,7 +286,13 @@ export function FlowSchedule({
 
   return (
     <div
-      className="flow-time-map"
+      className={`flow-time-map ${activities.length ? "has-current-list" : ""}`}
+      onKeyDown={(event) => {
+        if (event.key === "Escape" && opened && !selectedId) {
+          event.preventDefault();
+          close();
+        }
+      }}
       style={
         {
           "--flow-header-bottom": `${headerBottom}px`,
@@ -315,12 +349,6 @@ export function FlowSchedule({
         aria-label="Временная карта флоу"
         aria-describedby={`${id}-hint`}
         onScroll={(event) => setScrollX(event.currentTarget.scrollLeft)}
-        onKeyDown={(event) => {
-          if (event.key === "Escape" && opened && !selectedId) {
-            event.preventDefault();
-            close();
-          }
-        }}
       >
         <div
           className="flow-map-canvas"
@@ -548,6 +576,7 @@ export function FlowSchedule({
               ref={details}
               className="flow-details"
               role="region"
+              tabIndex={-1}
               aria-label={
                 selectedId
                   ? "Редактирование активности"
@@ -626,6 +655,74 @@ export function FlowSchedule({
           Нажмите на активность, чтобы открыть подробности. Параллельные
           активности расположены рядом.
         </p>
+      )}
+      {!!activities.length && (
+        <aside className="flow-current" aria-labelledby={`${id}-current-title`}>
+          <div className="flow-current-heading">
+            <h3 id={`${id}-current-title`}>Сейчас идут</h3>
+            <span
+              aria-label={`Активностей сейчас: ${currentActivities.length}`}
+            >
+              {currentActivities.length}
+            </span>
+          </div>
+          {currentActivities.length ? (
+            <ul className="flow-current-list" aria-label="Текущие активности">
+              {currentActivities.map((activity) => (
+                <li key={activity.id}>
+                  <button
+                    type="button"
+                    className="flow-current-item"
+                    data-current-id={activity.id}
+                    aria-label={`Открыть активность ${activity.title}`}
+                    aria-expanded={openId === activity.id}
+                    aria-controls={
+                      openId === activity.id
+                        ? `${id}-details-${activity.id}`
+                        : undefined
+                    }
+                    disabled={!!selectedId && selectedId !== activity.id}
+                    onClick={(event) => {
+                      currentTrigger.current = event.currentTarget;
+                      if (openId === activity.id) {
+                        details.current?.focus({ preventScroll: true });
+                      } else {
+                        focusCurrentDetails.current = true;
+                        setOpened(activity.id);
+                      }
+                    }}
+                    style={
+                      {
+                        "--flow-color": colorFor(activity.room_id),
+                      } as CSSProperties
+                    }
+                  >
+                    <span className="flow-current-time">
+                      {timeLabel(activity.starts_at)}–
+                      {timeLabel(activity.ends_at)}
+                    </span>
+                    <strong>{activity.title}</strong>
+                    <span className="flow-current-room">
+                      {activity.room_name}
+                    </span>
+                    <ChevronRight size={18} aria-hidden="true" />
+                  </button>
+                </li>
+              ))}
+            </ul>
+          ) : (
+            <div className="flow-current-empty">
+              <p>Сейчас активностей нет</p>
+              {nextActivity && (
+                <p>
+                  Следующая —{" "}
+                  {dateLabel(nextActivity.starts_at, { month: "short" })} в{" "}
+                  {timeLabel(nextActivity.starts_at)}
+                </p>
+              )}
+            </div>
+          )}
+        </aside>
       )}
     </div>
   );

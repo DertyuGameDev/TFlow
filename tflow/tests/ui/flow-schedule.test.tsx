@@ -1,4 +1,4 @@
-import { act, fireEvent, render, screen } from "@testing-library/react";
+import { act, fireEvent, render, screen, within } from "@testing-library/react";
 import { afterEach, describe, expect, it, vi } from "vitest";
 import userEvent from "@testing-library/user-event";
 import { FlowSchedule, useFlowClock } from "../../app/ui/flow-schedule";
@@ -26,6 +26,71 @@ function ClockFlow({ activities }: { activities: Activity[] }) {
 afterEach(() => vi.useRealTimers());
 
 describe("общая вертикальная линия флоу", () => {
+  it("показывает в списке только текущие параллельные активности и открывает их действия", async () => {
+    const user = userEvent.setup();
+    render(
+      <FlowSchedule
+        activities={[
+          item,
+          { ...item, id: "parallel", title: "Эфир", room_name: "Онлайн" },
+          { ...item, id: "past", title: "Прошедшее", ends_at: item.starts_at },
+          {
+            ...item,
+            id: "future",
+            title: "Будущее",
+            starts_at: item.ends_at,
+            ends_at: item.ends_at + 60000,
+          },
+        ]}
+        now={item.starts_at}
+        renderActivity={(a) => <button>Записаться на {a.title}</button>}
+      />,
+    );
+    const list = screen.getByRole("list", { name: "Текущие активности" });
+    expect(within(list).getAllByRole("button")).toHaveLength(2);
+    expect(within(list).queryByText("Прошедшее")).not.toBeInTheDocument();
+    expect(within(list).queryByText("Будущее")).not.toBeInTheDocument();
+    const link = within(list).getByRole("button", {
+      name: "Открыть активность Эфир",
+    });
+    link.focus();
+    await user.keyboard("{Enter}");
+    expect(link).toHaveAttribute("aria-expanded", "true");
+    expect(
+      within(
+        screen.getByRole("region", { name: "Сведения об активности" }),
+      ).getByRole("button", { name: "Записаться на Эфир" }),
+    ).toBeVisible();
+    expect(
+      screen.getByRole("region", { name: "Сведения об активности" }),
+    ).toHaveFocus();
+    await user.keyboard("{Escape}");
+    expect(link).toHaveFocus();
+    expect(
+      screen.queryByRole("region", { name: "Сведения об активности" }),
+    ).not.toBeInTheDocument();
+  });
+
+  it("показывает понятное пустое состояние до начала и после завершения программы", () => {
+    const { rerender } = render(
+      <FlowSchedule
+        activities={[item]}
+        now={item.starts_at - 1}
+        renderActivity={() => null}
+      />,
+    );
+    expect(screen.getByText("Сейчас активностей нет")).toBeVisible();
+    expect(screen.getByText(/Следующая —/)).toBeVisible();
+    rerender(
+      <FlowSchedule
+        activities={[item]}
+        now={item.ends_at}
+        renderActivity={() => null}
+      />,
+    );
+    expect(screen.getByText("Сейчас активностей нет")).toBeVisible();
+    expect(screen.queryByText(/Следующая —/)).not.toBeInTheDocument();
+  });
   it("не закрывает подробности при начале свайпа за пределами плашки, но закрывает при отдельном нажатии", async () => {
     const user = userEvent.setup();
     render(
@@ -142,11 +207,27 @@ describe("общая вертикальная линия флоу", () => {
       ends_at: event.ends_at,
     };
     const { container } = render(<ClockFlow activities={[second, item]} />);
+    expect(
+      within(
+        screen.getByRole("list", { name: "Текущие активности" }),
+      ).getByRole("button", { name: "Открыть активность Доклад" }),
+    ).toBeVisible();
     expect(container.querySelector('[aria-current="step"]')).toHaveAttribute(
       "data-activity-id",
       "one",
     );
     await act(async () => vi.advanceTimersByTime(1020));
+    const current = screen.getByRole("list", { name: "Текущие активности" });
+    expect(
+      within(current).queryByRole("button", {
+        name: "Открыть активность Доклад",
+      }),
+    ).not.toBeInTheDocument();
+    expect(
+      within(current).getByRole("button", {
+        name: "Открыть активность Практика",
+      }),
+    ).toBeVisible();
     expect(container.querySelector('[aria-current="step"]')).toHaveAttribute(
       "data-activity-id",
       "two",

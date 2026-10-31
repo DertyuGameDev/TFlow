@@ -5,6 +5,158 @@
   scroll-margin-top: 100px;
   overflow-anchor: none;
 }
+.flow-time-map.has-current-list {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr);
+  grid-template-areas: "current" "tools" "chart" "hint";
+}
+.has-current-list > .flow-map-tools {
+  grid-area: tools;
+}
+.has-current-list > .flow-map-scroll {
+  grid-area: chart;
+  min-width: 0;
+}
+.has-current-list > .flow-map-hint {
+  grid-area: hint;
+}
+.flow-current {
+  grid-area: current;
+  min-width: 0;
+  margin-top: 16px;
+  padding: 16px;
+  border: 1px solid var(--flow-border);
+  border-radius: 12px;
+  background: var(--theme-panel, #fff);
+  align-self: start;
+}
+.flow-current-heading {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin-bottom: 12px;
+}
+.flow-current-heading::before {
+  content: "";
+  width: 7px;
+  height: 7px;
+  flex-shrink: 0;
+  border-radius: 50%;
+  background: var(--flow-accent, #ffdd2d);
+  box-shadow: 0 0 0 3px color-mix(in srgb, #ffdd2d 15%, transparent);
+}
+.flow-current-heading h3 {
+  margin: 0;
+  font-size: 16px;
+  font-weight: 600;
+  line-height: 1.5;
+}
+.flow-current-heading > span {
+  margin-left: auto;
+  font-size: 14px;
+  color: var(--flow-muted);
+  font-variant-numeric: tabular-nums;
+}
+.flow-current-list {
+  margin: 0;
+  padding: 0;
+  list-style: none;
+  display: grid;
+  gap: 8px;
+  max-height: 440px;
+  overflow: auto;
+  scrollbar-width: thin;
+}
+.flow-current-item {
+  position: relative;
+  display: grid;
+  gap: 4px;
+  width: 100%;
+  min-height: 44px;
+  padding: 10px 26px 10px 14px;
+  border: 0;
+  border-left: 3px solid var(--flow-color);
+  border-radius: 3px 8px 8px 3px;
+  background: color-mix(
+    in srgb,
+    var(--flow-color) 9%,
+    var(--theme-panel, #fff)
+  );
+  color: inherit;
+  font: inherit;
+  text-align: left;
+  cursor: pointer;
+}
+.flow-current-item:hover:enabled,
+.flow-current-item[aria-expanded="true"] {
+  background: color-mix(
+    in srgb,
+    var(--flow-color) 20%,
+    var(--theme-panel, #fff)
+  );
+}
+.flow-current-item:focus-visible {
+  outline: 2px solid var(--flow-color);
+  outline-offset: -2px;
+}
+.flow-current-item:disabled {
+  opacity: 0.55;
+  cursor: default;
+}
+.flow-current-item strong {
+  font-size: 15px;
+  line-height: 1.45;
+  overflow-wrap: anywhere;
+}
+.flow-current-time,
+.flow-current-room {
+  font-size: 13px;
+  line-height: 1.5;
+  color: var(--flow-muted);
+  overflow-wrap: anywhere;
+}
+.flow-current-time {
+  font-variant-numeric: tabular-nums;
+}
+.flow-current-item > svg {
+  position: absolute;
+  right: 8px;
+  top: calc(50% - 9px);
+  color: var(--flow-muted);
+}
+.flow-current-empty p {
+  margin: 0;
+  color: var(--flow-muted);
+  font-size: 14px;
+  line-height: 1.6;
+}
+.flow-current-empty p + p {
+  margin-top: 6px;
+  font-size: 13px;
+}
+@media (min-width: 1101px) {
+  .flow-time-map.has-current-list {
+    --flow-gutter: 56px;
+    grid-template-columns: minmax(0, 1fr) clamp(230px, 22vw, 280px);
+    grid-template-areas: "tools current" "chart current" "hint current";
+    column-gap: 24px;
+  }
+  .flow-current {
+    position: sticky;
+    top: calc(var(--flow-header-bottom, 68px) + 16px);
+  }
+}
+@media (max-width: 1100px) {
+  .flow-current {
+    padding: 12px;
+  }
+  .flow-current-heading {
+    margin-bottom: 8px;
+  }
+  .flow-current-list {
+    max-height: 220px;
+  }
+}
 .flow-map-tools {
   display: flex;
   align-items: center;
