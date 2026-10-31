@@ -65,6 +65,7 @@ import { OrganizerIntro } from "./ui/organizer-intro";
 import { Calendar } from "./ui/calendar";
 import { EventRemovalDialog } from "./ui/event-removal-dialog";
 import { NotificationCenter } from "./ui/notification-center";
+import { CheckInStatus } from "./ui/check-in-status";
 import { Clubs } from "./ui/clubs";
 import { OrganizerManage } from "./ui/organizer-manage";
 import { AccountMenu } from "./ui/account-menu";
@@ -309,7 +310,7 @@ function DiscoveryCard({
         {event.enrolled > 0 && (
           <span className="registered-tag">
             <Check size={12} />
-            Вы идёте
+            {event.checked_in ? "Вы вошли" : "Вы идёте"}
           </span>
         )}
       </div>
@@ -358,6 +359,9 @@ function ProfileView({
   const [copyState, setCopyState] = useState<"idle" | "copied" | "error">(
     "idle",
   );
+  const checkedInEvents = events.filter(
+    (event) => event.enrolled && event.checked_in && event.ends_at > Date.now(),
+  );
   return (
     <>
       <Heading
@@ -377,6 +381,13 @@ function ProfileView({
               <BrandLogo />
               <span>Личный пропуск</span>
             </div>
+            {checkedInEvents.length > 0 && (
+              <div className="participant-entry-list">
+                {checkedInEvents.map((event) => (
+                  <CheckInStatus key={event.id} event={event} />
+                ))}
+              </div>
+            )}
             <img
               src="/api/profile/qr"
               alt="Ваш личный QR-код для входа на мероприятия"
@@ -600,6 +611,7 @@ export function TFlow({ user }: { user: UserIdentity | null }) {
   const latest = useRef(route),
     loadSequence = useRef(0),
     detailSequence = useRef(0);
+  const knownCheckIns = useRef<{ userId: string; ids: Set<string> } | null>(null);
   latest.current = route;
   const send = useCallback(
     async (path: string, method = "GET", body?: unknown): Promise<any> => {
@@ -638,6 +650,25 @@ export function TFlow({ user }: { user: UserIdentity | null }) {
     try {
       const next = await send("bootstrap");
       if (n === loadSequence.current) {
+        if (user?.role === "participant") {
+          const checkedIn = (next.tickets as FlowEvent[]).filter(
+            (event) => event.checked_in,
+          );
+          const previous = knownCheckIns.current;
+          if (previous?.userId === user.userId) {
+            const entered = checkedIn.find((event) => !previous.ids.has(event.id));
+            if (entered) {
+              setToast({
+                text: `Вы вошли в мероприятие «${entered.title}».`,
+                error: false,
+              });
+            }
+          }
+          knownCheckIns.current = {
+            userId: user.userId,
+            ids: new Set(checkedIn.map((event) => event.id)),
+          };
+        }
         setData(next);
         setError("");
       }
@@ -646,7 +677,7 @@ export function TFlow({ user }: { user: UserIdentity | null }) {
     } finally {
       if (n === loadSequence.current) setLoading(false);
     }
-  }, [send]);
+  }, [send, user?.userId, user?.role]);
   const loadDetail = useCallback(
     async (id: string, attendance: "none" | "owner" | "required" = "none") => {
       const n = ++detailSequence.current;
@@ -683,6 +714,10 @@ export function TFlow({ user }: { user: UserIdentity | null }) {
     if (r.id && ["event", "webinar", "manage", "scan"].includes(r.view))
       await loadDetail(r.id, attendanceScope(r.view, organizer));
   }, [load, loadDetail, organizer]);
+  const refreshInterval =
+    user?.role === "participant" && ["profile", "event"].includes(route.view)
+      ? 5000
+      : 15000;
   useEffect(() => {
     const change = () => {
       if (location.hash === "#main-content") return;
@@ -694,7 +729,7 @@ export function TFlow({ user }: { user: UserIdentity | null }) {
     void load();
     const timer = setInterval(() => {
       if (document.visibilityState === "visible") void refresh();
-    }, 15000);
+    }, refreshInterval);
     const focus = () => void refresh();
     window.addEventListener("focus", focus);
     return () => {
@@ -702,7 +737,7 @@ export function TFlow({ user }: { user: UserIdentity | null }) {
       window.removeEventListener("focus", focus);
       clearInterval(timer);
     };
-  }, [load, organizer, refresh]);
+  }, [load, organizer, refresh, refreshInterval]);
   useEffect(() => {
     detailSequence.current++;
     setDetail(null);
@@ -1610,11 +1645,16 @@ export function TFlow({ user }: { user: UserIdentity | null }) {
                         )}
                       </div>
                       <aside className="registration-card">
+                        {user?.role === "participant" && !!detail.event.checked_in && (
+                          <CheckInStatus event={detail.event} />
+                        )}
                         <div className="price-line">
                           <strong>Бесплатно</strong>
                           <span>
                             {detail.event.enrolled
-                              ? "Ваше место забронировано"
+                              ? detail.event.checked_in
+                                ? "Ваш вход подтверждён"
+                                : "Ваше место забронировано"
                               : `${Math.max(0, detail.event.capacity - detail.event.participant_count)} мест осталось`}
                           </span>
                         </div>
