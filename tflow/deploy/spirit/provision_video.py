@@ -36,9 +36,14 @@ if secret:
         with urllib.request.urlopen(request,timeout=8) as response:report['relay_probe_status']=response.status
     except urllib.error.HTTPError as error:
         report['relay_probe_status']=error.code
+        if 'application/json' in error.headers.get('Content-Type',''):
+            try: report['relay_probe_message']=json.loads(error.read(1024)).get('error')
+            except ValueError: pass
         if error.headers.get('Date'):
             report['clock_delta_seconds']=round(time.time()-email.utils.parsedate_to_datetime(error.headers['Date']).timestamp())
-    except Exception as error:report['relay_probe_error']=type(error).__name__
+    except Exception as error:
+        report['relay_probe_error']=type(error).__name__
+        report['relay_probe_reason']=type(getattr(error,'reason',None)).__name__
 print(json.dumps(report))
 print('PRIVATE LOG, CREDENTIAL VALUES REDACTED:\n'+text[-4000:])
 '''
