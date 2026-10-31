@@ -1,5 +1,6 @@
 import { act, render, screen } from "@testing-library/react";
 import { afterEach, describe, expect, it, vi } from "vitest";
+import userEvent from "@testing-library/user-event";
 import { FlowSchedule, useFlowClock } from "../../app/ui/flow-schedule";
 import type { Activity } from "../../lib/types";
 import { event } from "../fixtures";
@@ -25,6 +26,63 @@ function ClockFlow({ activities }: { activities: Activity[] }) {
 afterEach(() => vi.useRealTimers());
 
 describe("общая вертикальная линия флоу", () => {
+  it("открывает минутную активность по заметной плашке и возвращает на неё фокус", async () => {
+    const user = userEvent.setup();
+    render(
+      <FlowSchedule
+        activities={[{ ...item, ends_at: item.starts_at + 60000 }]}
+        now={0}
+        renderActivity={(a) => <h4>{a.title}</h4>}
+      />,
+    );
+    const marker = screen.getByRole("button", { name: "Доклад 1 мин" });
+    await user.click(marker);
+    expect(
+      screen.getByRole("region", { name: "Сведения об активности" }),
+    ).toBeVisible();
+    expect(screen.getByRole("heading", { name: "Доклад" })).toBeVisible();
+    await user.keyboard("{Escape}");
+    expect(
+      screen.queryByRole("region", { name: "Сведения об активности" }),
+    ).not.toBeInTheDocument();
+    expect(marker).toHaveFocus();
+  });
+
+  it("даёт выбрать каждый из соседних минутных пунктов и вернуться к списку", async () => {
+    const user = userEvent.setup();
+    render(
+      <FlowSchedule
+        activities={Array.from({ length: 3 }, (_, i) => ({
+          ...item,
+          id: `short-${i}`,
+          title: `Минутный пункт ${i + 1}`,
+          starts_at: item.starts_at + i * 60000,
+          ends_at: item.starts_at + (i + 1) * 60000,
+        }))}
+        now={0}
+        renderActivity={(a) => <h4>{a.title}</h4>}
+      />,
+    );
+    await user.click(
+      screen.getByRole("button", { name: "Короткие активности: 3" }),
+    );
+    expect(
+      screen.getByRole("button", { name: /Минутный пункт 1/ }),
+    ).toHaveFocus();
+    await user.click(screen.getByRole("button", { name: /Минутный пункт 2/ }));
+    expect(
+      screen.getByRole("heading", { name: "Минутный пункт 2" }),
+    ).toBeVisible();
+    await user.click(
+      screen.getByRole("button", { name: "Назад к коротким активностям" }),
+    );
+    expect(
+      screen.getByRole("button", { name: /Минутный пункт 1/ }),
+    ).toBeVisible();
+    expect(
+      screen.getByRole("button", { name: /Минутный пункт 3/ }),
+    ).toBeVisible();
+  });
   it("выделяет все текущие параллельные активности, не выделяя завершённые", () => {
     const activities = [
       item,
