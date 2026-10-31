@@ -11,6 +11,11 @@ import {
 import { ArrowLeft, Check, Clock3, Minus, Pencil, Plus, X } from "lucide-react";
 import { flowMarkers } from "../../lib/flow-markers";
 import {
+  FLOW_PAGE_SCROLL_QUERY,
+  flowOffsetAtTime,
+  flowTimeAtOffset,
+} from "../../lib/flow-navigation";
+import {
   FLOW_DAY_HEADING,
   flowDuration,
   layoutFlow,
@@ -74,11 +79,20 @@ export function FlowSchedule({
     [opened, setOpened] = useState("");
   const [viewportWidth, setViewportWidth] = useState(0),
     [scrollX, setScrollX] = useState(0),
-    [detailsHeight, setDetailsHeight] = useState(0);
+    [detailsHeight, setDetailsHeight] = useState(0),
+    [headerBottom, setHeaderBottom] = useState(68),
+    [toolsHeight, setToolsHeight] = useState(60),
+    [panelHeight, setPanelHeight] = useState(480);
   const id = useId(),
+    tools = useRef<HTMLDivElement>(null),
     viewport = useRef<HTMLDivElement>(null),
     details = useRef<HTMLDivElement>(null),
-    zoomAnchor = useRef<number | null>(null);
+    zoomAnchor = useRef<{
+      time: number;
+      page: boolean;
+      offset: number;
+      pageScroll: number;
+    } | null>(null);
   const layout = useMemo(
     () => layoutFlow(activities, SCALES[zoom]),
     [activities, zoom],
@@ -121,16 +135,42 @@ export function FlowSchedule({
   useEffect(() => {
     const element = viewport.current;
     if (!element) return;
-    const measure = () => setViewportWidth(element.clientWidth);
+    const header = document.querySelector<HTMLElement>(".flow-topbar");
+    const navigation =
+      document.querySelector<HTMLElement>(".mobile-bottom-nav");
+    const measure = () => {
+      setViewportWidth(element.clientWidth);
+      const top = header?.getBoundingClientRect().bottom ?? 68;
+      setToolsHeight(tools.current?.offsetHeight ?? 60);
+      setHeaderBottom(top);
+      setPanelHeight(
+        Math.max(
+          140,
+          (window.visualViewport?.height ?? window.innerHeight) -
+            top -
+            (tools.current?.offsetHeight ?? 60) -
+            (navigation?.offsetHeight ?? 0) -
+            24,
+        ),
+      );
+    };
     measure();
-    if (typeof ResizeObserver === "undefined") {
-      window.addEventListener("resize", measure);
-      return () => window.removeEventListener("resize", measure);
-    }
-    const observer = new ResizeObserver(measure);
-    observer.observe(element);
-    return () => observer.disconnect();
-  }, []);
+    const observer =
+      typeof ResizeObserver !== "undefined"
+        ? new ResizeObserver(measure)
+        : null;
+    observer?.observe(element);
+    if (header) observer?.observe(header);
+    if (navigation) observer?.observe(navigation);
+    if (tools.current) observer?.observe(tools.current);
+    window.addEventListener("resize", measure);
+    window.visualViewport?.addEventListener("resize", measure);
+    return () => {
+      observer?.disconnect();
+      window.removeEventListener("resize", measure);
+      window.visualViewport?.removeEventListener("resize", measure);
+    };
+  }, [activities.length > 0]);
   useEffect(() => {
     if (openId)
       viewport.current
@@ -154,8 +194,9 @@ export function FlowSchedule({
       )
         setOpened("");
     }
-    document.addEventListener("pointerdown", outside);
-    return () => document.removeEventListener("pointerdown", outside);
+    // A swipe must not dismiss details and change the chart height mid-scroll.
+    document.addEventListener("click", outside, true);
+    return () => document.removeEventListener("click", outside, true);
   }, [opened, selectedId]);
   function close() {
     setOpened("");
@@ -169,54 +210,79 @@ export function FlowSchedule({
   function changeZoom(next: number) {
     const scroller = viewport.current;
     if (scroller) {
-      const day =
-        layout.days.find(
-          (day) =>
-            day.top + FLOW_DAY_HEADING + day.height >= scroller.scrollTop,
-        ) ?? layout.days.at(-1);
-      if (day)
-        zoomAnchor.current =
-          day.start +
-          ((scroller.scrollTop - day.top - FLOW_DAY_HEADING) / SCALES[zoom]) *
-            60000;
+      const page = window.matchMedia?.(FLOW_PAGE_SCROLL_QUERY).matches ?? false;
+      const offset = page
+        ? Math.max(
+            0,
+            (tools.current?.getBoundingClientRect().bottom ?? 0) +
+              8 -
+              scroller.getBoundingClientRect().top,
+          )
+        : scroller.scrollTop;
+      const time = flowTimeAtOffset(layout.days, offset, SCALES[zoom]);
+      if (time !== null)
+        zoomAnchor.current = { time, page, offset, pageScroll: window.scrollY };
     }
     setZoom(next);
   }
   useLayoutEffect(() => {
     if (zoomAnchor.current === null || !viewport.current) return;
-    const time = zoomAnchor.current;
-    const day =
-      layout.days.find((day) => day.end >= time) ?? layout.days.at(-1);
-    if (day)
-      viewport.current.scrollTop =
-        day.top +
-        FLOW_DAY_HEADING +
-        ((time - day.start) / 60000) * SCALES[zoom];
+    const anchor = zoomAnchor.current;
+    const offset = Math.max(
+      0,
+      flowOffsetAtTime(layout.days, anchor.time, SCALES[zoom]),
+    );
+    if (anchor.page)
+      window.scrollTo({
+        top: anchor.pageScroll + offset - anchor.offset,
+        behavior: "instant",
+      });
+    else viewport.current.scrollTop = offset;
     zoomAnchor.current = null;
   }, [layout, zoom]);
 
+  function jumpToNow() {
+    const scroller = viewport.current;
+    if (!scroller || nowY === null) return;
+    const behavior = window.matchMedia?.("(prefers-reduced-motion: reduce)")
+      .matches
+      ? "auto"
+      : "smooth";
+    if (window.matchMedia?.(FLOW_PAGE_SCROLL_QUERY).matches) {
+      const safeTop =
+        (tools.current?.getBoundingClientRect().bottom ?? 80) + 48;
+      window.scrollTo({
+        top: Math.max(
+          0,
+          window.scrollY +
+            scroller.getBoundingClientRect().top +
+            nowY -
+            safeTop,
+        ),
+        behavior,
+      });
+    } else scroller.scrollTo({ top: Math.max(0, nowY - 90), behavior });
+  }
+
   return (
-    <div className="flow-time-map">
+    <div
+      className="flow-time-map"
+      style={
+        {
+          "--flow-header-bottom": `${headerBottom}px`,
+          "--flow-tools-height": `${toolsHeight}px`,
+          "--flow-panel-height": `${panelHeight}px`,
+        } as CSSProperties
+      }
+    >
       {activities.length > 0 && (
-        <div className="flow-map-tools">
+        <div className="flow-map-tools" ref={tools}>
           <p>
             Время по МСК <span>Высота полосы — длительность</span>
           </p>
           <div className="flow-map-controls">
             {nowY !== null && (
-              <button
-                className="text-button flow-jump-now"
-                onClick={() =>
-                  viewport.current?.scrollTo({
-                    top: Math.max(0, nowY - 90),
-                    behavior: window.matchMedia?.(
-                      "(prefers-reduced-motion: reduce)",
-                    ).matches
-                      ? "auto"
-                      : "smooth",
-                  })
-                }
-              >
+              <button className="text-button flow-jump-now" onClick={jumpToNow}>
                 Сейчас
               </button>
             )}

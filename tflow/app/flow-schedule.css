@@ -3,6 +3,7 @@
   min-width: 0;
   color: var(--theme-text, #222329);
   scroll-margin-top: 100px;
+  overflow-anchor: none;
 }
 .flow-map-tools {
   display: flex;
@@ -67,7 +68,7 @@
   overflow: auto;
   position: relative;
   scrollbar-width: thin;
-  overscroll-behavior: contain;
+  overscroll-behavior: auto;
   scroll-padding: 30px 12px 80px;
   outline-offset: 3px;
 }
@@ -795,5 +796,35 @@
   }
   .flow-details .program-graph-time.is-multiday > .icon-button {
     grid-row: 3;
+  }
+}
+
+@media (max-width: 760px),
+  (pointer: coarse),
+  (max-width: 1100px) and (max-height: 500px) {
+  .flow-map-scroll {
+    max-height: none;
+  }
+  .flow-map-tools {
+    position: sticky;
+    top: var(--flow-header-bottom, 68px);
+    z-index: 9;
+    padding-block: 8px;
+    background: var(--theme-bg, #fff);
+    border-bottom: 1px solid var(--flow-border);
+  }
+  .flow-scale button {
+    width: 44px;
+    height: 44px;
+  }
+  .flow-map-controls .text-button {
+    min-height: 44px;
+  }
+  .flow-details {
+    max-height: min(570px, var(--flow-panel-height, 68dvh));
+    scroll-margin-block: calc(
+        var(--flow-header-bottom, 68px) + var(--flow-tools-height, 60px) + 12px
+      )
+      100px;
   }
 }

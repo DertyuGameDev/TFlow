@@ -1,4 +1,4 @@
-import { act, render, screen } from "@testing-library/react";
+import { act, fireEvent, render, screen } from "@testing-library/react";
 import { afterEach, describe, expect, it, vi } from "vitest";
 import userEvent from "@testing-library/user-event";
 import { FlowSchedule, useFlowClock } from "../../app/ui/flow-schedule";
@@ -26,6 +26,32 @@ function ClockFlow({ activities }: { activities: Activity[] }) {
 afterEach(() => vi.useRealTimers());
 
 describe("общая вертикальная линия флоу", () => {
+  it("не закрывает подробности при начале свайпа за пределами плашки, но закрывает при отдельном нажатии", async () => {
+    const user = userEvent.setup();
+    render(
+      <FlowSchedule
+        activities={[item]}
+        now={0}
+        renderActivity={(a) => <h4>{a.title}</h4>}
+      />,
+    );
+    await user.click(screen.getByRole("button", { name: "Доклад 30 мин" }));
+    fireEvent.pointerDown(document.body, {
+      pointerType: "touch",
+      clientY: 400,
+    });
+    fireEvent.pointerMove(document.body, {
+      pointerType: "touch",
+      clientY: 200,
+    });
+    expect(
+      screen.getByRole("region", { name: "Сведения об активности" }),
+    ).toBeVisible();
+    fireEvent.click(document.body);
+    expect(
+      screen.queryByRole("region", { name: "Сведения об активности" }),
+    ).not.toBeInTheDocument();
+  });
   it("открывает минутную активность по заметной плашке и возвращает на неё фокус", async () => {
     const user = userEvent.setup();
     render(
