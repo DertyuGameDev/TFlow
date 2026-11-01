@@ -656,6 +656,7 @@ export default function Webinar({
                   </button>
                   <button
                     className="button secondary"
+                    aria-pressed={!!room?.localParticipant.isCameraEnabled}
                     disabled={busy || deviceBusy}
                     onClick={() => void control("camera")}
                   >

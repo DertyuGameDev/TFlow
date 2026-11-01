@@ -21,7 +21,10 @@ const media = vi.hoisted(() => {
         this.localParticipant.isMicrophoneEnabled = enabled;
         this.emit(enabled ? "trackUnmuted" : "trackMuted");
       }),
-      setCameraEnabled: vi.fn().mockResolvedValue(undefined),
+      setCameraEnabled: vi.fn(async (enabled: boolean) => {
+        this.localParticipant.isCameraEnabled = enabled;
+        this.emit(enabled ? "trackUnmuted" : "trackMuted");
+      }),
       setScreenShareEnabled: vi.fn().mockResolvedValue(undefined),
       publishData: vi.fn().mockResolvedValue(undefined),
     };
@@ -255,6 +258,32 @@ describe("комната вебинара", () => {
     await waitFor(() => expect(room.disconnect).toHaveBeenCalledOnce());
     view.unmount();
     expect(room.disconnect).toHaveBeenCalledOnce();
+  });
+
+  it("включает камеру по кнопке, показывает её видео и отключает повторным нажатием", async () => {
+    const { user, room, view } = await enter();
+    const track = { kind: "video", sid: "host-camera", attach: vi.fn(), detach: vi.fn() };
+    room.localParticipant.getTrackPublication.mockImplementation(() => room.localParticipant.isCameraEnabled ? { track } : undefined);
+    await user.click(screen.getByRole("button", { name: "Включить камеру" }));
+    expect(room.localParticipant.setCameraEnabled).toHaveBeenLastCalledWith(true);
+    expect(screen.getByRole("button", { name: "Выключить камеру" })).toHaveAttribute("aria-pressed", "true");
+    expect(track.attach).toHaveBeenCalledWith(expect.any(HTMLVideoElement));
+    await user.click(screen.getByRole("button", { name: "Выключить камеру" }));
+    expect(room.localParticipant.setCameraEnabled).toHaveBeenLastCalledWith(false);
+    expect(screen.getByRole("button", { name: "Включить камеру" })).toHaveAttribute("aria-pressed", "false");
+    expect(track.detach).toHaveBeenCalled();
+    view.unmount();
+    expect(room.disconnect).toHaveBeenCalledOnce();
+  });
+
+  it("после отказа камеры оставляет её выключенной и позволяет повторить запрос", async () => {
+    const { user, room } = await enter();
+    room.localParticipant.setCameraEnabled.mockRejectedValueOnce(new DOMException("denied", "NotAllowedError"));
+    await user.click(screen.getByRole("button", { name: "Включить камеру" }));
+    expect(await screen.findByRole("alert")).toHaveTextContent("Проверьте разрешение браузера");
+    expect(screen.getByRole("button", { name: "Включить камеру" })).toHaveAttribute("aria-pressed", "false");
+    await user.click(screen.getByRole("button", { name: "Включить камеру" }));
+    expect(await screen.findByRole("button", { name: "Выключить камеру" })).toHaveAttribute("aria-pressed", "true");
   });
 
   it("микрофон зеленеет по серверному событию речи и гаснет сразу при выключении", async () => {

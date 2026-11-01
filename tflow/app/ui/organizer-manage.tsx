@@ -646,6 +646,7 @@ export function OrganizerManage({
         <header className="management-section-heading">
           <div>
             <h2>Пункты программы</h2>
+            <p>Для онлайн-флоу выберите онлайн-аудиторию или «Создать онлайн-поток» в редакторе пункта.</p>
           </div>
           <button
             type="button"

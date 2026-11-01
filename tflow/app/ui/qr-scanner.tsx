@@ -50,7 +50,7 @@ export function QRScanner({event,events,initialToken,send,onScan,endpoint,activi
       const reader=new BrowserQRCodeReader();
       const next=await reader.decodeFromConstraints({audio:false,video:{facingMode:{ideal:"environment"}}},video.current!, (value,_error,controller)=>{if(value&&eventId&&alive.current&&cameraGeneration.current===generation&&!locked.current){controller.stop();void scan(value.getText());}});
       if(!alive.current||cameraGeneration.current!==generation)next.stop();else controls.current=next;
-    }catch(reason){if(alive.current&&cameraGeneration.current===generation){setCamera(false);const name=(reason as Error).name;setError(name==="NotAllowedError"?"Разрешите доступ к камере или загрузите QR с фотографии.":"Не удалось открыть камеру. Попробуйте загрузить QR с фотографии.");}}
+    }catch(reason){if(alive.current&&cameraGeneration.current===generation){setCamera(false);const name=(reason as Error).name;setError(name==="NotAllowedError"?"Разрешите доступ к камере или загрузите QR с фотографии.":name==="NotFoundError"?"Камера не найдена. Подключите камеру или загрузите QR с фотографии.":name==="NotReadableError"?"Камера занята другим приложением. Освободите её и попробуйте снова.":"Не удалось открыть камеру. Попробуйте загрузить QR с фотографии.");}}
   }
   async function readImage(file:File){
     setError("");setResult(null);setErrorKind("image");setBusy(true);const url=URL.createObjectURL(file);

@@ -13,6 +13,7 @@ from django.utils.http import url_has_allowed_host_and_scheme
 from django.views.decorators.cache import never_cache
 from django.views.decorators.csrf import ensure_csrf_cookie
 from .auth_forms import LoginForm, RegisterForm
+from .database_errors import database_error_response
 from .avatars import avatar_upload, save_avatar, save_community_avatar
 from .security import auth_attempt_response
 from .notifications import notification_page
@@ -204,15 +205,9 @@ def api(request, path):
             },
             status=409,
         )
-    except OperationalError:
+    except OperationalError as error:
         logger.exception("Database temporarily unavailable")
-        return JsonResponse(
-            {
-                "error": "База занята. Повторите действие через несколько секунд",
-                "code": "DATABASE_BUSY",
-            },
-            status=503,
-        )
+        return database_error_response(error)
 
 
 def dispatch_api(request, path):

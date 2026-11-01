@@ -141,7 +141,10 @@ export function ProgramGraphEditor({
           registration_required: registrationRequired,
           ...next,
           room_id: creatingOnlineRoom ? "" : roomId,
-          ...(creatingOnlineRoom ? { new_room_name: onlineRoomName.trim(), new_room_capacity: event.capacity } : {}),
+          ...(creatingOnlineRoom ? {
+            new_room_name: onlineRoomName.trim(),
+            new_room_capacity: event.capacity,
+          } : {}),
           online_room: creatingOnlineRoom || (room
             ? Boolean(room.is_online)
             : event.format === "Онлайн"),
@@ -238,10 +241,21 @@ export function ProgramGraphEditor({
         </button>
       </div>
       <div className="program-graph-room">
-        <select aria-label="Аудитория пункта на графике" value={roomId} disabled={busy}
-          onChange={e => { setRoomId(e.target.value); preview(start, end, e.target.value); }}>
+        <select
+          aria-label="Аудитория пункта на графике"
+          value={roomId}
+          disabled={busy}
+          onChange={(e) => {
+            setRoomId(e.target.value);
+            preview(start, end, e.target.value);
+          }}
+        >
           {!rooms.length && <option value="">{event.format === "Онлайн" ? "Онлайн" : "Основная площадка"}</option>}
-          {rooms.map(room => <option key={room.id} value={room.id}>{room.is_online ? "Онлайн · " : "Очно · "}{room.name}</option>)}
+          {rooms.map((room) => (
+            <option key={room.id} value={room.id}>
+              {room.is_online ? "Онлайн · " : "Очно · "}{room.name}
+            </option>
+          ))}
           <option value={NEW_ONLINE_ROOM}>Создать онлайн-поток</option>
         </select>
         {onDetails && (
@@ -257,6 +271,11 @@ export function ProgramGraphEditor({
           </button>
         )}
       </div>
+      {creatingOnlineRoom && <label className="program-graph-online-name">
+        Название онлайн-потока
+        <input value={onlineRoomName} required disabled={busy} onChange={(event) => setOnlineRoomName(event.target.value)} />
+      </label>}
+      {creatingOnlineRoom && <small className="muted">Создадим отдельную онлайн-аудиторию и вебинар для этого флоу.</small>}
       <label className="program-graph-registration">
         <input type="checkbox" checked={registrationRequired} disabled={busy} onChange={(event) => setRegistrationRequired(event.target.checked)} />
         Нужна отдельная запись

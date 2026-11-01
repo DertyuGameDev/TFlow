@@ -109,3 +109,36 @@ describe("поля непосредственно на графике", () => {
     );
   });
 });
+
+describe("онлайн-флоу в гибридном событии", () => {
+  const hybrid = { ...event, format: "Гибрид" };
+  const hall = { id: "hall", event_id: event.id, name: "Главный зал", capacity: 100 };
+
+  it("создаёт онлайн-поток прямо на графике при единственной очной аудитории", async () => {
+    const user = userEvent.setup(), send = vi.fn().mockResolvedValue({ id: "online" });
+    render(<ProgramGraphEditor event={hybrid} rooms={[hall]}
+      range={{ starts_at: event.starts_at, ends_at: event.ends_at, room_id: hall.id }}
+      send={send} refresh={vi.fn()} onPreview={vi.fn()} onDone={vi.fn()} onCancel={vi.fn()}/>);
+    await user.selectOptions(screen.getByRole("combobox", { name: "Аудитория пункта на графике" }),
+      screen.getByRole("option", { name: "Создать онлайн-поток" }));
+    expect(screen.getByRole("textbox", { name: "Название онлайн-потока" })).toHaveValue("Онлайн-поток 1");
+    await user.type(screen.getByRole("textbox", { name: "Название пункта на графике" }), "Онлайн-лекция");
+    await user.click(screen.getByRole("button", { name: "Сохранить пункт на графике" }));
+    await waitFor(() => expect(send).toHaveBeenCalledWith(`events/${event.id}/activities`, "POST",
+      expect.objectContaining({ room_id: "", online_room: true, new_room_name: "Онлайн-поток 1", new_room_capacity: event.capacity })));
+  });
+
+  it("позволяет выбрать существующую онлайн-аудиторию и учитывает её вместимость", async () => {
+    const user = userEvent.setup(), send = vi.fn().mockResolvedValue({ id: "online" });
+    render(<ProgramGraphEditor event={hybrid} rooms={[hall, { ...hall, id: "video", name: "Django", is_online: true, capacity: 20 }]}
+      range={{ starts_at: event.starts_at, ends_at: event.ends_at }}
+      send={send} refresh={vi.fn()} onPreview={vi.fn()} onDone={vi.fn()} onCancel={vi.fn()}/>);
+    await user.selectOptions(screen.getByRole("combobox", { name: "Аудитория пункта на графике" }),
+      screen.getByRole("option", { name: "Онлайн · Django" }));
+    await user.type(screen.getByRole("textbox", { name: "Название пункта на графике" }), "Практикум");
+    await user.click(screen.getByRole("button", { name: "Сохранить пункт на графике" }));
+    await waitFor(() => expect(send).toHaveBeenCalledWith(expect.any(String), "POST",
+      expect.objectContaining({ room_id: "video", online_room: true, capacity: 20 })));
+    expect(send.mock.calls[0][2]).not.toHaveProperty("new_room_name");
+  });
+});
