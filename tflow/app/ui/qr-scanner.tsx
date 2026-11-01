@@ -1,12 +1,13 @@
 import { useEffect, useRef, useState } from "react";
-import { Camera, Check, ImagePlus, LoaderCircle, RotateCcw, ScanLine, X } from "lucide-react";
+import { Camera, Check, ChevronDown, ImagePlus, LoaderCircle, RotateCcw, ScanLine, X } from "lucide-react";
 import type { FlowEvent, ScanResult } from "../../lib/types";
 import { timeLabel } from "../../lib/time";
 import type { Send } from "./forms";
 import { ParticipantDetails } from "./profile-data";
 
 export function QRScanner({event,events,initialToken,send,onScan}:{event?:FlowEvent;events:FlowEvent[];initialToken?:string;send:Send;onScan:()=>void}) {
-  const [eventId,setEventId]=useState(event?.id??""),[result,setResult]=useState<ScanResult|null>(null),[error,setError]=useState("");
+  const [selectedEventId,setSelectedEventId]=useState(""),[result,setResult]=useState<ScanResult|null>(null),[error,setError]=useState("");
+  const eventId=event?.id??(events.find(e=>e.id===selectedEventId)?.id??(events.length===1?events[0].id:""));
   const [busy,setBusy]=useState(false),[camera,setCamera]=useState(false),[manual,setManual]=useState(initialToken??"");
   const [errorKind,setErrorKind]=useState<"scan"|"camera"|"image">("scan");
   const feedback=useRef<HTMLDivElement>(null);
@@ -55,7 +56,10 @@ export function QRScanner({event,events,initialToken,send,onScan}:{event?:FlowEv
   }
   if(!event&&!events.length)return <div className="quiet-empty"><span className="empty-symbol"><ScanLine size={28}/></span><h2>Сначала создайте событие</h2><p>У каждого события свой список участников. После создания здесь появится его сканер.</p><a className="button primary" href="#organizer">К моим событиям</a></div>;
   return <section className="scanner-panel" aria-label="Сканер участников" aria-busy={busy}>
-    {!event&&<label className="scanner-event-label">Событие<select value={eventId} disabled={busy||camera} onChange={e=>{stop();setEventId(e.target.value);setError("");setResult(null);}}><option value="">Выберите ваше событие</option>{events.map(e=><option key={e.id} value={e.id}>{e.title}</option>)}</select></label>}
+    {!event&&(events.length===1?
+      <div className="scanner-event-label"><span>Событие</span><strong className="scanner-selected-event">{events[0].title}</strong></div>:
+      <label className="scanner-event-label">Событие<span className="scanner-event-control"><select value={eventId} disabled={busy||camera} onChange={e=>{stop();setSelectedEventId(e.target.value);setError("");setResult(null);}}><option value="" disabled hidden>Выберите событие</option>{events.map(e=><option key={e.id} value={e.id}>{e.title}</option>)}</select><ChevronDown size={18} aria-hidden="true"/></span></label>
+    )}
     {!eventId&&<p className="scanner-help">Выберите событие, чтобы включить камеру или загрузить QR.</p>}
     <div className={`camera-view ${camera?"camera-active":""}`} hidden={!!result}><video ref={video} playsInline muted aria-label="Изображение с камеры для сканирования QR"/>{!camera&&<div className="camera-placeholder"><ScanLine size={48} strokeWidth={1.25}/><h2>Пропуск участника</h2><p>Включите камеру и наведите её на QR из профиля участника</p></div>}{camera&&<><div className="scan-frame"/><button className="camera-stop icon-button" onClick={stop} aria-label="Остановить камеру"><X size={20}/></button></>}</div>
     {!result&&<div className="scanner-buttons"><button className="button primary" onClick={()=>void startCamera()} disabled={!eventId||busy||camera}><Camera size={19}/>{camera?"Камера включена":"Включить камеру"}</button><label className={`button secondary image-upload ${!eventId||busy||camera?"disabled":""}`}><ImagePlus size={19}/>Загрузить QR<input aria-label="Загрузить фотографию QR" type="file" accept="image/*" disabled={!eventId||busy||camera} onChange={e=>{const file=e.target.files?.[0];if(file)void readImage(file);e.target.value="";}}/></label></div>}

@@ -27,6 +27,67 @@ async function scanManually(qr = "https://example.test/#pass/test-pass") {
   await user.click(screen.getByRole("button", { name: "Проверить и отметить" }));
 }
 
+describe("выбор события для сканирования", () => {
+  const secondEvent = { ...event, id: "event-two", title: "Вторая встреча" };
+
+  it("сразу готов к проверке, если у организатора одно событие", async () => {
+    const send = vi.fn().mockResolvedValue(admitted);
+    render(<QRScanner events={[event]} send={send} onScan={vi.fn()} />);
+
+    expect(screen.queryByRole("combobox")).not.toBeInTheDocument();
+    expect(screen.getByText(event.title)).toBeVisible();
+    expect(screen.getByRole("button", { name: "Включить камеру" })).toBeEnabled();
+    expect(screen.getByLabelText("Загрузить фотографию QR")).toBeEnabled();
+
+    await scanManually();
+    await waitFor(() => expect(send).toHaveBeenCalledWith(`events/${event.id}/check-in`, "POST", {
+      qr: "https://example.test/#pass/test-pass",
+    }));
+  });
+
+  it("предлагает только реальные события и ждёт явного выбора, если их несколько", async () => {
+    const send = vi.fn().mockResolvedValue(admitted);
+    render(<QRScanner events={[event, secondEvent]} send={send} onScan={vi.fn()} />);
+
+    const select = screen.getByRole("combobox", { name: "Событие" });
+    expect(select).toHaveValue("");
+    expect(screen.getByRole("button", { name: "Включить камеру" })).toBeDisabled();
+    expect(screen.getByLabelText("Загрузить фотографию QR")).toBeDisabled();
+    expect(screen.getByText("Выберите событие", { selector: "option" })).toBeDisabled();
+    expect(screen.getAllByRole("option").map(option => option.textContent)).toEqual([event.title, secondEvent.title]);
+
+    await userEvent.selectOptions(select, secondEvent.id);
+    expect(screen.getByRole("button", { name: "Включить камеру" })).toBeEnabled();
+    expect(screen.getByLabelText("Загрузить фотографию QR")).toBeEnabled();
+    expect(screen.queryByText("Выберите событие, чтобы включить камеру или загрузить QR.")).not.toBeInTheDocument();
+    await scanManually();
+    await waitFor(() => expect(send).toHaveBeenCalledWith(`events/${secondEvent.id}/check-in`, "POST", {
+      qr: "https://example.test/#pass/test-pass",
+    }));
+  });
+
+  it("выбирает единственное событие и после загрузки списка", () => {
+    const props = { send: vi.fn(), onScan: vi.fn() };
+    const { rerender } = render(<QRScanner events={[]} {...props} />);
+    expect(screen.getByRole("heading", { name: "Сначала создайте событие" })).toBeVisible();
+
+    rerender(<QRScanner events={[event]} {...props} />);
+    expect(screen.getByText(event.title)).toBeVisible();
+    expect(screen.getByRole("button", { name: "Включить камеру" })).toBeEnabled();
+  });
+
+  it("не продолжает проверку для события, которого больше нет в списке", async () => {
+    const props = { send: vi.fn(), onScan: vi.fn() };
+    const { rerender } = render(<QRScanner events={[event, secondEvent]} {...props} />);
+    await userEvent.selectOptions(screen.getByRole("combobox"), event.id);
+
+    rerender(<QRScanner events={[secondEvent, { ...event, id: "event-three" }]} {...props} />);
+    expect(screen.getByRole("combobox")).toHaveValue("");
+    expect(screen.getByRole("button", { name: "Включить камеру" })).toBeDisabled();
+    expect(screen.getByLabelText("Загрузить фотографию QR")).toBeDisabled();
+  });
+});
+
 describe("одноразовый вход по QR", () => {
   it("подтверждает первый вход и показывает отказ при повторном сканировании", async () => {
     const send = vi.fn().mockResolvedValueOnce(admitted).mockRejectedValueOnce(
