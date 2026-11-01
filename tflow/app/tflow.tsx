@@ -307,10 +307,7 @@ function DiscoveryCard({
           aria-label={`Открыть ${event.title}`}
           onClick={() => go("event", event.id)}
         >
-          <EventArt
-            cover={event.cover}
-            title={event.topic === "Искусственный интеллект" ? "AI" : undefined}
-          />
+          <EventArt cover={event.cover} />
         </button>
         <span className="event-kind">{event.kind}</span>
         <button
