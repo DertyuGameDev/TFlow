@@ -6,6 +6,7 @@ from pathlib import Path
 import sys
 import uuid
 
+sys.path.insert(0, str(Path(__file__).resolve().parents[2]))
 os.environ.pop('DATABASE_URL', None)
 os.environ['TFLOW_DATABASE_PATH'] = sys.argv[2]
 os.environ['DJANGO_SETTINGS_MODULE'] = 'config.settings'
