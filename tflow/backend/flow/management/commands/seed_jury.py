@@ -211,7 +211,7 @@ class Command(BaseCommand):
                     "format": format,
                     "topic": topic,
                     "kind": "Практикум" if index % 2 else "Встреча",
-                    "cover": ["yellow", "blue", "green", "purple", "orange"][index % 5],
+                    "cover": ["yellow", "blue", "mint", "violet", "peach"][index % 5],
                     "status": "published",
                     "capacity": 3 if index == 9 else 30,
                     "community": clubs[index % len(clubs)],
