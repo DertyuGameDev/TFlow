@@ -4,6 +4,7 @@ import {
   Copy,
   ExternalLink,
   Maximize,
+  Minimize,
   Mic,
   MicOff,
   MonitorUp,
@@ -102,6 +103,23 @@ export default function Webinar({
     statusSequence = useRef(0),
     connecting = useRef(false);
   const stage = useRef<HTMLDivElement>(null);
+  const [fullscreen, setFullscreen] = useState(false);
+  useEffect(() => {
+    const update = () => setFullscreen(!!stage.current && document.fullscreenElement === stage.current);
+    document.addEventListener("fullscreenchange", update);
+    return () => document.removeEventListener("fullscreenchange", update);
+  }, []);
+  async function toggleFullscreen() {
+    const target = stage.current;
+    if (!target) return;
+    try {
+      if (document.fullscreenElement === target) await document.exitFullscreen();
+      else if (typeof target.requestFullscreen === "function") await target.requestFullscreen();
+      else throw new Error("Fullscreen unavailable");
+    } catch {
+      setError("Полноэкранный режим недоступен в этом браузере. Откройте вебинар в обычной вкладке браузера.");
+    }
+  }
   const [status, setStatus] = useState<Status | null>(null),
     [connected, setConnected] = useState(false),
     [busy, setBusy] = useState(false),
@@ -598,19 +616,13 @@ export default function Webinar({
                 </span>
               </div>
               <button
+                type="button"
                 className="webinar-fullscreen"
-                aria-label="На весь экран"
-                onClick={() =>
-                  void stage.current
-                    ?.requestFullscreen()
-                    .catch(() =>
-                      setError(
-                        "Полноэкранный режим недоступен в этом браузере.",
-                      ),
-                    )
-                }
+                aria-label={fullscreen ? "Выйти из полноэкранного режима" : "На весь экран"}
+                aria-pressed={fullscreen}
+                onClick={() => void toggleFullscreen()}
               >
-                <Maximize size={18} />
+                {fullscreen ? <Minimize size={18} /> : <Maximize size={18} />}
               </button>
             </div>
             {audioBlocked && (
