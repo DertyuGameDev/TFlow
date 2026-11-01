@@ -35,6 +35,7 @@ import { REQUIREMENT_FIELDS } from "../../lib/profile-fields";
 import { Modal } from "./dialog";
 import { ParticipantDetails, RegistrationSettings } from "./profile-data";
 import { EventParticipants } from "./event-participants";
+import { ParticipantAvatar } from "./participant-avatar";
 import type { Send } from "./forms";
 import { ProgramTimeline } from "./program-timeline";
 import { ProgramGraphEditor } from "./program-graph-editor";
@@ -729,9 +730,7 @@ export function OrganizerManage({
             {visible.map((person) => (
               <details className="attendee-record" key={person.id}>
                 <summary className="attendee-row">
-                  <span className="small-person-avatar">
-                    {person.name.slice(0, 1)}
-                  </span>
+                  <ParticipantAvatar name={person.name} />
                   <div>
                     <h3>{person.name}</h3>
                     <p>{person.email}</p>

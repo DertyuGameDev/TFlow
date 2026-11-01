@@ -4,6 +4,7 @@ import type { AttendanceRow } from "../../lib/types";
 import { dateLabel } from "../../lib/time";
 import { Modal } from "./dialog";
 import { ParticipantDetails } from "./profile-data";
+import { ParticipantAvatar } from "./participant-avatar";
 import "../event-participants.css";
 
 export function EventParticipants({
@@ -49,9 +50,7 @@ export function EventParticipants({
                 aria-haspopup="dialog"
                 onClick={() => setSelectedId(person.id)}
               >
-                <span className="small-person-avatar" aria-hidden="true">
-                  {person.name.slice(0, 1)}
-                </span>
+                <ParticipantAvatar name={person.name} />
                 <span className="event-participant-info">
                   <strong>{person.name}</strong>
                   <small>

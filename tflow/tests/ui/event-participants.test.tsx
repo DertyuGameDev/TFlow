@@ -33,6 +33,15 @@ const manageProps = {
 };
 
 describe("превью участников события", () => {
+  it.each(["", "   "])("показывает базовую аватарку при незаполненном имени %j в обоих списках", (name) => {
+    const rows = [{ ...attendees[0], name }];
+    const view = render(<EventParticipants rows={rows} onShowAll={vi.fn()} />);
+    expect(view.container.querySelector(".small-person-avatar svg")).toBeVisible();
+    view.rerender(<OrganizerManage {...manageProps} rows={rows} initialSection="participants" />);
+    expect(view.container.querySelector(".attendee-row .small-person-avatar svg")).toBeVisible();
+    expect(within(view.container.querySelector(".attendee-row") as HTMLElement).getByText(rows[0].email)).toBeVisible();
+  });
+
   it("показывает пять последних регистраций и общее количество", () => {
     render(<EventParticipants rows={attendees} onShowAll={vi.fn()} />);
     const region = screen.getByRole("region", { name: /Участники\s*7/ });
