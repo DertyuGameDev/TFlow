@@ -95,7 +95,7 @@ import { REQUIREMENT_FIELDS } from "../lib/profile-fields";
 type Route = { view: string; id?: string; mode?: string };
 function attendanceScope(view: string, organizer: boolean) {
   if (!organizer) return "none";
-  return ["manage", "scan"].includes(view) ? "required" : "none";
+  return view === "manage" ? "required" : "none";
 }
 type DialogState =
   | { type: "create"; startsAt?: number; communityId?: string }
@@ -143,6 +143,9 @@ const routeFromHash = (organizer: boolean): Route => {
     "manage",
     "scan",
     "access",
+    "lecture",
+    "presenter",
+    "studio",
     "event",
     "webinar",
     "pass",
@@ -746,7 +749,7 @@ export function TFlow({ user }: { user: UserIdentity | null }) {
   const refresh = useCallback(async () => {
     await load();
     const r = latest.current;
-    if (r.id && ["event", "webinar", "manage", "scan"].includes(r.view))
+    if (r.id && ["event", "webinar", "studio", "manage", "scan"].includes(r.view))
       await loadDetail(r.id, attendanceScope(r.view, organizer));
   }, [load, loadDetail, organizer]);
   const refreshInterval =
@@ -778,7 +781,7 @@ export function TFlow({ user }: { user: UserIdentity | null }) {
     setDetail(null);
     setRows([]);
     setDetailError("");
-    if (route.id && ["event", "webinar", "manage", "scan"].includes(route.view))
+    if (route.id && ["event", "webinar", "studio", "manage", "scan"].includes(route.view))
       void loadDetail(route.id, attendanceScope(route.view, organizer));
   }, [route, organizer, loadDetail]);
   useEffect(() => {
@@ -979,6 +982,7 @@ export function TFlow({ user }: { user: UserIdentity | null }) {
         { id: "events", name: "События", icon: Search },
         clubsNav,
         calendarNav,
+        { id: "scan", name: "Сканер QR", icon: ScanLine },
         { id: "profile", name: "Профиль", icon: Users },
       ];
   const participantProfile =
@@ -987,7 +991,7 @@ export function TFlow({ user }: { user: UserIdentity | null }) {
   const catalog = ["events", "saved"].includes(route.view);
   const denied =
     !organizer &&
-    (["manage", "scan"].includes(route.view) ||
+    (route.view === "manage" ||
       (!!user && route.view === "organizer"));
   const brandDestination = organizerArea ? "organizer" : "events";
   const activeNav = (id: string) =>
@@ -1048,7 +1052,7 @@ export function TFlow({ user }: { user: UserIdentity | null }) {
 
   return (
     <div
-      className={`flow-app ${organizerArea ? "organizer-app" : "participant-app"}`}
+      className={`flow-app ${["studio","presenter"].includes(route.view) ? "studio-mode" : ""} ${organizerArea ? "organizer-app" : "participant-app"}`}
     >
       <a className="skip-link" href="#main-content">
         К содержимому
@@ -1555,6 +1559,9 @@ export function TFlow({ user }: { user: UserIdentity | null }) {
               </>
             )}
             {route.view === "access" && <KeyAccessPage user={user} send={send}/>}
+            {route.view === "lecture" && <KeyAccessPage user={user} send={send} invitation={route.id} invitationMode/>}
+            {route.view === "presenter" && <KeyAccessPage user={user} send={send} invitation={route.id} invitationMode studio/>}
+            {route.view === "scan" && !organizer && <KeyAccessPage user={user} send={send}/>}
             {route.view === "scan" && organizer && (
               <>
                 <button
@@ -1567,7 +1574,7 @@ export function TFlow({ user }: { user: UserIdentity | null }) {
                   {route.id ? "К событию" : "Мои события"}
                 </button>
                 <Heading
-                  title="Проверка на входе"
+                  title="Сканер QR"
                   text={
                     detail?.event.title ??
                     "Выберите событие и отсканируйте личный QR участника"
@@ -1579,7 +1586,7 @@ export function TFlow({ user }: { user: UserIdentity | null }) {
                   <div className="loading-state">Загружаем…</div>
                 ) : (
                   <QRScanner
-                    key={route.id ?? "any"}
+                    simple autoStart key={route.id ?? "any"}
                     event={detail?.event}
                     events={own}
                     send={send}
@@ -1898,7 +1905,7 @@ export function TFlow({ user }: { user: UserIdentity | null }) {
                 )}
               </>
             )}
-            {route.view === "webinar" && (
+            {["webinar", "studio"].includes(route.view) && (
               <section className="webinar-room-page">
                 <button
                   className="back-link"
@@ -1927,10 +1934,10 @@ export function TFlow({ user }: { user: UserIdentity | null }) {
                   />
                 ) : (
                   <>
-                    <Heading
+                    {route.view !== "studio" && <Heading
                       title={webinarActivity?.title ?? detail.event.title}
                       text={`${dateLabel(webinarActivity?.starts_at ?? detail.event.starts_at)} · ${timeLabel(webinarActivity?.starts_at ?? detail.event.starts_at)} МСК · ${detail.event.organizer}`}
-                    />
+                    />}
                     {!user ? (
                       <Empty
                         icon={Video}
@@ -1986,11 +1993,11 @@ export function TFlow({ user }: { user: UserIdentity | null }) {
                           <ArrowRight size={18} />
                         </button>
                       </Empty>
-                    ) : webinarActivity && !organizer && !webinarActivity.registered ? (
+                    ) : webinarActivity && webinarActivity.registration_required !== false && !organizer && !webinarActivity.registered ? (
                       <Empty icon={Video} title="Запишитесь на этот флоу" text="Для входа в отдельный вебинар нужна запись на его онлайн-активность.">
                         <ActivityProgram activities={[webinarActivity]} {...programActions} />
                       </Empty>
-                    ) : !route.mode && detail.activities.some((activity) => activity.room_is_online) ? (
+                    ) : (!route.mode || route.mode === "general") ? (
                       <WebinarChannels event={detail.event}
                         activities={detail.activities.filter((activity) => activity.room_is_online)} {...programActions} />
                     ) : (
@@ -2006,6 +2013,7 @@ export function TFlow({ user }: { user: UserIdentity | null }) {
                           event={detail.event}
                           activity={webinarActivity}
                           user={user}
+                          studio={route.view === "studio"}
                           send={send}
                         />
                       </Suspense>

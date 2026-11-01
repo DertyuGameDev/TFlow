@@ -8,6 +8,7 @@ from flow import broadcasts
 urlpatterns = [
     path("api/<str:resource>/<str:item_id>/broadcast", broadcasts.control),
     path("api/broadcasts/<uuid:session>/chunks/<int:sequence>", broadcasts.upload),
+    path("api/broadcasts/<uuid:session>/media/<int:epoch>/<str:filename>", broadcasts.media),
     path("api/broadcasts/<uuid:session>/media/<str:filename>", broadcasts.media),
     path("api/broadcasts/<uuid:session>/chat", broadcasts.chat),
     path("push-sw.js", views.push_worker),

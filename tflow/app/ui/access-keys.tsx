@@ -53,23 +53,35 @@ export function AccessKeyManager({ event, send }: { event: FlowEvent; send: Send
     </li>;
   }
   return <section className="access-key-manager management-card" aria-label="Доступ доверенным лицам">
-    <header className="management-section-heading"><div><h2><KeyRound size={20}/> Доступ доверенным лицам</h2><p>Передайте сканер мероприятия или ведение отдельного онлайн-флоу.</p></div>
+    <header className="management-section-heading"><div><h2><KeyRound size={20}/> Доступ доверенным лицам</h2><p>Передайте токен сканера помощнику на входе.</p></div>
       <button className="button secondary small-button" aria-expanded={open} onClick={() => setOpen(!open)}>{open ? "Скрыть" : "Управлять ключами"}</button>
     </header>
     {open && <>
-      <p className="access-key-help">Ключ открывает только указанное действие. Доверенное лицо входит в свой аккаунт и выбирает в меню аватара «Доступ по ключу». Передайте ему ключ вручную. Он показывается только после создания; перевыпуск отключает прежний ключ.</p>
+      <p className="access-key-help">Помощник входит в свой аккаунт, открывает «Сканер QR» и вводит токен. Токен показывается только после создания; перевыпуск отключает прежний.</p>
       <FormError error={error}/>
       {data ? <ul className="access-key-list">
         {row("Сканер всего мероприятия", "scan", null, data.scan_key)}
-        {data.activities.map((activity) => row(`Ведущий: ${activity.title}`, "webinar", activity.id, activity.key))}
       </ul> : !error && <p role="status">Загружаем ключи…</p>}
     </>}
   </section>;
 }
 
-export function KeyAccessPage({ user, send }: { user: UserIdentity | null; send: Send }) {
+export function KeyAccessPage({ user, send, invitation, studio = false, invitationMode = false }: { user: UserIdentity | null; send: Send; invitation?: string; studio?: boolean; invitationMode?: boolean }) {
   const [draft, setDraft] = useState(""), [credential, setCredential] = useState("");
   const [scope, setScope] = useState<Scope | null>(null), [busy, setBusy] = useState(false), [error, setError] = useState("");
+  useEffect(() => {
+    if (!invitationMode) return;
+    let token = invitation || "";
+    try { token ||= sessionStorage.getItem("tflow-lecture-invite") || ""; } catch { /* Direct invitation remains usable. */ }
+    if (invitation) {
+      try { sessionStorage.setItem("tflow-lecture-invite", invitation); } catch { setError("Разрешите хранение данных сайта, чтобы ссылка сохранилась после входа."); }
+      history.replaceState(null, "", studio ? "/#presenter" : "/#lecture");
+    }
+    if (!token || !user) return;
+    let current = true; setBusy(true);
+    void send("access-keys/resolve", "POST", {key:token}).then(value => {if(current){const next=value as Scope;if(next.purpose!=="webinar")throw new Error("Нужна ссылка лектора");setCredential(token);setScope(next)}}).catch(e=>{if(current)setError(e.message)}).finally(()=>{if(current)setBusy(false)});
+    return()=>{current=false};
+  }, [invitation, studio, invitationMode, user?.userId, send]);
   async function open(e: React.FormEvent) {
     e.preventDefault(); if (!user || busy) return;
     setBusy(true); setError("");
@@ -88,21 +100,21 @@ export function KeyAccessPage({ user, send }: { user: UserIdentity | null; send:
     return Promise.reject(new Error("Действие недоступно по этому ключу"));
   }, [send, scope, credential]);
   return <section className="key-access-page" aria-label="Доступ по ключу">
-    <h1>Доступ по ключу</h1>
+    {(!scope || !studio) && <h1>{scope?.purpose==="scan"?"Сканер QR":invitationMode ? (studio?"Студия лектора":"Вход лектора") : "Ввести токен"}</h1>}
     {!scope ? <>
-      <p>Организатор может передать вам сканер мероприятия или студию одного онлайн-флоу. Ваша роль и остальные права сохраняются.</p>
-      {!user ? <a className="button primary" href="/login/?next=%2F%23access">Войти в свой аккаунт</a> : <form className="flow-form" onSubmit={(e) => void open(e)}>
-        <label>Ключ доступа<input type="password" value={draft} onChange={(e) => setDraft(e.target.value)} required autoComplete="off" spellCheck={false}/></label>
+      <p>{invitationMode?"Персональная студия привязана к вашей активности. Войдите в аккаунт, чтобы продолжить.":"Введите токен организатора — откроется сканер его мероприятия."}</p>
+      {!user ? <a className="button primary" href={invitationMode ? (studio?"/login/?next=%2F%23presenter":"/login/?next=%2F%23lecture") : "/login/?next=%2F%23scan"}>Войти в свой аккаунт</a> : <form className="flow-form" onSubmit={(e) => void open(e)}>
+        <label>Токен организатора<input type="password" value={draft} onChange={(e) => setDraft(e.target.value)} required autoComplete="off" spellCheck={false}/></label>
         <FormError error={error}/><button className="button primary" disabled={busy}>{busy ? "Проверяем…" : "Открыть доступ"}</button>
       </form>}
     </> : <>
-      <header className="key-access-context"><div><h2>{scope.activity?.title ?? scope.event.title}</h2>
-        <p>{scope.purpose === "scan" ? "Сканер мероприятия" : `Ведущий онлайн-флоу · ${scope.event.title}`} · до {dateLabel(scope.expires_at)} {timeLabel(scope.expires_at)} МСК</p></div>
-        <button className="button secondary small-button" onClick={() => { setScope(null); setCredential(""); setError(""); }}><X size={16}/>Закрыть доступ</button>
-      </header>
-      {scope.purpose === "scan" ? <QRScanner event={scope.event} events={[]} activities={scope.scan_activities??[]} endpoint="access-keys/check-in" send={delegatedSend} onScan={() => {}}/>
-        : user && scope.activity && <><p className="access-key-help">Вы можете вести только этот флоу. Для входа в другом браузере откройте «Доступ по ключу» и введите тот же ключ.</p>
-          <Suspense fallback={<p role="status">Открываем студию…</p>}><Webinar key={credential} event={scope.event} activity={scope.activity} user={user} send={delegatedSend} delegated broadcastAccessKey={credential}/></Suspense></>}
+      {!studio && <header className="key-access-context"><div><h2>{scope.activity?.title ?? scope.event.title}</h2>
+        <p>{scope.purpose === "scan" ? `От имени организатора · ${scope.event.organizer}` : `Ведущий онлайн-флоу · ${scope.event.title}`}{!studio && <> · до {dateLabel(scope.expires_at)} {timeLabel(scope.expires_at)} МСК</>}</p></div>
+        {!studio && <button className="button secondary small-button" onClick={() => { setScope(null); setCredential(""); setError(""); try { sessionStorage.removeItem("tflow-lecture-invite"); } catch { /* Already closed in this page. */ } }}><X size={16}/>Закрыть доступ</button>}
+      </header>}
+      {scope.purpose === "scan" ? <QRScanner event={scope.event} events={[]} simple autoStart activities={scope.scan_activities??[]} endpoint="access-keys/check-in" send={delegatedSend} onScan={() => {}}/>
+        : user && scope.activity && <>{!studio && <p className="access-key-help">Вам доступен эфир этой активности. В другом браузере откройте персональную ссылку заново.</p>}
+          <Suspense fallback={<p role="status">Открываем студию…</p>}><Webinar key={credential} event={scope.event} activity={scope.activity} user={user} send={delegatedSend} studio={studio} delegated broadcastAccessKey={credential}/></Suspense></>}
     </>}
   </section>;
 }

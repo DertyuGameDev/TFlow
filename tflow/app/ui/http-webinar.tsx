@@ -8,12 +8,12 @@ import { FormError } from "./forms";
 import { Modal } from "./dialog";
 import "../http-webinar.css";
 
-export type HttpStatus = { host: boolean; active: boolean; configured: boolean; session: string | null; ready?: boolean;
+export type HttpStatus = { host: boolean; active: boolean; configured: boolean; session: string | null; ready?: boolean; reconnecting?: boolean; can_resume?: boolean;
   starts_at?: string; scheduled?: boolean; can_start?: boolean; playlist?: string | null; ended: boolean; published: boolean; failure?: string; configuration_error?: string };
 type Message = { id: string; author: string; text: string; own: boolean };
 
-export default function HttpWebinar({ event, activity, initialStatus, accessKey }: {
-  event: FlowEvent; activity?: Activity; initialStatus: HttpStatus; accessKey?: string;
+export default function HttpWebinar({ event, activity, initialStatus, accessKey, studio = false }: {
+  event: FlowEvent; activity?: Activity; initialStatus: HttpStatus; accessKey?: string; studio?: boolean;
 }) {
   const endpoint = `${activity ? "activities/" + activity.id : "events/" + event.id}/broadcast`;
   const [status, setStatus] = useState(initialStatus), [error, setError] = useState("");
@@ -28,6 +28,19 @@ export default function HttpWebinar({ event, activity, initialStatus, accessKey 
   const scheduled = status.scheduled === true;
   const startAt = status.starts_at ? Date.parse(status.starts_at) : Math.max(event.starts_at, activity?.starts_at ?? event.starts_at);
   const startLabel = `${dateLabel(startAt)} в ${timeLabel(startAt)} МСК`;
+  const storageKey = `tflow-publisher:${event.id}:${activity?.id ?? "general"}`;
+  const viewerKey = `tflow-viewer:${event.id}:${activity?.id ?? "general"}`;
+  const recovery = useRef<ReturnType<typeof setTimeout> | null>(null);
+  function viewerSession(value?: string | null) {try {if(value===null)sessionStorage.removeItem(viewerKey);else if(value!==undefined)sessionStorage.setItem(viewerKey,value);return sessionStorage.getItem(viewerKey);}catch{return null;}}
+  const savedPublisher = () => { try {return JSON.parse(sessionStorage.getItem(storageKey) || "null") as {session:string;publisher:string} | null;}catch{return null;} };
+  function remember(value: {session:string;publisher:string} | null) {try {if(value)sessionStorage.setItem(storageKey,JSON.stringify(value));else sessionStorage.removeItem(storageKey);}catch{/* In-memory operation remains available. */}}
+  function openStudio() {
+    if (!activity) return;
+    const target = accessKey ? `/#presenter/${encodeURIComponent(accessKey)}` : `/#studio/${event.id}/${activity.id}`;
+    const popup = window.open("", `tflow-studio-${activity.id}`, "popup,width=1180,height=850");
+    if (!popup) {setError("Разрешите всплывающее окно студии в браузере и нажмите ещё раз.");return;}
+    try {if(popup.location.href === "about:blank")popup.location.replace(target);popup.focus();}catch{setError("Откройте прежнее окно студии и продолжите там.");}
+  }
   const screenSupported = !!navigator.mediaDevices?.getDisplayMedia;
   const request = <T,>(path: string, options?: RequestInit) => broadcastRequest<T>(path, options, accessKey);
   const post = <T,>(path: string, data: object) => request<T>(path, { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(data) });
@@ -37,8 +50,7 @@ export default function HttpWebinar({ event, activity, initialStatus, accessKey 
     if (alive.current) { setPublishing(false); setDevices({ microphone: false, camera: false, screen: false }); }
   }
   function stopOwn() {
-    const session = ownSession.current; ownSession.current = null; releaseDevices();
-    if (session) void post(endpoint, { operation: "end", session }).catch(() => {});
+    ownSession.current = null; releaseDevices();
   }
   async function refresh() {
     if (starting.current || pollBusy.current) return;
@@ -47,6 +59,7 @@ export default function HttpWebinar({ event, activity, initialStatus, accessKey 
       const next = await request<HttpStatus>(endpoint);
       if (!alive.current) return;
       setStatus(next);
+      if (!next.host && next.active && viewerSession() === next.session) setJoined(true);
       if (ownSession.current && (ownSession.current !== next.session || !next.active || next.ended)) {
         ownSession.current = null; releaseDevices(); setError("Эфир остановлен. Можно запустить новый.");
       }
@@ -55,7 +68,7 @@ export default function HttpWebinar({ event, activity, initialStatus, accessKey 
       if (!alive.current) return;
       setError((cause as Error).message);
       if ([401, 403, 404].includes((cause as { status?: number }).status ?? 0)) {
-        ownSession.current = null; releaseDevices(); setJoined(false);
+        ownSession.current = null; remember(null); if(recovery.current)clearTimeout(recovery.current); releaseDevices(); setJoined(false);
         hls.current?.destroy(); hls.current = null; video.current?.pause();
         setStatus(previous => ({ ...previous, active: false, configured: false }));
       }
@@ -65,9 +78,11 @@ export default function HttpWebinar({ event, activity, initialStatus, accessKey 
     alive.current = true; void refresh();
     const timer = setInterval(() => void refresh(), 2500);
     const exit = () => { upload.current?.stop(); capture.current?.dispose(); };
+    const warn = (event: BeforeUnloadEvent) => {if(upload.current){event.preventDefault();event.returnValue="";}};
+    window.addEventListener("beforeunload", warn);
     window.addEventListener("pagehide", exit);
     return () => {
-      alive.current = false; clearInterval(timer); window.removeEventListener("pagehide", exit);
+      alive.current = false; clearInterval(timer); window.removeEventListener("pagehide", exit); window.removeEventListener("beforeunload", warn); if(recovery.current)clearTimeout(recovery.current);
       stopOwn(); hls.current?.destroy(); hls.current = null;
     };
   }, [endpoint, accessKey]);
@@ -88,7 +103,7 @@ export default function HttpWebinar({ event, activity, initialStatus, accessKey 
   useEffect(() => {
     const element = video.current;
     if (!element || !joined || !status.ready || !status.playlist) return;
-    let disposed = false;
+    let disposed = false; let retry: ReturnType<typeof setTimeout> | undefined;
     const play = () => { void element.play().catch(() => { if (!disposed) setAudioHelp(true); }); };
     // Prefer MSE: Chromium native HLS can reject live MPEG-TS playlists.
     if (Hls.isSupported()) {
@@ -97,12 +112,12 @@ export default function HttpWebinar({ event, activity, initialStatus, accessKey 
       hls.current = player; player.attachMedia(element); player.loadSource(status.playlist);
       player.on(Hls.Events.MANIFEST_PARSED, play);
       player.on(Hls.Events.ERROR, (_event, data) => {
-        if (data.fatal && !disposed) setError("Передача прервалась. Нажмите «Выйти из просмотра» и подключитесь снова.");
+        if (data.fatal && !disposed) {setError("Переподключаем видео…"); retry=setTimeout(()=>{if(!disposed){if(data.type===Hls.ErrorTypes.MEDIA_ERROR)player.recoverMediaError();else player.startLoad();}},1500);}
       });
     } else if (element.canPlayType("application/vnd.apple.mpegurl")) {
       element.src = status.playlist; element.addEventListener("loadedmetadata", play); play();
     } else setError("Браузер не поддерживает прямые трансляции. Откройте комнату в Chrome или Safari.");
-    return () => { disposed = true; element.removeEventListener("loadedmetadata", play); hls.current?.destroy(); hls.current = null; element.pause(); element.removeAttribute("src"); element.load(); };
+    return () => { disposed = true; if(retry)clearTimeout(retry); element.removeEventListener("loadedmetadata", play); hls.current?.destroy(); hls.current = null; element.pause(); element.removeAttribute("src"); element.load(); };
   }, [joined, status.session, status.ready, status.playlist, accessKey]);
   function getCapture() {
     if (!capture.current) {
@@ -130,24 +145,33 @@ export default function HttpWebinar({ event, activity, initialStatus, accessKey 
       }
     } finally { if (alive.current) setDeviceBusy(false); }
   }
-  async function start() {
+  async function start(resume = false) {
     if (starting.current || scheduled || status.can_start === false) return;
     starting.current = true; setBusy(true); setError("");
     try {
       const current = getCapture(), mime = recordingMime().split(";")[0];
-      const result = await post<{ session: string; publisher: string }>(endpoint, { operation: "start", mime });
-      if (!alive.current) { void post(endpoint, { operation: "end", session: result.session }).catch(() => {}); current.dispose(); return; }
-      ownSession.current = result.session;
-      upload.current = new BroadcastUpload(current.stream, result.session, result.publisher, message => { stopOwn(); if (alive.current) { setError(message); void refresh(); } }, accessKey);
+      const saved = savedPublisher();
+      const result = await post<{ session: string; publisher: string }>(endpoint, { operation: resume ? "resume" : "start", mime, ...(resume && saved ? {publisher:saved.publisher} : {}) });
+      if (!alive.current) { current.dispose(); return; }
+      ownSession.current = result.session; remember(result);
+      upload.current = new BroadcastUpload(current.stream, result.session, result.publisher, message => { upload.current = null; if (alive.current) { setPublishing(false); setError(`${message} Переподключаемся автоматически…`); recovery.current=setTimeout(()=>{if(alive.current)void start(true)},2000); } }, accessKey);
       setPublishing(true); setStatus(previous => ({ ...previous, active: true, session: result.session, ready: false }));
-    } catch (cause) { stopOwn(); if (alive.current) setError((cause as Error).message); }
+    } catch (cause) {
+      if (alive.current) setError((cause as Error).message);
+      const code=(cause as {status?:number}).status;
+      if(resume && alive.current && ![401,403,404].includes(code??0)) recovery.current=setTimeout(()=>{if(alive.current)void start(true)},4000);
+      else if(!resume)stopOwn();
+    }
     finally { starting.current = false; if (alive.current) { setBusy(false); void refresh(); } }
   }
+  useEffect(() => {
+    if (studio && status.active && !scheduled && status.can_start !== false && capture.current && !upload.current && ownSession.current && !starting.current) void start(true);
+  }, [studio, status.active, scheduled, status.can_start]);
   async function end() {
     setBusy(true); setError("");
     try {
       await post(endpoint, { operation: "end", session: status.session });
-      ownSession.current = null; releaseDevices(); setConfirmEnd(false); await refresh();
+      ownSession.current = null; remember(null); if(recovery.current)clearTimeout(recovery.current); releaseDevices(); setConfirmEnd(false); await refresh();
     } catch (cause) { setError((cause as Error).message); }
     finally { if (alive.current) setBusy(false); }
   }
@@ -160,9 +184,12 @@ export default function HttpWebinar({ event, activity, initialStatus, accessKey 
     } catch (cause) { if (alive.current) setError((cause as Error).message); }
     finally { if (alive.current) setChatBusy(false); }
   }
+  if (status.host && !studio) return <section className="management-card" aria-label="Ведение эфира"><h2>{activity?.title ?? "Выберите активность"}</h2><p>Камера, микрофон и экран работают в отдельном окне студии. Основную страницу можно обновлять и закрывать.</p><FormError error={error}/><button className="button primary" onClick={openStudio} disabled={!activity}>Открыть студию</button></section>;
+  const resumable = status.active && status.can_resume && !!savedPublisher();
   return <section className="webinar-shell http-webinar" aria-label={status.host ? "Студия трансляции" : "Просмотр трансляции"}>
     <header className="http-webinar-heading"><div><h2>{activity?.title ?? "Прямой эфир"}</h2>
-      <p>{status.active ? (status.ready ? "В эфире" : "Готовим трансляцию…") : status.ended ? "Мероприятие завершено" : scheduled ? `Начало ${startLabel}` : status.host ? "Подготовьте камеру и микрофон" : "Ведущий ещё не начал эфир"}</p></div>
+      <p>{status.active ? (status.reconnecting ? "Ведущий переподключается…" : status.ready ? "В эфире" : "Готовим трансляцию…") : status.ended ? "Мероприятие завершено" : scheduled ? `Начало ${startLabel}` : status.host ? "Подготовьте камеру и микрофон" : "Ведущий ещё не начал эфир"}</p></div>
+      {studio && <a className="text-button" href="/#organizer" target="_blank" rel="noopener noreferrer">Открыть основной сайт</a>}
       <span className="http-webinar-badge">{publishing ? "● Вы в эфире" : "Трансляция"}</span></header>
     {scheduled && <p className="http-webinar-schedule" id="broadcast-schedule">Эфир начнётся {startLabel}. {status.host ? "До начала можно проверить камеру, микрофон и показ экрана. Кнопка запуска станет доступна автоматически." : "Когда ведущий начнёт трансляцию, появится возможность подключиться."}</p>}
     <p className="http-webinar-delay">Звук и видео идут с небольшой задержкой. Вопросы можно задавать в чате.</p>
@@ -183,11 +210,11 @@ export default function HttpWebinar({ event, activity, initialStatus, accessKey 
           <button className="button secondary" aria-pressed={devices.camera} disabled={deviceBusy} onClick={() => void device("camera")}>{devices.camera ? <Video/> : <VideoOff/>}{devices.camera ? "Выключить камеру" : "Включить камеру"}</button>
           <button className="button secondary" aria-pressed={devices.screen} disabled={deviceBusy || !screenSupported} onClick={() => void device("screen")}><MonitorUp/>{devices.screen ? "Остановить показ" : "Показать экран"}</button>
           {!status.active ? <button className="button primary" aria-describedby={scheduled ? "broadcast-schedule" : undefined} disabled={busy || !status.configured || status.ended || !status.published || scheduled || status.can_start === false} onClick={() => void start()}><Play/>{busy ? "Запускаем…" : "Начать эфир"}</button>
-            : <button className="button danger-outline" disabled={busy} onClick={() => setConfirmEnd(true)}><Square/>Завершить эфир</button>}
-        </> : joined ? <button className="button secondary" onClick={() => { setJoined(false); setAudioHelp(false); }}><LogOut/>Выйти из просмотра</button>
-          : <button className="button primary" disabled={!status.active || status.ended} onClick={() => { setError(""); setJoined(true); }}><Play/>Смотреть эфир</button>}
+            : <>{!publishing && resumable && <button className="button primary" disabled={busy || scheduled} onClick={()=>void start(true)}>Восстановить трансляцию</button>}<button className="button danger-outline" disabled={busy} onClick={() => setConfirmEnd(true)}><Square/>Завершить эфир</button></>}
+        </> : joined ? <button className="button secondary" onClick={() => { setJoined(false); viewerSession(null); setAudioHelp(false); }}><LogOut/>Выйти из просмотра</button>
+          : <button className="button primary" disabled={!status.active || status.ended} onClick={() => { setError(""); viewerSession(status.session??""); setJoined(true); }}><Play/>Смотреть эфир</button>}
       </div>
-      {status.host && <p className="http-webinar-help">Сначала включите нужные устройства, затем начните эфир. При показе экрана голос передаётся через микрофон. Камера и микрофон изначально выключены.</p>}
+      {status.host && <p className="http-webinar-help">Сначала включите нужные устройства, затем начните эфир. При обновлении этой студии нажмите «Восстановить трансляцию» и заново включите устройства. При показе экрана голос передаётся через микрофон. Камера и микрофон изначально выключены.</p>}
       {status.host && !screenSupported && <p className="http-webinar-help">Для показа экрана откройте студию в браузере на компьютере.</p>}
     </div><aside className="webinar-chat"><h3>Чат эфира</h3>
       <div className="webinar-messages" role="log" aria-label="Сообщения эфира" aria-live="polite">

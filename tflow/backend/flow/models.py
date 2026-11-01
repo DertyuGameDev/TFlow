@@ -186,6 +186,9 @@ class HttpBroadcast(models.Model):
     publisher_hash = models.CharField(max_length=64, blank=True)
     mime = models.CharField(max_length=24, default="video/webm")
     failure = models.CharField(max_length=32, blank=True)
+    media_epoch = models.PositiveIntegerField(default=0)
+    publisher_user = models.ForeignKey(User, on_delete=models.SET_NULL, null=True, related_name="published_broadcasts")
+    publisher_key = models.ForeignKey("EventAccessKey", on_delete=models.SET_NULL, null=True, related_name="published_broadcasts")
 
     class Meta:
         constraints = [models.UniqueConstraint(fields=["event"], condition=Q(activity__isnull=True), name="one_http_broadcast_per_event")]
@@ -341,6 +344,7 @@ class EventAccessKey(models.Model):
     activity = models.ForeignKey(Activity, on_delete=models.CASCADE, null=True, blank=True, related_name="access_keys")
     created_by = models.ForeignKey(User, on_delete=models.SET_NULL, null=True, related_name="issued_access_keys")
     token_hash = models.CharField(max_length=64, unique=True)
+    is_link = models.BooleanField(default=False)
     purpose = models.CharField(max_length=16, choices=[("scan", "Сканер мероприятия"), ("webinar", "Ведущий онлайн-флоу")])
     created_at = models.DateTimeField(default=timezone.now)
     expires_at = models.DateTimeField()
@@ -349,7 +353,7 @@ class EventAccessKey(models.Model):
     class Meta:
         constraints = [
             models.UniqueConstraint(fields=["event"], condition=Q(activity__isnull=True, revoked_at__isnull=True), name="one_active_event_scan_key"),
-            models.UniqueConstraint(fields=["activity"], condition=Q(activity__isnull=False, revoked_at__isnull=True), name="one_active_flow_access_key"),
+            models.UniqueConstraint(fields=["activity", "is_link"], condition=Q(activity__isnull=False, revoked_at__isnull=True), name="one_active_flow_access_key"),
             models.CheckConstraint(condition=Q(purpose="scan", activity__isnull=True) | Q(purpose="webinar", activity__isnull=False), name="valid_access_key_scope"),
         ]
 

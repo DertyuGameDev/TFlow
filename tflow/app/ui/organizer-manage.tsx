@@ -34,7 +34,7 @@ import { hasWebinar } from "../../lib/webinars";
 import { REQUIREMENT_FIELDS } from "../../lib/profile-fields";
 import { Modal } from "./dialog";
 import { ParticipantDetails, RegistrationSettings } from "./profile-data";
-import { EventParticipants } from "./event-participants";
+import { LecturerLinks } from "./lecturer-links";
 import { AccessKeyManager } from "./access-keys";
 import type { Send } from "./forms";
 import { ProgramTimeline } from "./program-timeline";
@@ -98,8 +98,7 @@ export function OrganizerManage({
   const [settingsOpen, setSettingsOpen] = useState(false);
   const [swapping, setSwapping] = useState<Activity | null>(null);
   const [programNotice, setProgramNotice] = useState("");
-  const [participantsOpen, setParticipantsOpen] = useState(initialSection === "participants");
-  const participantsRef = useRef<HTMLDetailsElement>(null);
+  const participantsRef = useRef<HTMLElement>(null);
   const [selectedProgramId, setSelectedProgramId] = useState("");
   const [graphDraft, setGraphDraft] = useState<{
     activityId?: string;
@@ -245,10 +244,10 @@ export function OrganizerManage({
     e.required_profile_fields?.includes(field.key as RequiredProfileField),
   ).map((field) => field.label);
   function showParticipants() {
-    setQuery(""); setFilter("all"); setSection("event"); setParticipantsOpen(true);
+    setQuery(""); setFilter("all"); setSection("event");
     setTimeout(() => {
       participantsRef.current?.scrollIntoView({ block: "nearest" });
-      participantsRef.current?.querySelector("summary")?.focus({ preventScroll: true });
+      participantsRef.current?.focus({ preventScroll: true });
     }, 0);
   }
   function switchWithKeyboard(
@@ -380,11 +379,8 @@ export function OrganizerManage({
             <dd>{Math.max(0, e.participant_count - e.checked_in_count)}</dd>
           </div>
         </dl>
-        <EventParticipants
-          rows={rows}
-          onShowAll={showParticipants}
-        />
         <AccessKeyManager event={e} send={send}/>
+        {hasWebinar(e) && <LecturerLinks event={e} send={send}/>}
         <article className="management-card">
           <header className="management-section-heading">
             <h2>О событии</h2>
@@ -447,9 +443,7 @@ export function OrganizerManage({
             </button>
           </div>
         </article>
-        <details ref={participantsRef} aria-label="Все участники" className="management-participants" open={participantsOpen}
-          onToggle={event => setParticipantsOpen(event.currentTarget.open)}>
-          <summary>Участники <span className="management-count">{rows.length}</span></summary>
+        <section ref={participantsRef} tabIndex={-1} aria-label="Участники события" className="management-participants">
         <section className="management-registration management-card">
           <div>
             <h3>Что спросить при записи</h3>
@@ -576,7 +570,7 @@ export function OrganizerManage({
             )}
           </div>
         )}
-        </details>
+        </section>
       </section>
       <section
         role="tabpanel"

@@ -253,6 +253,8 @@ def operate(user, event_id, operation, session=None, *, activity_id=None, access
                 409,
             )
         if operation == "start":
+            if settings.HTTP_BROADCAST_ENABLED and activity is None:
+                raise FlowError("WEBINAR_ACTIVITY_REQUIRED", "Выберите онлайн-активность", 400)
             ensure_started(event, activity)
         webinar, _ = Webinar.objects.get_or_create(event=event, activity=activity)
         if operation == "start" and not webinar.active:

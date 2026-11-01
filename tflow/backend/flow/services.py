@@ -182,6 +182,8 @@ def update_event(user, event_id, data):
         event.save()
         if changed:
             notify_audience(event, event_change_message(event, before_event), title="Изменения в мероприятии")
+        from .access_keys import sync_key_expiry
+        sync_key_expiry(event)
         promote_event_waitlist_locked(event)
         return event
 
@@ -443,6 +445,8 @@ def save_activity(user, data, *, event_id=None, activity_id=None):
             notify_audience(activity.event, "В программу добавлена активность. " + activity_facts(activity) +
                             (" Нужна отдельная регистрация." if activity.registration_required else " Доступна участникам события без отдельной записи."),
                             activity=activity, title="Новая активность в программе")
+        from .access_keys import sync_key_expiry
+        sync_key_expiry(activity.event)
         promote_waitlist_locked(activity)
         if activity_id:
             for participant in User.objects.filter(registrations__activity=activity):
@@ -837,6 +841,8 @@ def move_event(user, event_id, data):
             registrations__activity__event=event
         ).distinct():
             retry_user_waitlists_locked(participant)
+        from .access_keys import sync_key_expiry
+        sync_key_expiry(event)
         promote_event_waitlist_locked(event)
 
 

@@ -84,6 +84,7 @@ export default function Webinar({
   activity,
   delegated = false,
   broadcastAccessKey,
+  studio = false,
   user,
   send,
 }: {
@@ -91,6 +92,7 @@ export default function Webinar({
   activity?: Activity;
   delegated?: boolean;
   broadcastAccessKey?: string;
+  studio?: boolean;
   user: UserIdentity;
   send: Send;
 }) {
@@ -454,7 +456,7 @@ export default function Webinar({
     return () => { current = false; room.off(RoomEvent.MediaDevicesChanged, load); };
   }, [room, host, microphoneEnabled]);
   void tick;
-  if (status?.transport === "https") return <Suspense fallback={<p role="status">Открываем трансляцию…</p>}><HttpWebinar event={event} activity={activity} initialStatus={status} accessKey={broadcastAccessKey}/></Suspense>;
+  if (status?.transport === "https") return <Suspense fallback={<p role="status">Открываем трансляцию…</p>}><HttpWebinar event={event} activity={activity} initialStatus={status} accessKey={broadcastAccessKey} studio={studio}/></Suspense>;
   return (
     <section
       id={`webinar-${activity?.id ?? event.id}`}

@@ -20,7 +20,7 @@ beforeEach(() => {
 });
 
 it("does not fetch private media or chat before the event is live", async () => {
-  render(<HttpWebinar event={event} initialStatus={waiting}/>);
+  render(<HttpWebinar studio event={event} initialStatus={waiting}/>);
   expect(screen.getByRole("button", { name: "Смотреть эфир" })).toBeDisabled();
   await waitFor(() => expect(fetch).toHaveBeenCalled());
   expect(vi.mocked(fetch).mock.calls.every(([url]) => String(url).endsWith("/broadcast"))).toBe(true);
@@ -29,7 +29,7 @@ it("does not fetch private media or chat before the event is live", async () => 
 it("requires an explicit viewer action and displays preparation instead of a broken video", async () => {
   const live = { ...waiting, active: true, session: "session", ready: false };
   vi.stubGlobal("fetch", vi.fn(async (url: string) => ({ ok: true, json: async () => url.endsWith("/chat") ? { messages: [] } : live })));
-  render(<HttpWebinar event={event} initialStatus={live}/>);
+  render(<HttpWebinar studio event={event} initialStatus={live}/>);
   expect(screen.getByLabelText("Видео и звук ведущего")).not.toBeVisible();
   await userEvent.click(screen.getByRole("button", { name: "Смотреть эфир" }));
   expect(screen.getByRole("status")).toHaveTextContent("Подготавливаем видео");
@@ -41,7 +41,7 @@ it("blocks an early start and unlocks automatically only after the server allows
   const scheduled = { ...waiting, host: true, scheduled: true, can_start: false, starts_at: "2026-11-01T12:00:00+03:00" };
   let state = scheduled;
   vi.stubGlobal("fetch", vi.fn(async () => ({ ok: true, json: async () => state })));
-  const view = render(<HttpWebinar event={event} initialStatus={scheduled}/>);
+  const view = render(<HttpWebinar studio event={event} initialStatus={scheduled}/>);
   const start = screen.getByRole("button", { name: "Начать эфир" });
   expect(start).toBeDisabled();
   expect(screen.getByText(/До начала можно проверить камеру/)).toHaveTextContent("1 ноября в 12:00 МСК");
@@ -59,7 +59,7 @@ it("prefers the HLS.js player when native HLS also advertises support and cleans
   vi.spyOn(HTMLMediaElement.prototype, "canPlayType").mockReturnValue("probably");
   const live = { ...waiting, active: true, session: "session", ready: true, playlist: "/api/private/index.m3u8" };
   vi.stubGlobal("fetch", vi.fn(async (url: string) => ({ ok: true, json: async () => url.endsWith("/chat") ? { messages: [] } : live })));
-  const view = render(<HttpWebinar event={event} initialStatus={live}/>);
+  const view = render(<HttpWebinar studio event={event} initialStatus={live}/>);
   await userEvent.click(screen.getByRole("button", { name: "Смотреть эфир" }));
   await waitFor(() => expect(mse.players[0]?.loadSource).toHaveBeenCalledWith(live.playlist));
   expect(screen.getByLabelText("Видео и звук ведущего")).not.toHaveAttribute("src");

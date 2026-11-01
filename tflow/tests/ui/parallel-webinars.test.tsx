@@ -79,8 +79,9 @@ describe("выбор параллельных онлайн-флоу", () => {
     expect(screen.queryByRole("region", { name: "Открытый эфир" })).not.toBeInTheDocument();
   });
 
-  it("сохраняет явный доступ к общему эфиру мероприятия", async () => {
+  it("старая общая ссылка открывает выбор конкретной активности", async () => {
     mount(owner, "general");
-    expect(await screen.findByRole("region", { name: "Открытый эфир" })).toHaveTextContent("general");
+    expect(await screen.findByRole("region", { name: "Онлайн-флоу мероприятия" })).toBeVisible();
+    expect(screen.queryByRole("region",{name:"Открытый эфир"})).not.toBeInTheDocument();
   });
 });

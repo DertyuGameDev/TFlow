@@ -11,12 +11,13 @@ from django.conf import settings
 from django.db import close_old_connections
 from django.utils import timezone
 
-from .broadcasts import root, stream_dir, live
+from .broadcasts import media_dir, root, live
+from .webinars import start_time
 from .models import HttpBroadcast
 
 
 def encoder_command(broadcast):
-    directory = stream_dir(broadcast.session)
+    directory = media_dir(broadcast)
     return [settings.HTTP_BROADCAST_FFMPEG, "-hide_banner", "-loglevel", "error", "-nostdin",
             "-max_alloc", "67108864", "-threads", "1", "-filter_threads", "1",
             "-protocol_whitelist", "pipe,file", "-f", "matroska" if broadcast.mime == "video/webm" else "mov",
@@ -33,7 +34,7 @@ def encoder_command(broadcast):
 
 class Encoder:
     def __init__(self, broadcast):
-        self.pk, self.session = broadcast.pk, broadcast.session
+        self.pk, self.session, self.directory = broadcast.pk, broadcast.session, media_dir(broadcast)
         self.sequence, self.pending, self.offset = 0, None, 0
         self.last_write = time.monotonic()
         self.process = subprocess.Popen(encoder_command(broadcast), stdin=subprocess.PIPE,
@@ -44,7 +45,7 @@ class Encoder:
         if self.process.poll() is not None:
             raise RuntimeError("ENCODER_FAILED")
         if self.pending is None and self.sequence <= broadcast.received_seq:
-            path = stream_dir(self.session) / f"input-{self.sequence:09d}.bin"
+            path = self.directory / f"input-{self.sequence:09d}.bin"
             if path.exists():
                 self.pending, self.offset = path.read_bytes(), 0
         if self.pending is not None:
@@ -56,12 +57,13 @@ class Encoder:
                 if time.monotonic() - self.last_write > 20:
                     raise RuntimeError("ENCODER_STALLED") from None
             if self.offset == len(self.pending):
-                (stream_dir(self.session) / f"input-{self.sequence:09d}.bin").unlink(missing_ok=True)
+                (self.directory / f"input-{self.sequence:09d}.bin").unlink(missing_ok=True)
                 self.sequence += 1
                 self.pending = None
 
     def close(self):
-        self.process.stdin.close()
+        try: self.process.stdin.close()
+        except (BrokenPipeError, OSError): pass
         try:
             self.process.wait(timeout=1)
         except subprocess.TimeoutExpired:
@@ -97,26 +99,35 @@ def run_worker(stop=None):
             desired = set()
             for broadcast in active:
                 ends = min(broadcast.event.ends_at, broadcast.activity.ends_at if broadcast.activity else broadcast.event.ends_at)
-                if not live(broadcast) or broadcast.event.status != "published" or ends <= timezone.now():
+                if broadcast.event.status != "published" or ends <= timezone.now():
                     HttpBroadcast.objects.filter(pk=broadcast.pk, session=broadcast.session).update(active=False, publisher_hash="")
                     continue
-                session = broadcast.session
+                if not live(broadcast) or timezone.now() < start_time(broadcast.event, broadcast.activity): continue
+                session = (broadcast.session, broadcast.media_epoch)
                 desired.add(session)
                 try:
                     if session not in encoders:
                         if len(encoders) >= settings.HTTP_BROADCAST_MAX_STREAMS:
                             continue
+                        if broadcast.received_seq >= 0 and not (media_dir(broadcast) / "input-000000000.bin").exists():
+                            HttpBroadcast.objects.filter(pk=broadcast.pk, media_epoch=broadcast.media_epoch).update(failure="ENCODER_RESTARTED")
+                            continue
                         encoders[session] = Encoder(broadcast)
                     encoders[session].feed(broadcast)
                 except (OSError, RuntimeError) as error:
                     reason = str(error) if str(error) in {"ENCODER_FAILED", "ENCODER_STALLED"} else "ENCODER_FAILED"
-                    HttpBroadcast.objects.filter(pk=broadcast.pk, session=session).update(active=False, failure=reason, publisher_hash="")
+                    HttpBroadcast.objects.filter(pk=broadcast.pk, session=broadcast.session, media_epoch=broadcast.media_epoch).update(failure=reason)
                     desired.discard(session)
             for session in set(encoders) - desired:
                 encoders.pop(session).close()
             if time.monotonic() - cleanup > 30:
+                current_paths = {media_dir(b) for b in active}
+                for b in active:
+                    for previous in (root() / str(b.session)).glob("media-*"):
+                        if previous.is_dir() and previous not in current_paths and time.time() - previous.stat().st_mtime > 180:
+                            shutil.rmtree(previous)
                 for directory in root().iterdir():
-                    if directory.is_dir() and directory.name not in {str(x) for x in desired} and time.time() - directory.stat().st_mtime > 180:
+                    if directory.is_dir() and directory.name not in {str(x[0]) for x in desired} and time.time() - directory.stat().st_mtime > 180:
                         shutil.rmtree(directory)
                 cleanup = time.monotonic()
             time.sleep(0.05)

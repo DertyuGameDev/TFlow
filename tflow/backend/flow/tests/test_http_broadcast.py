@@ -29,7 +29,9 @@ class HttpBroadcastTests(Scenario, TransactionTestCase):
         (Path(self.private.name) / "worker").touch()
         self.event.format = "Онлайн"; self.event.save(); self.publish()
         EventRegistration.objects.create(user=self.person, event=self.event)
-        self.endpoint = f"events/{self.event.pk}/broadcast"
+        self.r1.is_online=True;self.r1.save()
+        self.a.registration_required=False;self.a.save()
+        self.endpoint = f"activities/{self.a.pk}/broadcast"
 
     def begin(self):
         return self.request(self.endpoint, "post", {"operation": "start", "mime": "video/webm"})
@@ -125,7 +127,8 @@ class HttpBroadcastTests(Scenario, TransactionTestCase):
     def test_expiration_publication_and_worker_loss(self):
         lease = self.begin()
         HttpBroadcast.objects.update(last_chunk_at=timezone.now() - timedelta(seconds=31))
-        self.assertFalse(self.request(self.endpoint)["active"])
+        self.assertTrue(self.request(self.endpoint)["active"])
+        self.assertTrue(self.request(self.endpoint)["reconnecting"])
         self.assertEqual(self.upload(lease).status_code, 409)
         (Path(self.private.name) / "worker").unlink()
         self.request(self.endpoint, "post", {"operation": "start", "mime": "video/webm"}, status=503)
@@ -153,7 +156,7 @@ class HttpBroadcastTests(Scenario, TransactionTestCase):
         from flow.webinars import stop_webinar
         self.begin()
         with patch("flow.webinars.room_api"):
-            stop_webinar(self.event)
+            stop_webinar(self.event, activity_id=self.a.pk)
         self.assertFalse(HttpBroadcast.objects.get().active)
         with override_settings(HTTP_BROADCAST_ENABLED=False):
             self.request(self.endpoint, status=404)
@@ -165,7 +168,9 @@ class HttpBroadcastTests(Scenario, TransactionTestCase):
         self.assertNotEqual(one["session"], two["session"])
         self.request(f"broadcasts/{one['session']}/chat", "post", {"text": "Первый флоу"})
         self.assertEqual(self.request(f"broadcasts/{two['session']}/chat")["messages"], [])
-        self.request(self.endpoint, "post", {"operation": "start", "mime": "video/webm"}, status=503)
+        from flow.models import Activity
+        third=Activity.objects.create(event=self.event,room=self.r1,title="Третий поток",starts_at=self.a.starts_at,ends_at=self.a.ends_at,capacity=1)
+        self.request(f"activities/{third.pk}/broadcast", "post", {"operation": "start", "mime": "video/webm"}, status=503)
 
     @unittest.skipUnless(shutil.which("ffmpeg"), "Real encoding requires FFmpeg")
     def test_real_webm_chunks_become_h264_aac_hls(self):
@@ -195,3 +200,52 @@ class HttpBroadcastTests(Scenario, TransactionTestCase):
             self.assertEqual({item["codec_name"] for item in json.loads(result.stdout)["streams"]}, {"h264", "aac"})
         finally:
             encoder.close()
+
+    @unittest.skipUnless(shutil.which("ffmpeg"), "Real encoding requires FFmpeg")
+    def test_resumed_generation_encodes_fresh_headers_without_changing_room(self):
+        from flow.broadcast_worker import Encoder
+        from flow.broadcasts import media_dir
+        source=Path(self.private.name)/"resume.webm"
+        subprocess.run(["ffmpeg","-loglevel","error","-f","lavfi","-i","testsrc2=size=160x90:rate=15","-f","lavfi","-i","sine=frequency=600:sample_rate=48000","-t","6","-c:v","libvpx","-deadline","realtime","-threads","1","-c:a","libopus",str(source)],check=True,capture_output=True,timeout=15)
+        lease=self.begin()
+        for generation in range(2):
+            if generation:
+                lease=self.request(self.endpoint,"post",{"operation":"resume","publisher":lease["publisher"],"mime":"video/webm"})
+            broadcast=HttpBroadcast.objects.get();directory=media_dir(broadcast)
+            for seq,offset in enumerate(range(0,len(source.read_bytes()),32768)):
+                self.assertEqual(self.upload(lease,seq,source.read_bytes()[offset:offset+32768]).status_code,200)
+            broadcast.refresh_from_db();encoder=Encoder(broadcast)
+            try:
+                deadline=time.monotonic()+10
+                while time.monotonic()<deadline and not (directory/"index.m3u8").exists():encoder.feed(broadcast);time.sleep(.02)
+                segment=next(directory.glob("segment-*.ts"))
+                result=subprocess.run(["ffprobe","-v","error","-show_entries","stream=codec_name","-of","json",str(segment)],check=True,capture_output=True,text=True)
+                self.assertEqual({x["codec_name"] for x in json.loads(result.stdout)["streams"]},{"h264","aac"})
+                self.assertEqual(str(broadcast.session),lease["session"])
+                self.assertEqual(broadcast.media_epoch,generation)
+            finally:encoder.close()
+
+    def test_resume_keeps_logical_session_and_chat_but_rotates_media_and_publisher(self):
+        lease=self.begin();self.upload(lease)
+        self.request(f"broadcasts/{lease['session']}/chat","post",{"text":"Не терять чат"})
+        next_lease=self.request(self.endpoint,"post",{"operation":"resume","mime":"video/webm","publisher":lease['publisher']})
+        self.assertEqual(next_lease['session'],lease['session'])
+        self.assertNotEqual(next_lease['publisher'],lease['publisher'])
+        self.assertEqual(HttpBroadcast.objects.get().media_epoch,1)
+        self.assertEqual(self.upload(lease,seq=1,data=b'old').status_code,403)
+        self.assertEqual(self.upload(next_lease).status_code,200)
+        self.assertEqual(self.request(f"broadcasts/{lease['session']}/chat")['messages'][0]['text'],'Не терять чат')
+        self.assertEqual(self.participant.get(f"/api/broadcasts/{lease['session']}/media/0/index.m3u8").status_code,409)
+
+    def test_only_original_publisher_can_resume_and_schedule_is_authoritative(self):
+        lease=self.begin()
+        self.request(self.endpoint,'post',{'operation':'resume','mime':'video/webm','publisher':'wrong'},status=403)
+        self.request(self.endpoint,'post',{'operation':'resume','mime':'video/webm','publisher':lease['publisher']},client=self.participant,status=403)
+        self.a.starts_at=self.start+timedelta(minutes=45);self.a.save()
+        self.assertTrue(self.request(self.endpoint)['scheduled'])
+        self.request(self.endpoint,'post',{'operation':'resume','mime':'video/webm','publisher':lease['publisher']},status=409,code='WEBINAR_TOO_EARLY')
+        self.assertEqual(self.upload(lease).status_code,409)
+
+    def test_new_broadcast_must_belong_to_an_activity(self):
+        self.request(f'events/{self.event.pk}/broadcast','post',{'operation':'start','mime':'video/webm'},status=400,code='WEBINAR_ACTIVITY_REQUIRED')
+        self.assertFalse(HttpBroadcast.objects.exists())

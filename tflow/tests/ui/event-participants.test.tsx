@@ -74,14 +74,13 @@ describe("превью участников события", () => {
     expect(screen.queryByRole("button")).not.toBeInTheDocument();
   });
 
-  it("переключает обзор на полный список, где можно найти и шестого участника", async () => {
+  it("показывает единый список, где можно найти и шестого участника", async () => {
     const user = userEvent.setup();
     render(<OrganizerManage {...manageProps} />);
-    await user.click(screen.getByRole("button", { name: "Все участники" }));
     expect(screen.getByRole("tab", { name: "Событие" })).toHaveAttribute("aria-selected", "true");
-    expect(screen.getByRole("group", { name: "Все участники" })).toHaveAttribute("open");
+    expect(screen.getByRole("region", { name: "Участники события" })).toBeVisible();
     await user.type(screen.getByRole("textbox", { name: "Найти участника" }), "Участник 6");
-    const panel = screen.getByRole("group", { name: "Все участники" });
+    const panel = screen.getByRole("region", { name: "Участники события" });
     expect(within(panel).getByText("Участник 6")).toBeVisible();
     expect(within(panel).queryByText("Участник 1")).not.toBeInTheDocument();
     await user.click(within(panel).getByText("Участник 6"));

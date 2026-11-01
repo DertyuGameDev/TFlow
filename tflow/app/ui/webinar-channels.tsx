@@ -10,8 +10,6 @@ export function WebinarChannels({ event, ...program }: Omit<ComponentProps<typeo
     <p>Эфиры могут идти одновременно. У каждого флоу отдельные видео, звук и чат.
       {program.organizer ? " Откройте студии параллельных эфиров в разных вкладках." : " Запишитесь на нужный флоу и войдите в его вебинар."}</p>
     <ActivityProgram {...program} />
-    <a className="button secondary" href={webinarPath(event.id, "general")}>
-      <Video size={17} />{program.organizer ? "Студия общего эфира мероприятия" : "Общий эфир мероприятия"}
-    </a>
+
   </section>;
 }
