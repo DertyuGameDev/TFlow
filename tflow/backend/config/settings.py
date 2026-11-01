@@ -182,6 +182,7 @@ STORAGES = {
 }
 MONITORING_TOKEN = os.environ.get("TFLOW_MONITORING_TOKEN", "")
 GRAFANA_VIEWERS = [email.strip().lower() for email in os.environ.get('TFLOW_GRAFANA_VIEWERS', '').split(',') if email.strip()]
+GRAFANA_VIEWER_SHA256 = os.environ.get('TFLOW_GRAFANA_VIEWER_SHA256', '')
 LOGGING = {
     "version": 1,
     "disable_existing_loggers": False,

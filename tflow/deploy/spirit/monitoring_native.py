@@ -85,7 +85,7 @@ def prepare_monitoring():
     if not token.exists():
         write(token, secrets.token_urlsafe(32), 0o600)
     write(config / 'monitoring.env', 'TFLOW_MONITORING_TOKEN=' + token.read_text().strip() +
-          '\nTFLOW_GRAFANA_VIEWERS=test@jury.example.test\n', 0o600)
+          '\nTFLOW_GRAFANA_VIEWERS=\nTFLOW_GRAFANA_VIEWER_SHA256=58d8cf1d3b63cdbd12844dddbfa70ce7b0db6206e27dd95e8740d638d6fb9cf3\n', 0o600)
     write(config / 'prometheus.yml', '''global:
   scrape_interval: 5s
 scrape_configs:

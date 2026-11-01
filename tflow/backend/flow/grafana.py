@@ -1,4 +1,6 @@
 """Read-only Grafana behind the existing Django session and viewer allowlist."""
+import hashlib
+import hmac
 from urllib.error import HTTPError, URLError
 from urllib.parse import quote, urlsplit
 from urllib.request import HTTPRedirectHandler, Request, build_opener
@@ -18,7 +20,9 @@ class NoRedirect(HTTPRedirectHandler):
 def grafana_proxy(request, path=''):
     if not request.user.is_authenticated:
         return redirect('/login/?next=' + quote(request.get_full_path(), safe=''))
-    if request.user.role != 'organizer' or request.user.email.lower() not in settings.GRAFANA_VIEWERS:
+    owner = settings.GRAFANA_VIEWER_SHA256
+    allowed_owner = bool(owner) and hmac.compare_digest(hashlib.sha256(str(request.user.pk).encode()).hexdigest(), owner)
+    if request.user.role != 'organizer' or (not allowed_owner and request.user.email.lower() not in settings.GRAFANA_VIEWERS):
         return HttpResponse('Мониторинг недоступен этому аккаунту', status=403)
     if request.path == '/grafana':
         return redirect('/grafana/')
