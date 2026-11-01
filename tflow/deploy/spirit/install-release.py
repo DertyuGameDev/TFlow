@@ -12,6 +12,8 @@ import tarfile
 import time
 import urllib.request
 from runtime_check import verify_runtime
+from defense_data import pending_request, apply_request
+from monitoring_native import prepare_monitoring
 from broadcast_service import prepare_service, enabled_environment, ensure_no_live_broadcast
 import notification_service
 
@@ -58,8 +60,8 @@ def run(*args, **kwargs):
     return subprocess.run(args, check=True, **kwargs)
 
 
-def as_app(*args):
-    run("runuser", "-u", "tflow", "--", *map(str, args), cwd=app, env=environment)
+def as_app(*args, **kwargs):
+    return run("runuser", "-u", "tflow", "--", *map(str, args), cwd=app, env=environment, **kwargs)
 
 
 # Only the application user executes dependencies and application management code.
@@ -69,9 +71,11 @@ python = release / ".venv" / "bin" / "python"
 as_app(python, "-m", "pip", "install", "--disable-pip-version-check", "--no-cache-dir", "-r", app / "requirements.lock.txt")
 stamp = datetime.now(timezone.utc).strftime("%Y%m%dT%H%M%SZ")
 backup = Path("/var/backups/tflow") / f"{stamp}-{sha[:8]}.dump"
-fd = os.open(backup, os.O_WRONLY | os.O_CREAT | os.O_EXCL, 0o600)
-with os.fdopen(fd, "wb") as stream:
-    run("runuser", "-u", "postgres", "--", "pg_dump", "--format=custom", "tflow", stdout=stream)
+data_request = pending_request(Path(__file__).with_name('defense-data-request.json'))
+if data_request is None:
+    fd = os.open(backup, os.O_WRONLY | os.O_CREAT | os.O_EXCL, 0o600)
+    with os.fdopen(fd, "wb") as stream:
+        run("runuser", "-u", "postgres", "--", "pg_dump", "--format=custom", "tflow", stdout=stream)
 as_app(python, app / "manage.py", "migrate", "--noinput")
 as_app(python, app / "manage.py", "collectstatic", "--noinput")
 # Prepare dependencies before changing the running release. Failure here leaves
@@ -79,6 +83,7 @@ as_app(python, app / "manage.py", "collectstatic", "--noinput")
 prepare_service()
 as_app(python, app / "manage.py", "setup_web_push", "--private", "/var/lib/tflow/webpush/private.pem", "--public", "/var/lib/tflow/webpush/public.key")
 notification_service.prepare_service()
+prepare_monitoring()
 env_path = Path("/etc/tflow/app.env")
 env_before = env_path.read_text()
 env_backup = Path("/var/backups/tflow") / f"{stamp}-{sha[:8]}-app.env"
@@ -98,6 +103,8 @@ candidate.symlink_to(release, target_is_directory=True)
 candidate.replace(current)
 healthy = False
 try:
+    if data_request is not None:
+        apply_request(data_request, sha, python, app, as_app, run)
     run("systemctl", "restart", "tflow-broadcast")
     run("systemctl", "restart", "tflow")
     run("systemctl", "restart", "tflow-notifications")

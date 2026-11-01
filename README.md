@@ -1,6 +1,10 @@
 # ТФлоу
 
-Сайт: https://tflow-one.vercel.app/ · GitLab: https://gitlab.t-education.com/hack-mmk-25/tflow/-/tree/main
+- [Развёрнутое приложение](https://hack-mmk-25-vm1-162f2c.teleport.t-education.com/)
+- [Swagger / OpenAPI](https://hack-mmk-25-vm1-162f2c.teleport.t-education.com/api/docs/)
+- [Архитектурная документация](https://gitlab.t-education.com/hack-mmk-25/tflow/-/blob/master/tflow/docs/architecture.md)
+- [Репозиторий GitLab](https://gitlab.t-education.com/hack-mmk-25/tflow)
+- [Grafana — войти основным организатором](https://hack-mmk-25-vm1-162f2c.teleport.t-education.com/grafana/d/tflow-production/tflow)
 
 Платформа мероприятий по ТЗ EventFlow в жёлто-белом стиле референса Т Банка. Backend полностью на Python/Django, интерфейс — React/TypeScript. Каталог, программа, аудитории, регистрация на активности, личное расписание, кабинет организатора, сообщества и избранное.
 
@@ -46,16 +50,17 @@ npm start
 
 Адрес: `http://127.0.0.1:5173/`. Для production используется Gunicorn/WSGI, а не `runserver`. Подробности и Docker — в [tflow/README.md](./tflow/README.md).
 
-Актуальный сайт: **https://tflow-one.vercel.app/** — Django на Vercel с постоянным PostgreSQL Neon. Историческая публикация ChatGPT Sites содержит старую Worker-версию 0.1.
+Актуальный сайт: **https://hack-mmk-25-vm1-162f2c.teleport.t-education.com/** — Django на VM в Spirit с постоянной PostgreSQL. Историческая публикация ChatGPT Sites содержит старую Worker-версию 0.1.
 
-[Архитектура и требования](./tflow/docs/requirements.md) · [Результаты проверки](./tflow/docs/verification.md)
+[Архитектура](./tflow/docs/architecture.md) · [Требования](./tflow/docs/requirements.md) · [Результаты проверки](./tflow/docs/verification.md)
 
 ## GitLab CI и Spirit
 
 [GitLab CI](./.gitlab-ci.yml) проверяет frontend и Django на PostgreSQL, собирает
 приложение и сохраняет архив релиза с контрольной суммой. Репозиторий и проверенный
 релиз размещены на выделенной VM `vm1` в Spirit. У приложения отдельная постоянная
-PostgreSQL; запуском управляет systemd. Выкладка релиза выполняется отдельно от push.
+PostgreSQL; запуском управляет systemd. Проверенный GitHub `main` автоматически
+синхронизируется через MR в GitLab `master`; после его CI запускается `deploy-spirit-cu`.
 Команды установки и текущий статус публичного HTTPS —
 в [инструкции Spirit](./tflow/deploy/spirit/README.md).
 

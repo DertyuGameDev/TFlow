@@ -1,4 +1,4 @@
-"""Additive and repeatable local judging dataset. Never creates production accounts."""
+"""Repeatable judging dataset; production requires an explicitly emptied database."""
 
 from datetime import timedelta
 from zoneinfo import ZoneInfo
@@ -104,9 +104,14 @@ TOPICS = [
 class Command(BaseCommand):
     help = "Create 10 local jury participants, organizer, events, programs and demo scenarios."
 
+    def add_arguments(self, parser):
+        parser.add_argument('--allow-production', action='store_true',
+                            help='Allow the confirmed defense reset to populate an empty server database')
+
     @transaction.atomic
     def handle(self, *args, **options):
-        if not settings.DEBUG or settings.IS_VERCEL or connection.vendor != "sqlite":
+        local = settings.DEBUG and not settings.IS_VERCEL and connection.vendor == 'sqlite'
+        if not local and (not options['allow_production'] or User.objects.exists() or Event.objects.exists() or Community.objects.exists()):
             raise CommandError(
                 "Jury fixtures are permitted only on a local DEBUG SQLite database"
             )
@@ -360,6 +365,6 @@ class Command(BaseCommand):
             raise CommandError("Reserved jury draft belongs to another owner")
         self.stdout.write(
             self.style.SUCCESS(
-                "Local jury fixtures ready: 10 participants, 1 organizer, 10 published events, 1 draft, 30 activities, 4 clubs."
+                "Jury fixtures ready: 10 participants, 1 organizer, 10 published events, 1 draft, 30 activities, 4 clubs."
             )
         )

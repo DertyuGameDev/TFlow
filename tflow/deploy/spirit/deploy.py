@@ -47,7 +47,7 @@ if previous.get("commit") != expected or previous.get("sha256") != incoming.get(
     run("python3", str(repo / "tflow/deploy/spirit/install-release.py"), str(directory / "manifest.json"), str(directory / "tflow-release.tar.gz"))
 elif gateway_changed:
     run("systemctl", "restart", "tflow")
-for service in ("tflow", "caddy", "postgresql"):
+for service in ("tflow", "caddy", "postgresql", "tflow-grafana", "tflow-prometheus"):
     run("systemctl", "is-active", "--quiet", service)
 request = urllib.request.Request("http://127.0.0.1:8000/api/health", headers={"Host": "hack-mmk-25-vm1-162f2c.vm.prodcontest.com", "X-Forwarded-Proto": "https"})
 for attempt in range(25):
@@ -72,6 +72,15 @@ with urllib.request.urlopen(request, timeout=5) as response:
     if json.load(response) != {"enabled":True,"ready":True}:
         raise SystemExit("Notification worker is not enabled and ready")
 print("Exact CI source, runtime version, frontend HTML and assets verified")
+for attempt in range(25):
+    with urllib.request.urlopen('http://127.0.0.1:19090/api/v1/query?query=up%7Bjob%3D%22tflow%22%7D', timeout=5) as response:
+        samples = json.load(response).get('data', {}).get('result', [])
+    if any(item.get('value', [0, '0'])[1] == '1' for item in samples):
+        print('Grafana and live Prometheus backend metrics verified')
+        break
+    time.sleep(1)
+else:
+    raise SystemExit('Prometheus cannot scrape the deployed backend')
 '''
 
 

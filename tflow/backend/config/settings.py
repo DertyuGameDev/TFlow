@@ -161,6 +161,8 @@ CSRF_FAILURE_VIEW = "flow.views.csrf_failure"
 X_FRAME_OPTIONS = "DENY"
 SECURE_CONTENT_TYPE_NOSNIFF = True
 SECURE_SSL_REDIRECT = not DEBUG and os.environ.get("DJANGO_HTTPS_REDIRECT", "1") == "1"
+# The bearer-protected scrape endpoint is reached over the VM's loopback socket.
+SECURE_REDIRECT_EXEMPT = [r'^internal/metrics$']
 SECURE_HSTS_SECONDS = 31536000 if not DEBUG else 0
 SECURE_HSTS_INCLUDE_SUBDOMAINS = not DEBUG
 SECURE_HSTS_PRELOAD = not DEBUG
@@ -179,6 +181,7 @@ STORAGES = {
     "staticfiles": {"BACKEND": "whitenoise.storage.CompressedStaticFilesStorage"},
 }
 MONITORING_TOKEN = os.environ.get("TFLOW_MONITORING_TOKEN", "")
+GRAFANA_VIEWERS = [email.strip().lower() for email in os.environ.get('TFLOW_GRAFANA_VIEWERS', '').split(',') if email.strip()]
 LOGGING = {
     "version": 1,
     "disable_existing_loggers": False,

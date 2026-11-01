@@ -4,8 +4,10 @@ from flow import openapi
 from flow.deploy_hooks import dns_challenge
 from flow.observability import metrics_view
 from flow import broadcasts
+from flow.grafana import grafana_proxy
 
 urlpatterns = [
+    re_path(r'^grafana(?:/(?P<path>.*))?$', grafana_proxy),
     path("api/<str:resource>/<str:item_id>/broadcast", broadcasts.control),
     path("api/broadcasts/<uuid:session>/chunks/<int:sequence>", broadcasts.upload),
     path("api/broadcasts/<uuid:session>/media/<int:epoch>/<str:filename>", broadcasts.media),
