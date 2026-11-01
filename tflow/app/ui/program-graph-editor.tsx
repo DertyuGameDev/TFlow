@@ -289,11 +289,6 @@ export function ProgramGraphEditor({
           Сохраняем…
         </span>
       )}
-      {creatingOnlineRoom && <label className="program-graph-online-name">
-        Название онлайн-потока
-        <input value={onlineRoomName} required disabled={busy} onChange={event => setOnlineRoomName(event.target.value)} />
-      </label>}
-      {creatingOnlineRoom && <small className="muted">Создадим отдельную онлайн-аудиторию и вебинар для этого флоу.</small>}
       <FormError error={error} />
     </form>
   );
