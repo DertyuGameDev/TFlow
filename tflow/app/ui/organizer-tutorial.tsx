@@ -375,7 +375,7 @@ export function OrganizerTutorial({
                   className="button primary"
                   onClick={() => changeStep(progress.step + 1)}
                 >
-                  Далее
+                  Пропустить
                   <ArrowRight size={16} />
                 </button>
               ) : (
