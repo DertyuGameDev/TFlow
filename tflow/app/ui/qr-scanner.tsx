@@ -68,7 +68,7 @@ export function QRScanner({event,events,initialToken,send,onScan,endpoint,activi
     catch{if(alive.current){setError("QR-код не найден на изображении. Выберите чёткую фотографию кода целиком.");setBusy(false);}}finally{URL.revokeObjectURL(url);}
   }
   const autoCamera=useRef(startCamera);autoCamera.current=startCamera;
-  useEffect(()=>{if(autoStart&&(eventId||events.length))void autoCamera.current();return()=>{cameraGeneration.current++;controls.current?.stop();controls.current=null;};},[autoStart,eventId,events.length]);
+  useEffect(()=>{if(autoStart&&eventId&&!showEventPicker)void autoCamera.current();return()=>{cameraGeneration.current++;controls.current?.stop();controls.current=null;};},[autoStart,eventId,events.length,showEventPicker]);
   if(!event&&!events.length)return <div className="quiet-empty"><span className="empty-symbol"><ScanLine size={28}/></span><h2>Сначала создайте событие</h2><p>У каждого события свой список участников. После создания здесь появится его сканер.</p><a className="button primary" href="#organizer">К моим событиям</a></div>;
   return <section className={`scanner-panel ${simple?"scanner-simple":""}`} aria-label="Сканер участников" aria-busy={busy}>
     {showEventPicker?<div className="scanner-event-picker">
