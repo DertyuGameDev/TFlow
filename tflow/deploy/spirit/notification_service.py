@@ -38,6 +38,8 @@ def prepare_service():
 def enabled_environment(text):
     values={
         'TFLOW_WEB_PUSH':'1',
+        'TFLOW_WEB_PUSH_GOOGLE_EDGE':'1',
+        'TFLOW_WEB_PUSH_MOZILLA_EDGE':'1',
         'TFLOW_WEB_PUSH_PRIVATE_KEY':'/var/lib/tflow/webpush/private.pem',
         'TFLOW_WEB_PUSH_PUBLIC_KEY':'/var/lib/tflow/webpush/public.key',
         'TFLOW_WEB_PUSH_SUBJECT':'https://hack-mmk-25-vm1-162f2c.teleport.t-education.com',

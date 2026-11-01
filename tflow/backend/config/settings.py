@@ -213,6 +213,8 @@ if os.environ.get("TFLOW_LOG_FILE"):
 
 # Web Push uses a dedicated persistent worker on the VM, never a request thread.
 WEB_PUSH_ENABLED = os.environ.get("TFLOW_WEB_PUSH", "0") == "1"
+WEB_PUSH_GOOGLE_EDGE = os.environ.get("TFLOW_WEB_PUSH_GOOGLE_EDGE", "0") == "1"
+WEB_PUSH_MOZILLA_EDGE = os.environ.get("TFLOW_WEB_PUSH_MOZILLA_EDGE", "0") == "1"
 WEB_PUSH_PRIVATE_KEY = Path(os.environ.get("TFLOW_WEB_PUSH_PRIVATE_KEY", str(DATA_DIR / "webpush-private.pem")))
 WEB_PUSH_PUBLIC_KEY = Path(os.environ.get("TFLOW_WEB_PUSH_PUBLIC_KEY", str(DATA_DIR / "webpush-public.key")))
 WEB_PUSH_SUBJECT = os.environ.get("TFLOW_WEB_PUSH_SUBJECT", PUBLIC_APP_URL if PUBLIC_APP_URL.startswith("https://") else "https://tflow.invalid").rstrip("/")

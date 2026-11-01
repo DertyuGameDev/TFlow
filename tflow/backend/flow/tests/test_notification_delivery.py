@@ -246,3 +246,23 @@ class PushDeliveryTests(TransactionTestCase):
         self.notice.read=False;self.notice.save();self.device.generation=uuid.uuid4();self.device.save()
         PushDelivery.objects.filter(pk=self.job.pk).update(status='pending',lease_until=None)
         push.deliver_due();send.assert_not_called()
+
+    @patch('pywebpush.webpush')
+    def test_crash_on_last_attempt_cannot_create_an_unbounded_retry_loop(self,send):
+        PushDelivery.objects.filter(pk=self.job.pk).update(attempts=8,lease_until=timezone.now()-timedelta(seconds=1))
+        self.assertEqual(push.deliver_due(),0);self.job.refresh_from_db()
+        self.assertEqual(self.job.status,'failed');self.assertEqual(self.job.last_error,'RETRY_LIMIT');send.assert_not_called()
+
+    @override_settings(WEB_PUSH_GOOGLE_EDGE=True,WEB_PUSH_MOZILLA_EDGE=True)
+    def test_provider_route_retains_http_host_sni_and_certificate_validation(self):
+        import requests
+        with push.delivery_session() as session:
+            for host,edge in [('fcm.googleapis.com','www.googleapis.com'),('updates.push.services.mozilla.com','199.232.45.91')]:
+                request=requests.Request('POST','https://'+host+'/private-token').prepare()
+                adapter=session.get_adapter(request.url)
+                with patch.object(adapter.poolmanager,'connection_from_host') as pool:
+                    adapter.get_connection_with_tls_context(request,True)
+                    pool.assert_called_once_with(edge,scheme='https',pool_kwargs={'server_hostname':host,'assert_hostname':host})
+                adapter.add_headers(request)
+                self.assertEqual(request.headers['Host'],host)
+            self.assertTrue(session.verify)

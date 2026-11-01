@@ -20,6 +20,39 @@ from .serializers import notice_json
 COOKIE = "tflow_push_device"
 
 
+def delivery_session():
+    import requests
+    from requests.adapters import HTTPAdapter
+
+    class ProviderEdgeAdapter(HTTPAdapter):
+        # Some VM routes to FCM's usual IP range time out. Use Google's public
+        # API frontend DNS while retaining the FCM HTTP host, SNI and full TLS
+        # certificate validation. No endpoint, key or packet goes to a third party.
+        def __init__(self, host, connect_host):
+            self.provider_host, self.connect_host = host, connect_host
+            super().__init__()
+
+        def get_connection_with_tls_context(self, request, verify, proxies=None, cert=None):
+            return self.poolmanager.connection_from_host(self.connect_host, scheme="https",
+                pool_kwargs={"server_hostname": self.provider_host, "assert_hostname": self.provider_host})
+
+        def add_headers(self, request, **kwargs):
+            request.headers["Host"] = self.provider_host
+
+    class NoRedirectSession(requests.Session):
+        def request(self, *args, **kwargs):
+            kwargs["allow_redirects"] = False
+            return super().request(*args, **kwargs)
+
+    session = NoRedirectSession()
+    if settings.WEB_PUSH_GOOGLE_EDGE:
+        session.mount("https://fcm.googleapis.com/", ProviderEdgeAdapter("fcm.googleapis.com", "www.googleapis.com"))
+    if settings.WEB_PUSH_MOZILLA_EDGE:
+        # Alternate Mozilla/Fastly edge, verified with Mozilla's TLS identity.
+        session.mount("https://updates.push.services.mozilla.com/", ProviderEdgeAdapter("updates.push.services.mozilla.com", "199.232.45.91"))
+    return session
+
+
 def decode_key(value, length):
     if not isinstance(value, str) or len(value) > 120:
         raise ValueError()
@@ -146,17 +179,12 @@ def deliver(job_id):
                 PushDelivery.objects.filter(pk=job_id).update(status="skipped", lease_until=None); return
         validate_subscription({"endpoint": device.endpoint, "keys": device.keys})
         from pywebpush import webpush
-        import requests
-        class NoRedirectSession(requests.Session):
-            def request(self, *args, **kwargs):
-                kwargs["allow_redirects"] = False
-                return super().request(*args, **kwargs)
-        with NoRedirectSession() as session:
+        with delivery_session() as session:
             response = webpush(subscription_info={"endpoint": device.endpoint, "keys": device.keys},
                 # Detail is fetched by the service worker using the current account.
                 # An in-flight message cannot expose a previous account after logout.
                 data=json.dumps({"noticeId": notice.pk}), vapid_private_key=str(settings.WEB_PUSH_PRIVATE_KEY),
-                vapid_claims={"sub": settings.WEB_PUSH_SUBJECT}, ttl=3600, timeout=6,
+                vapid_claims={"sub": settings.WEB_PUSH_SUBJECT}, ttl=3600, timeout=(1.5, 6),
                 requests_session=session, headers={"Urgency": "high" if notice.kind.endswith("reminder") else "normal"})
             if not 200 <= response.status_code < 300:
                 raise RuntimeError("HTTP_" + str(response.status_code))
@@ -186,6 +214,7 @@ def deliver_due(limit=20):
     if not configured(): return 0
     now = timezone.now()
     with transaction.atomic():
+        PushDelivery.objects.filter(status="pending", attempts__gte=8).filter(Q(lease_until__isnull=True)|Q(lease_until__lte=now)).update(status="failed", lease_until=None, last_error="RETRY_LIMIT")
         query = PushDelivery.objects.filter(status="pending", due_at__lte=now).filter(Q(lease_until__isnull=True)|Q(lease_until__lte=now)).order_by("due_at", "id")
         from django.db import connection
         query = query.select_for_update(skip_locked=True) if connection.features.has_select_for_update_skip_locked else query.select_for_update()

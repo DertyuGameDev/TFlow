@@ -39,7 +39,7 @@ def change_message(activity, before):
             changes.append(f"{label}: {short(before[key])} → {short(getattr(activity, key))}")
     if before["registration_required"] != activity.registration_required:
         changes.append("Запись: " + ("теперь нужна отдельная регистрация" if activity.registration_required else "доступно всем участникам события без отдельной записи"))
-    return f"Обновлена активность «{activity.title}». " + (". ".join(changes) if changes else "Обновлены сведения об активности.")
+    return f"Обновлена активность «{activity.title}», мероприятие «{activity.event.title}». " + (". ".join(changes) if changes else "Обновлены сведения об активности.")
 
 
 def conflict_error(activity, code, message):
