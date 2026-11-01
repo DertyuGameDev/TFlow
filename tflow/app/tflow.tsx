@@ -18,6 +18,7 @@ import {
   Copy,
   Heart,
   LayoutDashboard,
+  LockKeyhole,
   MapPin,
   Pencil,
   Plus,
@@ -186,7 +187,7 @@ function Heading({
   children,
 }: {
   title: string;
-  text?: string;
+  text?: React.ReactNode;
   children?: React.ReactNode;
 }) {
   return (
@@ -395,9 +396,13 @@ function ProfileView({
       <Heading
         title="Ваш профиль"
         text={
-          organizer
-            ? "Аккаунт организатора · роль изменить нельзя"
-            : "Аккаунт участника · роль изменить нельзя"
+          <span className="profile-account-summary">
+            <span>{organizer ? "Аккаунт организатора" : "Аккаунт участника"}</span>
+            <strong className="profile-role-note">
+              <LockKeyhole size={15} aria-hidden="true" />
+              Роль изменить нельзя
+            </strong>
+          </span>
         }
       />
       <div

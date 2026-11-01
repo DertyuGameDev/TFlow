@@ -643,6 +643,10 @@ body{font-size:16px;color:#222329;background:#fff}
 .webinar-lobby>svg{margin-inline:auto}
 
 .profile-sharing-note{color:var(--flow-muted);font-size:14px;line-height:1.65;margin:0 0 24px}
+.profile-account-summary{display:flex;align-items:center;flex-wrap:wrap;gap:4px 16px}
+.profile-role-note{display:inline-flex;align-items:center;gap:6px;color:var(--theme-text,#303641);font-weight:600;min-width:0}
+.profile-role-note>svg{flex-shrink:0}
+@media(max-width:760px){.profile-account-summary{flex-direction:column;align-items:flex-start}.profile-role-note{font-size:14px;font-weight:500}}
 .profile-data-grid{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:20px 24px;margin:0 0 24px;min-width:0}
 .profile-data-grid>div{min-width:0;margin:0!important}
 .profile-data-grid dt{font-size:13px;color:var(--flow-muted);margin-bottom:5px}
