@@ -661,6 +661,7 @@ body{font-size:16px;color:#222329;background:#fff}
 .profile-field-error{color:var(--theme-red-text,#a12e2e);font-size:13px;line-height:1.5}
 .flow-form [aria-invalid=true]{border-color:var(--theme-red-text,#a12e2e)}
 .profile-email-note{font-size:13px;color:var(--flow-muted);overflow-wrap:anywhere}
+.expanded-profile-form .profile-required-mark{color:var(--theme-red-text,#b53d35);font-weight:700}
 .registration-form-context{padding-bottom:18px;border-bottom:1px solid var(--flow-border);margin-bottom:4px}
 .registration-form-context strong{display:block;font-size:16px;line-height:1.5;overflow-wrap:anywhere}
 .registration-form-context p{font-size:14px;line-height:1.6;color:var(--flow-muted);margin-top:8px}

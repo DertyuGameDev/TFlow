@@ -161,15 +161,11 @@ class ProfileInput(forms.Form):
     def clean(self):
         data = super().clean()
         if "first_name" in self.data or "last_name" in self.data:
-            if not data.get("first_name"):
-                self.add_error("first_name", "Укажите имя")
             data["name"] = full_name(
                 data.get("first_name", ""), data.get("last_name", "")
             )
         elif data.get("name"):
             data["first_name"], data["last_name"] = split_name(data["name"])
-        else:
-            self.add_error("first_name", "Укажите имя")
         return data
 
 

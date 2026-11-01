@@ -5,6 +5,35 @@ from .test_api import FAST_HASHER, Scenario
 
 @override_settings(PASSWORD_HASHERS=FAST_HASHER)
 class NameTests(Scenario, TestCase):
+    def test_profile_can_clear_all_optional_data_and_preserve_account_email(self):
+        email = self.person.email
+        fields = ["first_name", "last_name", "city", "phone", "birth_date", "telegram",
+                  "organization", "job_title", "education", "website", "about", "interests"]
+        self.request("profile", "patch", dict.fromkeys(fields, ""), client=self.participant)
+        self.person.refresh_from_db()
+        self.assertEqual(self.person.email, email)
+        self.assertEqual(self.person.name, "")
+        for field in fields:
+            self.assertEqual(getattr(self.person, field), None if field == "birth_date" else "")
+        identity = self.request("auth/me", client=self.participant)["user"]
+        self.assertEqual(identity["displayName"], email)
+        self.assertIsNone(identity["fullName"])
+
+    def test_profile_accepts_surname_without_first_name(self):
+        self.request("profile", "patch", {"first_name": "", "last_name": "Соколова"}, client=self.participant)
+        self.person.refresh_from_db()
+        self.assertEqual((self.person.first_name, self.person.last_name, self.person.name), ("", "Соколова", "Соколова"))
+
+    def test_profile_without_name_can_save_other_optional_fields(self):
+        self.person.name = ""
+        self.person.first_name = ""
+        self.person.last_name = ""
+        self.person.save(update_fields=["name", "first_name", "last_name"])
+        self.request("profile", "patch", {"education": "Университет"}, client=self.participant)
+        self.person.refresh_from_db()
+        self.assertEqual(self.person.education, "Университет")
+        self.assertEqual(self.person.name, "")
+
     def signup(self, **changes):
         client = Client()
         response = client.post("/register/", {
