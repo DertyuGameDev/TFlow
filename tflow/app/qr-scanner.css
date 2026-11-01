@@ -1,6 +1,5 @@
 .scanner-event-picker { display: grid; gap: 12px; min-width: 0; }
-.scanner-event-picker h2 { font-size: 22px; line-height: 1.35; scroll-margin-top: 90px; }
-.scanner-event-picker > p { color: var(--flow-muted); font-size: 14px; line-height: 1.6; }
+.scanner-event-picker h2 { font-size: 24px; line-height: 1.35; scroll-margin-top: 90px; }
 .scanner-event-list { display: grid; gap: 10px; list-style: none; padding: 2px; margin: 4px -2px 0; max-height: 440px; overflow-y: auto; overscroll-behavior: contain; scrollbar-width: thin; }
 .scanner-event-list li { min-width: 0; }
 .scanner-event-choice { display: flex; align-items: center; justify-content: space-between; gap: 16px; width: 100%; min-height: 88px; padding: 16px; border: 1px solid var(--flow-border); border-radius: 14px; background: var(--theme-panel, #fff); color: var(--theme-text, #222329); text-align: left; }
@@ -22,6 +21,6 @@
 .scanner-panel .scanner-buttons { margin: 0 0 14px; }
 .scanner-buttons > button { scroll-margin-block: 90px; }
 @media (max-width: 600px) {
-  .scanner-event-picker h2 { font-size: 20px; }
+  .scanner-event-picker h2 { font-size: 22px; }
   .scanner-event-list { max-height: min(440px, 60dvh); }
 }

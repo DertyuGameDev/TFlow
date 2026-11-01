@@ -66,7 +66,6 @@ export function QRScanner({event,events,initialToken,send,onScan}:{event?:FlowEv
   return <section className="scanner-panel" aria-label="Сканер участников" aria-busy={busy}>
     {showEventPicker?<div className="scanner-event-picker">
       <h2 ref={pickerHeading} tabIndex={-1}>На какое событие проверяем вход?</h2>
-      <p>Нажмите на событие. Затем отсканируйте QR участника.</p>
       {events.length>5&&<label className="scanner-event-search"><Search size={18} aria-hidden="true"/><input type="search" aria-label="Найти событие для проверки входа" placeholder="Название события или место" value={query} onChange={e=>setQuery(e.target.value)}/></label>}
       <ul className="scanner-event-list" aria-label="Ваши события">
         {visibleEvents.map(e=><li key={e.id}><button type="button" className="scanner-event-choice" aria-pressed={e.id===eventId} onClick={()=>{stop();setSelectedEventId(e.id);setChoosingEvent(false);setQuery("");setError("");setResult(null);}}>
