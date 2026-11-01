@@ -26,12 +26,10 @@ import type {
   Activity,
   AttendanceRow,
   EventDetail,
-  RequiredProfileField,
   Room,
 } from "../../lib/types";
 import { dateLabel, timeLabel } from "../../lib/time";
 import { hasWebinar } from "../../lib/webinars";
-import { REQUIREMENT_FIELDS } from "../../lib/profile-fields";
 import { Modal } from "./dialog";
 import { ParticipantDetails, RegistrationSettings } from "./profile-data";
 import { LecturerLinks } from "./lecturer-links";
@@ -42,11 +40,12 @@ import { ProgramGraphEditor } from "./program-graph-editor";
 import { OrganizerFlow } from "./organizer-flow";
 import { OrganizerProgramList } from "./organizer-program-list";
 import { ProgramSwap } from "./program-swap";
+import type { MontageResult } from "../../lib/program-montage";
 import type { ProgramRange } from "../../lib/program-editing";
 import { OrganizerTutorial } from "./organizer-tutorial";
 import "../event-management.css";
 
-type Section = "event" | "program" | "flow";
+type Section = "event" | "program" | "flow" | "registration";
 type Props = {
   initialSection?: Section | "participants";
   detail: EventDetail;
@@ -95,7 +94,6 @@ export function OrganizerManage({
   const [section, setSection] = useState<Section>(initialSection === "participants" ? "event" : initialSection);
   const [query, setQuery] = useState("");
   const [filter, setFilter] = useState("all");
-  const [settingsOpen, setSettingsOpen] = useState(false);
   const [swapping, setSwapping] = useState<Activity | null>(null);
   const [programNotice, setProgramNotice] = useState("");
   const participantsRef = useRef<HTMLElement>(null);
@@ -217,6 +215,7 @@ export function OrganizerManage({
       : undefined;
   const tabs = [
     { id: "event" as const, label: "Событие", icon: CalendarDays },
+    { id: "registration" as const, label: "Что спросить при записи", icon: Settings2 },
     {
       id: "program" as const,
       label: "Программа",
@@ -240,9 +239,6 @@ export function OrganizerManage({
         .toLocaleLowerCase("ru")
         .includes(query.toLocaleLowerCase("ru")),
   );
-  const required = REQUIREMENT_FIELDS.filter((field) =>
-    e.required_profile_fields?.includes(field.key as RequiredProfileField),
-  ).map((field) => field.label);
   function showParticipants() {
     setQuery(""); setFilter("all"); setSection("event");
     setTimeout(() => {
@@ -444,28 +440,6 @@ export function OrganizerManage({
           </div>
         </article>
         <section ref={participantsRef} tabIndex={-1} aria-label="Участники события" className="management-participants">
-        <section className="management-registration management-card">
-          <div>
-            <h3>Что спросить при записи</h3>
-            <p>
-              Имя и почта
-              {required.length
-                ? ` + ${required.length} доп. ${required.length === 1 ? "поле" : required.length < 5 ? "поля" : "полей"}`
-                : " — без дополнительных требований"}
-            </p>
-            <small>
-              Телефон и другие сведения можно запросить, если они нужны для
-              встречи.
-            </small>
-          </div>
-          <button
-            className="button secondary"
-            onClick={() => setSettingsOpen(true)}
-          >
-            <Settings2 size={17} />
-            Настроить
-          </button>
-        </section>
         <header className="management-section-heading">
           <h2>
             Участники <span className="management-count">{rows.length}</span>
@@ -719,7 +693,18 @@ export function OrganizerManage({
                       ? { ...current, range: { ...current.range, ...range } }
                       : current,
                   );
-                } else openProgramItem(activity, range);
+                } else {
+                  await send(`activities/${activity.id}`, "PATCH", {
+                    title: activity.title, description: activity.description, speaker: activity.speaker,
+                    capacity: activity.capacity, registration_required: activity.registration_required !== false,
+                    room_id: range.room_id ?? activity.room_id, ...range, expected_updated_at: activity.updated_at,
+                  });
+                  await refresh();
+                }
+              }}
+              onMontage={async action => {
+                const result=await send(`events/${e.id}/program-edit`,"POST",{...action,expected_event_updated_at:e.updated_at});
+                await refresh();return result as MontageResult;
               }}
               inlineEditor={programEditor}
             />
@@ -761,20 +746,12 @@ export function OrganizerManage({
         />
       )}
 
-      {settingsOpen && (
-        <Modal
-          title="Данные при записи"
-          subtitle="Выберите, какие сведения нужны организатору."
-          onClose={() => setSettingsOpen(false)}
-        >
-          <RegistrationSettings
-            event={e}
-            send={send}
-            refresh={refresh}
-            inDialog
-          />
-        </Modal>
-      )}
+      <section role="tabpanel" id={`${id}-panel-registration`} aria-labelledby={`${id}-tab-registration`}
+        hidden={section !== "registration"} className="management-panel management-card">
+        <h2>Что спросить при записи</h2>
+        <p>Выберите нужные сведения. Участник заполнит только то, чего ещё нет в его профиле.</p>
+        <RegistrationSettings event={e} send={send} refresh={refresh} inDialog/>
+      </section>
     </section>
   );
 }

@@ -477,6 +477,9 @@ def dispatch_api(request, path):
             raise FlowError(
                 "VALIDATION", "Поля формы должны содержать простые значения", 400
             )
+    if resource == "events" and item_id and action == "program-edit" and method == "POST":
+        from .program_montage import edit_program
+        return JsonResponse(edit_program(user, item_id, body))
     if resource == "events" and item_id and action == "lecturer-links" and method == "POST":
         from .access_keys import lecturer_links
         return JsonResponse(lecturer_links(user, item_id, activity_id=body.get("activity_id"), operation=body.get("operation", "ensure")))

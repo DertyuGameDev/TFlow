@@ -302,7 +302,7 @@ it("opens the original graph by default and puts Flow in its own top-level tab",
   const user = userEvent.setup();
   render(<TFlow user={host}/>);
   expect(await screen.findByRole("region", { name: "Графическое расписание" })).toBeVisible();
-  expect(screen.getAllByRole("tab").map(tab => tab.textContent?.replace(/\d+/g, "").trim())).toEqual(["Событие", "Программа", "Флоу"]);
+  expect(screen.getAllByRole("tab").map(tab => tab.textContent?.replace(/\d+/g, "").trim())).toEqual(["Событие", "Что спросить при записи", "Программа", "Флоу"]);
   expect(screen.queryByRole("button", { name: "Шкала времени" })).not.toBeInTheDocument();
   await user.click(screen.getByRole("tab", { name: /^Флоу/ }));
   expect(screen.getByRole("region", { name: "Флоу организатора" })).toBeVisible();

@@ -36,7 +36,7 @@
 }
 .management-tabs {
   display: grid;
-  grid-template-columns: repeat(3, minmax(0, 1fr));
+  grid-template-columns: repeat(4, minmax(0, 1fr));
   border-bottom: 1px solid var(--flow-border);
   margin-bottom: 28px;
 }
@@ -452,3 +452,5 @@
 .management-participants > summary:focus-visible { outline:3px solid var(--blue); outline-offset:4px; border-radius:4px; }
 .management-participants[open] > summary { margin-bottom:20px; }
 .management-participants .management-registration { margin-top:0; }
+
+@media(max-width:640px){.management-tabs{grid-template-columns:repeat(2,minmax(0,1fr))}.management-tabs button{min-height:58px}.management-tabs button span{overflow-wrap:anywhere}}

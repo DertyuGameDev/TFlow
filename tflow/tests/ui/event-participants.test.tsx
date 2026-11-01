@@ -93,3 +93,12 @@ describe("превью участников события", () => {
     expect(screen.getByRole("textbox", { name: "Найти участника" })).toBeVisible();
   });
 });
+
+it('открывает требования сразу в заметной верхней вкладке и сохраняет их без модального окна',async()=>{
+ const send=vi.fn().mockResolvedValue({ok:true}),refresh=vi.fn().mockResolvedValue(undefined),user=userEvent.setup();
+ render(<OrganizerManage {...manageProps} send={send} refresh={refresh}/>);
+ const tab=screen.getByRole('tab',{name:'Что спросить при записи'});await user.click(tab);
+ const panel=screen.getByRole('tabpanel',{name:'Что спросить при записи'});expect(panel).toBeVisible();
+ await user.click(within(panel).getByLabelText('Телефон'));await user.click(within(panel).getByRole('button',{name:'Сохранить требования'}));
+ expect(send).toHaveBeenCalledWith(`events/${event.id}/requirements`,'PATCH',{required_profile_fields:['phone']});expect(screen.queryByRole('dialog')).not.toBeInTheDocument();
+});
