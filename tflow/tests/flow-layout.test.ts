@@ -13,6 +13,51 @@ function activity(id: string, start: number, duration: number) {
   } as Activity;
 }
 describe("геометрия флоу по времени", () => {
+  it.each([3, 8, 32])("сохраняет весь интервал мероприятия и пустое время по краям при масштабе %s", scale => {
+    const middle = activity("middle", 30, 30);
+    const result = layoutFlow([middle], scale, event);
+    const [window] = result.days;
+    expect(window.start).toBe(event.starts_at);
+    expect(window.end).toBe(event.ends_at);
+    expect(window.ticks[0].time).toBe(event.starts_at);
+    expect(window.ticks.at(-1)!.time).toBe(event.ends_at);
+    expect(result.placements[0].top - FLOW_DAY_HEADING).toBe(30 * scale);
+    expect(window.gaps.map(gap => [gap.start, gap.end])).toEqual([
+      [event.starts_at, middle.starts_at], [middle.ends_at, event.ends_at],
+    ]);
+  });
+
+  it("сохраняет границы и без активностей, в том числе при коротком мероприятии", () => {
+    const full = layoutFlow([], 3, event);
+    expect(full.days[0].start).toBe(event.starts_at);
+    expect(full.days[0].end).toBe(event.ends_at);
+    expect(full.days[0].gaps).toHaveLength(1);
+    expect(full.placements).toEqual([]);
+    const short = layoutFlow([], 3, { ...event, ends_at: event.starts_at + 60_000 });
+    expect(short.days[0].ticks[1].top - short.days[0].ticks[0].top).toBeGreaterThanOrEqual(24);
+  });
+
+  it("показывает непрерывно пустые дни и пересечения через полночь внутри мероприятия", () => {
+    const range = { starts_at: Date.parse("2026-11-01T09:00:00+03:00"), ends_at: Date.parse("2026-11-04T18:00:00+03:00") };
+    const night = { ...activity("night", 0, 60), starts_at: Date.parse("2026-11-01T23:30:00+03:00"), ends_at: Date.parse("2026-11-02T01:00:00+03:00") };
+    const parallel = { ...night, id: "parallel", starts_at: Date.parse("2026-11-02T00:00:00+03:00") };
+    const result = layoutFlow([night, parallel], 3, range);
+    expect(result.days).toHaveLength(1);
+    expect(result.days[0].start).toBe(range.starts_at);
+    expect(result.days[0].end).toBe(range.ends_at);
+    expect(result.placements[1].top - result.placements[0].top).toBe(30 * 3);
+    expect(result.placements.map(item => item.lane)).toEqual([0, 1]);
+    expect(result.days[0].ticks.some(tick => tick.time === Date.parse("2026-11-03T00:00:00+03:00"))).toBe(true);
+  });
+
+  it("не теряет существующие активности вне границ и игнорирует некорректный интервал", () => {
+    const outside = activity("early", -30, 180);
+    const result = layoutFlow([outside], 3, event);
+    expect(result.days[0].start).toBe(outside.starts_at);
+    expect(result.days[0].end).toBe(outside.ends_at);
+    expect(layoutFlow([outside], 3, { starts_at: NaN, ends_at: 0 })).toEqual(layoutFlow([outside], 3));
+  });
+
   it.each([3, 8, 32])(
     "показывает час в 12 раз длиннее пяти минут и сохраняет десятиминутный перерыв при масштабе %s",
     (scale) => {

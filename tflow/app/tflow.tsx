@@ -1716,6 +1716,7 @@ export function TFlow({ user }: { user: UserIdentity | null }) {
                       program={
                         <EventFlows
                           key={detail.event.id}
+                          event={detail.event}
                           activities={detail.activities}
                           {...programActions}
                           onManage={
@@ -1727,6 +1728,7 @@ export function TFlow({ user }: { user: UserIdentity | null }) {
                       }
                       personal={
                         <ActivityProgram
+                          event={detail.event}
                           activities={detail.activities.filter(
                             activity => activity.registered || activity.waitlisted,
                           )}

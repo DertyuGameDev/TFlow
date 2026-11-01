@@ -3,14 +3,17 @@ import { ArrowLeftRight, Pencil, Search } from "lucide-react";
 import type { Activity } from "../../lib/types";
 import { dateKey, dateLabel, timeLabel } from "../../lib/time";
 import { FlowSchedule, useFlowClock } from "./flow-schedule";
+import type { FlowRange } from "../../lib/flow-layout";
 
 export function OrganizerFlow({
   activities,
+  event,
   editor,
   onEdit,
   onSwap,
 }: {
   activities: Activity[];
+  event?: FlowRange;
   editor?: { item: Activity; content: ReactNode };
   onEdit: (activity: Activity) => void;
   onSwap: (activity: Activity) => void;
@@ -80,6 +83,7 @@ export function OrganizerFlow({
       )}
       <FlowSchedule
         activities={items}
+        event={event}
         now={now}
         selectedId={editor?.item.id}
         onEdit={onEdit}

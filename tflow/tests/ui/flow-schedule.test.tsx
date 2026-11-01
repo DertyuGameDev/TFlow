@@ -26,6 +26,22 @@ function ClockFlow({ activities }: { activities: Activity[] }) {
 afterEach(() => vi.useRealTimers());
 
 describe("общая вертикальная линия флоу", () => {
+  it("сохраняет начало и конец мероприятия при пустом флоу и показывает текущее время до первой активности", () => {
+    const props = { event, now: event.starts_at + 10 * 60_000, renderActivity: () => null };
+    const middle = { ...item, starts_at: event.starts_at + 30 * 60_000, ends_at: event.starts_at + 60 * 60_000 };
+    const { container, rerender } = render(<FlowSchedule activities={[middle]} {...props} />);
+    const range = () => Array.from(container.querySelectorAll<HTMLTimeElement>(".flow-time-tick time"), node => node.dateTime);
+    expect(range()[0]).toBe(new Date(event.starts_at).toISOString());
+    expect(range().at(-1)).toBe(new Date(event.ends_at).toISOString());
+    expect(screen.getByLabelText("Сейчас 10:10, МСК")).toBeVisible();
+    expect(screen.getByRole("button", { name: "Сейчас" })).toBeEnabled();
+    rerender(<FlowSchedule activities={[]} {...props} />);
+    expect(range()[0]).toBe(new Date(event.starts_at).toISOString());
+    expect(range().at(-1)).toBe(new Date(event.ends_at).toISOString());
+    expect(screen.getByLabelText("Сейчас 10:10, МСК")).toBeVisible();
+    expect(screen.getByRole("group", { name: "Масштаб флоу" })).toBeVisible();
+  });
+
   it("сохраняет разные цвета активностей одного зала при начале эфира и фильтрации", () => {
     const activities = Array.from({ length: 3 }, (_, index) => ({
       ...item,

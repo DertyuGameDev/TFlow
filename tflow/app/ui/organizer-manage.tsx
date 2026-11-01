@@ -578,6 +578,7 @@ export function OrganizerManage({
         {programView === "flow" ? (
           <OrganizerFlow
             activities={detail.activities}
+            event={e}
             editor={programEditor}
             onEdit={(activity) => openProgramItem(activity)}
             onSwap={(activity) => {

@@ -13,6 +13,7 @@ import { dateKey, dateLabel, overlaps, timeLabel } from "../../lib/time";
 import { activityAvailability } from "../../lib/activities";
 import { webinarPath } from "../../lib/webinars";
 import { FlowSchedule, useFlowClock } from "./flow-schedule";
+import type { FlowRange } from "../../lib/flow-layout";
 
 export type ActivityAction = "register" | "cancel" | "join" | "leave";
 type Actions = {
@@ -151,11 +152,13 @@ export function ActivityCard({
 
 export function ActivityProgram({
   activities,
+  event,
   personal = false,
   vertical = false,
   ...actions
 }: Actions & {
   activities: Activity[];
+  event?: FlowRange;
   personal?: boolean;
   vertical?: boolean;
 }) {
@@ -263,6 +266,7 @@ export function ActivityProgram({
       {vertical ? (
         <FlowSchedule
           activities={visible}
+          event={event}
           now={now}
           renderActivity={(a) => (
             <ActivityCard

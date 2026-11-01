@@ -25,7 +25,7 @@ import {
   flowOffsetAtTime,
   flowTimeAtOffset,
 } from "../../lib/flow-navigation";
-import { flowDuration, layoutFlow } from "../../lib/flow-layout";
+import { flowDuration, layoutFlow, type FlowRange } from "../../lib/flow-layout";
 import { PROGRAM_COLORS } from "../../lib/program-timeline";
 import type { Activity } from "../../lib/types";
 import { dateKey, dateLabel, timeLabel } from "../../lib/time";
@@ -69,6 +69,7 @@ const SCALES = [3, 5, 8, 12, 20, 32, 64];
 
 export function FlowSchedule({
   activities,
+  event,
   now,
   renderActivity,
   selectedId,
@@ -76,6 +77,7 @@ export function FlowSchedule({
   label = "Флоу мероприятия",
 }: {
   activities: Activity[];
+  event?: FlowRange;
   now: number;
   renderActivity: (activity: Activity) => ReactNode;
   selectedId?: string;
@@ -103,9 +105,9 @@ export function FlowSchedule({
       pageScroll: number;
     } | null>(null);
   const { layout, markers } = useMemo(() => {
-    const base = layoutFlow(activities, SCALES[zoom]);
+    const base = layoutFlow(activities, SCALES[zoom], event);
     return readableFlow(base, flowMarkers(base.placements));
-  }, [activities, zoom]);
+  }, [activities, zoom, event?.starts_at, event?.ends_at]);
   const markerByActivity = new Map(
     markers.flatMap((marker) =>
       marker.items.map((item) => [item.activity.id, marker] as const),
@@ -182,7 +184,7 @@ export function FlowSchedule({
       window.removeEventListener("resize", measure);
       window.visualViewport?.removeEventListener("resize", measure);
     };
-  }, [activities.length > 0]);
+  }, [layout.days.length > 0]);
   useEffect(() => {
     if (openId) {
       const panel = details.current;
@@ -302,7 +304,7 @@ export function FlowSchedule({
         } as CSSProperties
       }
     >
-      {activities.length > 0 && (
+      {layout.days.length > 0 && (
         <div className="flow-map-tools" ref={tools}>
           <p>
             Время по МСК{" "}
@@ -348,7 +350,7 @@ export function FlowSchedule({
         tabIndex={0}
         role="region"
         aria-label="Временная карта флоу"
-        aria-describedby={`${id}-hint`}
+        aria-describedby={layout.days.length ? `${id}-hint` : undefined}
         onScroll={(event) => setScrollX(event.currentTarget.scrollLeft)}
       >
         <div
@@ -394,7 +396,7 @@ export function FlowSchedule({
                   className="flow-time-gap"
                   style={{ top: gap.top, height: gap.height }}
                 >
-                  <span>Перерыв {flowDuration(gap.end - gap.start)}</span>
+                  <span>Нет активностей · {flowDuration(gap.end - gap.start)}</span>
                 </div>
               ))}
             </div>
@@ -651,10 +653,12 @@ export function FlowSchedule({
           )}
         </div>
       </div>
-      {!!activities.length && (
+      {!!layout.days.length && (
         <p className="flow-map-hint" id={`${id}-hint`}>
-          Нажмите на активность, чтобы открыть подробности. Параллельные
-          активности расположены рядом.
+          {activities.length ? (
+            <>Нажмите на активность, чтобы открыть подробности. Параллельные
+            активности расположены рядом.</>
+          ) : "Показан весь интервал мероприятия. Активностей в этом диапазоне пока нет."}
         </p>
       )}
       {!!activities.length && (

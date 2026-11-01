@@ -3,6 +3,7 @@ import { dateKey } from "./time";
 
 export const FLOW_MINUTE = 60_000;
 export const FLOW_DAY_HEADING = 58;
+export type FlowRange = { starts_at: number; ends_at: number };
 export type FlowPlacement = {
   activity: Activity;
   top: number;
@@ -29,7 +30,11 @@ export function flowDuration(milliseconds: number) {
   return hours ? `${hours} ч${rest ? ` ${rest} мин` : ""}` : `${minutes} мин`;
 }
 
-export function layoutFlow(activities: Activity[], pixelsPerMinute: number) {
+export function layoutFlow(
+  activities: Activity[],
+  pixelsPerMinute: number,
+  range?: FlowRange,
+) {
   const scale = Math.max(1, pixelsPerMinute);
   const items = [...activities].sort(
     (a, b) =>
@@ -51,19 +56,37 @@ export function layoutFlow(activities: Activity[], pixelsPerMinute: number) {
     group.push(item);
     grouped.set(windowKey, group);
   }
+  const bounded =
+    range && Number.isFinite(range.starts_at) &&
+    Number.isFinite(range.ends_at) && range.ends_at > range.starts_at
+      ? range
+      : undefined;
+  // Event timelines keep one continuous interval, including empty days and nights.
+  if (bounded) {
+    grouped.clear();
+    grouped.set(
+      dateKey(Math.min(bounded.starts_at, items[0]?.starts_at ?? bounded.starts_at)),
+      items,
+    );
+  }
   const placements: FlowPlacement[] = [],
     days: FlowDay[] = [];
   let offset = 0,
     maximumLanes = 1;
   for (const [key, group] of grouped) {
-    const start = group[0].starts_at;
+    const start = bounded
+      ? Math.min(bounded.starts_at, group[0]?.starts_at ?? bounded.starts_at)
+      : group[0].starts_at;
     const end = Math.max(
       ...group.map((item) => item.ends_at),
-      start + FLOW_MINUTE,
+      bounded?.ends_at ?? start + FLOW_MINUTE,
     );
-    const height = ((end - start) / FLOW_MINUTE) * scale;
+    const windowScale = bounded
+      ? Math.max(scale, 32 / ((end - start) / FLOW_MINUTE))
+      : scale;
+    const height = ((end - start) / FLOW_MINUTE) * windowScale;
     const top = offset + FLOW_DAY_HEADING;
-    const toY = (time: number) => top + ((time - start) / FLOW_MINUTE) * scale;
+    const toY = (time: number) => top + ((time - start) / FLOW_MINUTE) * windowScale;
     const tickMinutes =
       scale >= 32 ? 1 : scale >= 12 ? 5 : scale >= 4 ? 15 : 30;
     const ticks: FlowDay["ticks"] = [{ time: start, top: toY(start) }];
@@ -75,11 +98,11 @@ export function layoutFlow(activities: Activity[], pixelsPerMinute: number) {
       time < end;
       time += tickMinutes * FLOW_MINUTE
     ) {
-      if (time - ticks.at(-1)!.time < (24 / scale) * FLOW_MINUTE) continue;
+      if (time - ticks.at(-1)!.time < (24 / windowScale) * FLOW_MINUTE) continue;
       ticks.push({ time, top: toY(time) });
     }
     if (
-      end - ticks.at(-1)!.time < (24 / scale) * FLOW_MINUTE &&
+      end - ticks.at(-1)!.time < (24 / windowScale) * FLOW_MINUTE &&
       ticks.length > 1
     )
       ticks.pop();
@@ -92,10 +115,17 @@ export function layoutFlow(activities: Activity[], pixelsPerMinute: number) {
           start: cursor,
           end: item.starts_at,
           top: toY(cursor),
-          height: ((item.starts_at - cursor) / FLOW_MINUTE) * scale,
+          height: ((item.starts_at - cursor) / FLOW_MINUTE) * windowScale,
         });
       cursor = Math.max(cursor, item.ends_at);
     }
+    if (end - cursor >= 5 * FLOW_MINUTE)
+      gaps.push({
+        start: cursor,
+        end,
+        top: toY(cursor),
+        height: ((end - cursor) / FLOW_MINUTE) * windowScale,
+      });
     days.push({ key, start, end, top: offset, height, ticks, gaps });
     let cluster: Activity[] = [],
       clusterEnd = -Infinity;
@@ -114,7 +144,7 @@ export function layoutFlow(activities: Activity[], pixelsPerMinute: number) {
           top: toY(activity.starts_at),
           height: Math.max(
             1,
-            ((activity.ends_at - activity.starts_at) / FLOW_MINUTE) * scale,
+            ((activity.ends_at - activity.starts_at) / FLOW_MINUTE) * windowScale,
           ),
         };
       });
