@@ -30,7 +30,7 @@ from .services import (
     validate_activity,
 )
 
-SALT = "tflow-program-undo-v1"
+SALT = "tflow-program-undo-v2"
 MINUTE = timedelta(minutes=1)
 META = ["title", "description", "speaker", "capacity", "registration_required"]
 
@@ -156,6 +156,12 @@ def edit_program(user, event_id, data):
                     "STALE_PROGRAM",
                     "Программа изменилась после этого действия. Автоматическая отмена небезопасна",
                 )
+            for key, digest in undo.get("participants", {}).items():
+                if relations(by_id[key]) != digest:
+                    raise FlowError(
+                        "UNDO_HAS_DATA",
+                        "Состав участников или посещения изменились после разрезания. Автоматическая отмена небезопасна",
+                    )
             for key, digest in undo.get("created", {}).items():
                 item = by_id[key]
                 if relations(item) != digest:
@@ -346,6 +352,9 @@ def edit_program(user, event_id, data):
                     "before": before,
                     "after": after,
                     "created": {a.pk: relations(a) for a in created},
+                    "participants": {a.pk: relations(a) for a in changed}
+                    if created
+                    else {},
                 },
                 salt=SALT,
                 compress=True,

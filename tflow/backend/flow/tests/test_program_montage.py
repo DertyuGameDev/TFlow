@@ -250,3 +250,27 @@ class ProgramMontageTests(Scenario, TestCase):
         self.assertEqual(duplicate.starts_at, self.a.ends_at)
         self.assertFalse(duplicate.registrations.exists())
         self.edit("undo", undo=result["undo"])
+
+    def test_undo_split_cannot_erase_remaining_booking_after_cancellation_on_original(
+        self,
+    ):
+        Registration.objects.create(user=self.person, activity=self.a)
+        result = self.edit(
+            "split", at=milliseconds(self.a.starts_at + timedelta(minutes=20))
+        )
+        tail = Activity.objects.get(pk=result["created_ids"][0])
+        self.a.registrations.all().delete()
+        self.event.refresh_from_db()
+        self.request(
+            self.path,
+            "post",
+            {
+                "operation": "undo",
+                "undo": result["undo"],
+                "expected_event_updated_at": milliseconds(self.event.updated_at),
+            },
+            status=409,
+            code="UNDO_HAS_DATA",
+        )
+        self.assertTrue(tail.registrations.filter(user=self.person).exists())
+        self.assertFalse(self.a.registrations.exists())
