@@ -26,6 +26,38 @@ function ClockFlow({ activities }: { activities: Activity[] }) {
 afterEach(() => vi.useRealTimers());
 
 describe("общая вертикальная линия флоу", () => {
+  it("показывает полный интервал и длительность мероприятия над картой, включая переход на следующий день", () => {
+    const props = { activities: [item], now: 0, renderActivity: () => null };
+    const view = render(<FlowSchedule {...props} event={event} />);
+    const range = () => screen.getByRole("group", { name: "Время и длительность мероприятия" });
+    expect(within(range()).getByText("10:00–12:00")).toBeVisible();
+    expect(within(range()).getByText("2 ч")).toBeVisible();
+    view.rerender(<FlowSchedule {...props} event={{ starts_at: Date.parse("2026-11-12T23:30:00+03:00"), ends_at: Date.parse("2026-11-13T01:00:00+03:00") }} />);
+    expect(range()).toHaveTextContent("12 ноября 23:30–13 ноября 01:00");
+    expect(within(range()).getByText("1 ч 30 мин")).toBeVisible();
+  });
+
+  it("предлагает прокрутить скрытые параллельные флоу и отключает стрелки на границах", async () => {
+    vi.spyOn(HTMLElement.prototype, "clientWidth", "get").mockReturnValue(320);
+    const scrollTo = vi.spyOn(Element.prototype, "scrollTo");
+    const activities = [item, { ...item, id: "two" }, { ...item, id: "three" }];
+    const props = { event, now: 0, renderActivity: () => null };
+    const view = render(<FlowSchedule {...props} activities={activities} />);
+    const right = screen.getByRole("button", { name: "Показать флоу справа" });
+    const left = screen.getByRole("button", { name: "Показать флоу слева" });
+    expect(left).toBeDisabled();
+    expect(right).toBeEnabled();
+    await userEvent.setup().click(right);
+    expect(scrollTo).toHaveBeenCalledWith({ left: 224, behavior: "smooth" });
+    fireEvent.scroll(screen.getByRole("region", { name: "Временная карта флоу" }), { target: { scrollLeft: 224 } });
+    expect(right).toBeDisabled();
+    expect(left).toBeEnabled();
+    await userEvent.setup().click(left);
+    expect(scrollTo).toHaveBeenLastCalledWith({ left: 0, behavior: "smooth" });
+    view.rerender(<FlowSchedule {...props} activities={activities.slice(0, 2)} />);
+    expect(screen.queryByRole("group", { name: "Прокрутка параллельных флоу" })).not.toBeInTheDocument();
+  });
+
   it("сохраняет начало и конец мероприятия при пустом флоу и показывает текущее время до первой активности", () => {
     const props = { event, now: event.starts_at + 10 * 60_000, renderActivity: () => null };
     const middle = { ...item, starts_at: event.starts_at + 30 * 60_000, ends_at: event.starts_at + 60 * 60_000 };

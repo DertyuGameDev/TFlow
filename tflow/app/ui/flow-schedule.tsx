@@ -10,6 +10,7 @@ import {
 } from "react";
 import {
   ArrowLeft,
+  ArrowRight,
   Check,
   ChevronRight,
   Clock3,
@@ -132,6 +133,12 @@ export function FlowSchedule({
   const nowY = nowDay ? flowOffsetAtTime(layout.days, now, SCALES[zoom]) : null;
   const minimumWidth =
     layout.maximumLanes > 2 ? 64 + layout.maximumLanes * 160 : undefined;
+  const maximumScroll = Math.max(0, (minimumWidth ?? 0) - viewportWidth);
+  const horizontalOverflow = viewportWidth > 0 && maximumScroll > 1;
+  const canScrollRight = horizontalOverflow && scrollX < maximumScroll - 1;
+  const eventRange = event && event.ends_at > event.starts_at ? event : undefined;
+  const rangeCrossesDays =
+    eventRange && dateKey(eventRange.starts_at) !== dateKey(eventRange.ends_at);
   const height = Math.max(
     layout.height,
     detailsAnchor ? detailsAnchor.top + detailsHeight + 8 : 0,
@@ -286,6 +293,17 @@ export function FlowSchedule({
       });
     } else scroller.scrollTo({ top: Math.max(0, nowY - 90), behavior });
   }
+  function scrollHorizontally(direction: number) {
+    viewport.current?.scrollTo({
+      left: Math.max(
+        0,
+        Math.min(maximumScroll, scrollX + direction * Math.max(160, viewportWidth - 64)),
+      ),
+      behavior: window.matchMedia?.("(prefers-reduced-motion: reduce)").matches
+        ? "auto"
+        : "smooth",
+    });
+  }
 
   return (
     <div
@@ -306,14 +324,34 @@ export function FlowSchedule({
     >
       {layout.days.length > 0 && (
         <div className="flow-map-tools" ref={tools}>
-          <p>
-            Время по МСК{" "}
-            <span>
-              {markers.length
-                ? "Короткие пункты показаны крупнее"
-                : "Высота полосы — длительность"}
-            </span>
-          </p>
+          <div className="flow-map-overview">
+            {eventRange && (
+              <div
+                className="flow-map-range"
+                role="group"
+                aria-label="Время и длительность мероприятия"
+              >
+                <Clock3 size={16} aria-hidden="true" />
+                <span>
+                  {rangeCrossesDays && `${dateLabel(eventRange.starts_at)} `}
+                  {timeLabel(eventRange.starts_at)}–
+                  {rangeCrossesDays && `${dateLabel(eventRange.ends_at)} `}
+                  {timeLabel(eventRange.ends_at)}
+                </span>
+                <strong>
+                  {flowDuration(eventRange.ends_at - eventRange.starts_at)}
+                </strong>
+              </div>
+            )}
+            <p>
+              Время по МСК{" "}
+              <span>
+                {markers.length
+                  ? "Короткие пункты показаны крупнее"
+                  : "Высота полосы — длительность"}
+              </span>
+            </p>
+          </div>
           <div className="flow-map-controls">
             {nowY !== null && (
               <button className="text-button flow-jump-now" onClick={jumpToNow}>
@@ -342,6 +380,31 @@ export function FlowSchedule({
               </button>
             </div>
           </div>
+          {horizontalOverflow && (
+            <div
+              className="flow-horizontal-nav"
+              role="group"
+              aria-label="Прокрутка параллельных флоу"
+            >
+              <span>Флоу можно листать вбок</span>
+              <button
+                type="button"
+                aria-label="Показать флоу слева"
+                disabled={scrollX <= 1}
+                onClick={() => scrollHorizontally(-1)}
+              >
+                <ArrowLeft size={18} aria-hidden="true" />
+              </button>
+              <button
+                type="button"
+                aria-label="Показать флоу справа"
+                disabled={!canScrollRight}
+                onClick={() => scrollHorizontally(1)}
+              >
+                <ArrowRight size={18} aria-hidden="true" />
+              </button>
+            </div>
+          )}
         </div>
       )}
       <div
