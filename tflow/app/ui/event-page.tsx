@@ -70,9 +70,9 @@ export function EventPage({
   return (
     <section className="event-page">
       <header className="guest-event-title event-page-heading">
-        <span>
+        <p className="event-page-category">
           {event.kind} · {event.topic}
-        </span>
+        </p>
         <h1>{event.title}</h1>
         {meta}
       </header>
