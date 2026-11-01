@@ -26,6 +26,49 @@ function ClockFlow({ activities }: { activities: Activity[] }) {
 afterEach(() => vi.useRealTimers());
 
 describe("общая вертикальная линия флоу", () => {
+  it("сохраняет разные цвета активностей одного зала при начале эфира и фильтрации", () => {
+    const activities = Array.from({ length: 3 }, (_, index) => ({
+      ...item,
+      id: `activity-${index}`,
+      title: `Встреча ${index}`,
+    }));
+    const renderFlow = (visible: Activity[], now: number) => (
+      <FlowSchedule activities={visible} now={now} renderActivity={() => null} />
+    );
+    const { container, rerender } = render(renderFlow(activities, item.starts_at - 1));
+    const colors = () => new Map(Array.from(container.querySelectorAll<HTMLElement>(".flow-event"), node => [
+      node.dataset.activityId, node.style.getPropertyValue("--flow-color"),
+    ]));
+    const original = colors();
+    expect(new Set(original.values()).size).toBe(3);
+
+    rerender(renderFlow([...activities].reverse(), item.starts_at));
+    expect(colors()).toEqual(original);
+    const current = screen.getByRole("list", { name: "Текущие активности" });
+    for (const activity of activities) {
+      expect(within(current).getByRole("button", { name: `Открыть активность ${activity.title}` })).toHaveStyle({
+        "--flow-color": original.get(activity.id),
+      });
+    }
+
+    rerender(renderFlow([activities[1]], item.ends_at));
+    expect(colors().get(activities[1].id)).toBe(original.get(activities[1].id));
+  });
+
+  it("показывает время на линии по МСК и обновляет цифры без перезагрузки", async () => {
+    vi.useFakeTimers();
+    vi.setSystemTime(item.starts_at + 59_000);
+    const { container } = render(<ClockFlow activities={[item]} />);
+    const time = screen.getByLabelText("Сейчас 10:00, МСК");
+    expect(time).toBeVisible();
+    expect(time).toHaveTextContent("10:00");
+    expect(time).toHaveAttribute("datetime", new Date(item.starts_at + 59_000).toISOString());
+    expect(container.querySelector(".flow-time-tick.is-near-now")).toBeInTheDocument();
+
+    await act(async () => vi.advanceTimersByTime(1_020));
+    expect(screen.getByLabelText("Сейчас 10:01, МСК")).toHaveTextContent("10:01");
+  });
+
   it("показывает в списке только текущие параллельные активности и открывает их действия", async () => {
     const user = userEvent.setup();
     render(

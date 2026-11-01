@@ -26,6 +26,7 @@ import {
   flowTimeAtOffset,
 } from "../../lib/flow-navigation";
 import { flowDuration, layoutFlow } from "../../lib/flow-layout";
+import { PROGRAM_COLORS } from "../../lib/program-timeline";
 import type { Activity } from "../../lib/types";
 import { dateKey, dateLabel, timeLabel } from "../../lib/time";
 import "../flow-schedule.css";
@@ -43,9 +44,10 @@ export function useFlowClock(activities: Activity[]) {
   );
   useEffect(() => {
     const update = () => setNow(Date.now());
+    const nextMinute = (Math.floor(now / 60_000) + 1) * 60_000;
     const timer = window.setTimeout(
       update,
-      Math.max(20, Math.min(60_000, next - Date.now() + 20)),
+      Math.max(20, Math.min(next, nextMinute) - Date.now() + 20),
     );
     window.addEventListener("focus", update);
     document.addEventListener("visibilitychange", update);
@@ -58,11 +60,10 @@ export function useFlowClock(activities: Activity[]) {
   return now;
 }
 
-const COLORS = ["#6ab49d", "#79a9e5", "#ad91d0", "#d7a36b", "#7dabb8"];
-function colorFor(room: string) {
+function colorFor(activityId: string) {
   let hash = 0;
-  for (const char of room) hash = (hash * 31 + char.charCodeAt(0)) >>> 0;
-  return COLORS[hash % COLORS.length];
+  for (const char of activityId) hash = (hash * 31 + char.charCodeAt(0)) >>> 0;
+  return PROGRAM_COLORS[hash % PROGRAM_COLORS.length];
 }
 const SCALES = [3, 5, 8, 12, 20, 32, 64];
 
@@ -359,6 +360,7 @@ export function FlowSchedule({
               "--flow-viewport-width": viewportWidth
                 ? `${viewportWidth}px`
                 : undefined,
+              "--flow-scroll-x": `${scrollX}px`,
             } as CSSProperties
           }
         >
@@ -371,7 +373,7 @@ export function FlowSchedule({
               </h3>
               {day.ticks.map((tick) => (
                 <div
-                  className="flow-time-tick"
+                  className={`flow-time-tick ${nowY !== null && Math.abs(tick.top - nowY) < 32 ? "is-near-now" : ""}`}
                   key={tick.time}
                   style={{ top: tick.top }}
                 >
@@ -401,9 +403,10 @@ export function FlowSchedule({
             <div
               className="flow-now-line"
               style={{ top: nowY }}
-              aria-hidden="true"
             >
-              <span>{timeLabel(now)}</span>
+              <time dateTime={new Date(now).toISOString()} aria-label={`Сейчас ${timeLabel(now)}, МСК`}>
+                {timeLabel(now)}
+              </time>
             </div>
           )}
           <ol className="vertical-flow" aria-label={label} style={{ height }}>
@@ -413,7 +416,7 @@ export function FlowSchedule({
                 past = a.ends_at <= now,
                 open = a.id === openId;
               const marked = markerByActivity.has(a.id);
-              const color = live ? "#e0bb27" : colorFor(a.room_id),
+              const color = colorFor(a.id),
                 duration = flowDuration(a.ends_at - a.starts_at);
               const progress =
                 live && nowY !== null
@@ -517,9 +520,7 @@ export function FlowSchedule({
               const open =
                 marker.id === openId ||
                 marker.items.some(({ activity }) => activity.id === openId);
-              const color = live
-                ? "#e0bb27"
-                : colorFor(marker.items[0].activity.room_id);
+              const color = colorFor(marker.items[0].activity.id);
               const name = single ? single.title : "Короткие активности";
               const duration = single
                 ? flowDuration(single.ends_at - single.starts_at)
@@ -588,7 +589,7 @@ export function FlowSchedule({
                   top: detailsAnchor.top,
                   left: `clamp(calc(var(--flow-gutter) + 4px), calc(var(--flow-gutter) + (100% - var(--flow-gutter)) * ${detailsAnchor.lane / detailsAnchor.lanes} - ${scrollX}px + 4px), calc(var(--flow-viewport-width, 100%) - var(--flow-details-width) - 4px))`,
                   transform: `translateX(${scrollX}px)`,
-                  "--flow-color": colorFor(detailsAnchor.activity.room_id),
+                  "--flow-color": colorFor(detailsAnchor.activity.id),
                 } as CSSProperties
               }
             >
@@ -693,7 +694,7 @@ export function FlowSchedule({
                     }}
                     style={
                       {
-                        "--flow-color": colorFor(activity.room_id),
+                        "--flow-color": colorFor(activity.id),
                       } as CSSProperties
                     }
                   >

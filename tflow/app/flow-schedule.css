@@ -284,6 +284,9 @@
   font-size: 10px;
   line-height: 13px;
 }
+.flow-time-tick.is-near-now > time {
+  visibility: hidden;
+}
 .flow-time-gap {
   position: absolute;
   left: var(--flow-gutter);
@@ -303,22 +306,26 @@
   position: absolute;
   left: 0;
   right: 0;
-  border-top: 1px solid #d9b21c;
-  z-index: 0;
+  border-top: 1px solid #e35d55;
   pointer-events: none;
 }
-.flow-now-line > span {
+.flow-now-line > time {
   position: sticky;
   left: 0;
-  display: inline-block;
+  display: block;
+  width: calc(var(--flow-gutter) - 8px);
   transform: translateY(-50%);
-  padding: 3px 6px;
+  padding: 2px 0;
   border-radius: 5px;
-  background: #ffdd2d;
-  color: #262311;
+  background: #c93732;
+  color: #fff;
   font-size: 12px;
   font-weight: 600;
+  line-height: 20px;
+  text-align: center;
+  white-space: nowrap;
   font-variant-numeric: tabular-nums;
+  z-index: 4;
 }
 .vertical-flow {
   position: absolute;
@@ -327,6 +334,7 @@
   margin: 0;
   padding: 0;
   min-width: 0;
+  clip-path: inset(0 0 0 calc(var(--flow-gutter) + var(--flow-scroll-x, 0px)));
 }
 .flow-event {
   position: absolute;
@@ -350,7 +358,7 @@
   inset: var(--flow-item-inset, 4px) 0;
   overflow: hidden;
   border-radius: 4px 12px 12px 4px;
-  background: color-mix(in srgb, var(--flow-color) 16%, var(--theme-bg, #fff));
+  background: color-mix(in srgb, var(--flow-color) 24%, var(--theme-bg, #fff));
   box-shadow: inset 4px 0 var(--flow-color);
 }
 .flow-ribbon-summary {
@@ -491,8 +499,7 @@
   outline-offset: 2px;
 }
 .flow-event.is-live .flow-ribbon {
-  box-shadow: inset 4px 0 #ffdd2d;
-  background: color-mix(in srgb, #ffdd2d 16%, var(--theme-bg, #fff));
+  background: color-mix(in srgb, var(--flow-color) 32%, var(--theme-bg, #fff));
 }
 .flow-event.is-live .flow-ribbon::before {
   content: "";
@@ -501,10 +508,10 @@
   top: 0;
   width: 100%;
   height: var(--flow-progress);
-  background: color-mix(in srgb, #ffdd2d 9%, transparent);
+  background: color-mix(in srgb, var(--flow-color) 12%, transparent);
 }
 .flow-event.is-past .flow-ribbon {
-  background: color-mix(in srgb, var(--flow-color) 8%, var(--theme-bg, #fff));
+  background: color-mix(in srgb, var(--flow-color) 14%, var(--theme-bg, #fff));
 }
 .flow-event.is-past .flow-ribbon-room {
   color: var(--flow-muted);
@@ -636,8 +643,7 @@
   line-height: 20px;
 }
 .flow-short-marker.is-live .flow-short-chip {
-  background: color-mix(in srgb, #ffdd2d 25%, var(--theme-bg, #fff));
-  box-shadow: inset 0 0 0 1px #ffdd2d;
+  background: color-mix(in srgb, var(--flow-color) 32%, var(--theme-bg, #fff));
 }
 .flow-short-marker.is-open .flow-short-chip {
   box-shadow: inset 0 0 0 2px var(--flow-color);
