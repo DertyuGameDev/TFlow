@@ -36,6 +36,7 @@ describe("выбор события для сканирования", () => {
 
     expect(screen.queryByRole("combobox")).not.toBeInTheDocument();
     expect(screen.getByText(event.title)).toBeVisible();
+    expect(screen.getByText("Проверяем вход на событие")).toBeVisible();
     expect(screen.getByRole("button", { name: "Включить камеру" })).toBeEnabled();
     expect(screen.getByLabelText("Загрузить фотографию QR")).toBeEnabled();
 
@@ -49,17 +50,19 @@ describe("выбор события для сканирования", () => {
     const send = vi.fn().mockResolvedValue(admitted);
     render(<QRScanner events={[event, secondEvent]} send={send} onScan={vi.fn()} />);
 
-    const select = screen.getByRole("combobox", { name: "Событие" });
-    expect(select).toHaveValue("");
-    expect(screen.getByRole("button", { name: "Включить камеру" })).toBeDisabled();
-    expect(screen.getByLabelText("Загрузить фотографию QR")).toBeDisabled();
-    expect(screen.getByText("Выберите событие", { selector: "option" })).toBeDisabled();
-    expect(screen.getAllByRole("option").map(option => option.textContent)).toEqual([event.title, secondEvent.title]);
+    expect(screen.getByRole("heading", { name: "На какое событие проверяем вход?" })).toBeVisible();
+    expect(screen.queryByRole("combobox")).not.toBeInTheDocument();
+    expect(screen.queryByRole("button", { name: "Включить камеру" })).not.toBeInTheDocument();
+    expect(screen.queryByLabelText("Загрузить фотографию QR")).not.toBeInTheDocument();
+    expect(screen.getByRole("button", { name: new RegExp(event.title) })).toBeVisible();
+    expect(screen.getByRole("button", { name: new RegExp(secondEvent.title) })).toBeVisible();
 
-    await userEvent.selectOptions(select, secondEvent.id);
+    await userEvent.click(screen.getByRole("button", { name: new RegExp(secondEvent.title) }));
     expect(screen.getByRole("button", { name: "Включить камеру" })).toBeEnabled();
+    expect(screen.getByRole("button", { name: "Включить камеру" })).toHaveFocus();
     expect(screen.getByLabelText("Загрузить фотографию QR")).toBeEnabled();
-    expect(screen.queryByText("Выберите событие, чтобы включить камеру или загрузить QR.")).not.toBeInTheDocument();
+    expect(screen.getByText("Проверяем вход на событие")).toBeVisible();
+    expect(screen.getByText(secondEvent.title)).toBeVisible();
     await scanManually();
     await waitFor(() => expect(send).toHaveBeenCalledWith(`events/${secondEvent.id}/check-in`, "POST", {
       qr: "https://example.test/#pass/test-pass",
@@ -79,12 +82,43 @@ describe("выбор события для сканирования", () => {
   it("не продолжает проверку для события, которого больше нет в списке", async () => {
     const props = { send: vi.fn(), onScan: vi.fn() };
     const { rerender } = render(<QRScanner events={[event, secondEvent]} {...props} />);
-    await userEvent.selectOptions(screen.getByRole("combobox"), event.id);
+    await userEvent.click(screen.getByRole("button", { name: new RegExp(event.title) }));
 
     rerender(<QRScanner events={[secondEvent, { ...event, id: "event-three" }]} {...props} />);
-    expect(screen.getByRole("combobox")).toHaveValue("");
-    expect(screen.getByRole("button", { name: "Включить камеру" })).toBeDisabled();
-    expect(screen.getByLabelText("Загрузить фотографию QR")).toBeDisabled();
+    expect(screen.getByRole("heading", { name: "На какое событие проверяем вход?" })).toBeVisible();
+    expect(screen.queryByRole("button", { name: "Включить камеру" })).not.toBeInTheDocument();
+    expect(screen.queryByLabelText("Загрузить фотографию QR")).not.toBeInTheDocument();
+  });
+
+  it("позволяет явно сменить событие и проверяет QR для нового выбора", async () => {
+    const send = vi.fn().mockResolvedValue(admitted);
+    render(<QRScanner events={[event, secondEvent]} send={send} onScan={vi.fn()} />);
+    await userEvent.click(screen.getByRole("button", { name: new RegExp(event.title) }));
+    await userEvent.click(screen.getByRole("button", { name: "Сменить событие" }));
+    expect(screen.getByRole("heading", { name: "На какое событие проверяем вход?" })).toHaveFocus();
+    expect(screen.getByRole("button", { name: new RegExp(event.title) })).toHaveAttribute("aria-pressed", "true");
+    await userEvent.click(screen.getByRole("button", { name: new RegExp(secondEvent.title) }));
+    await scanManually();
+    await waitFor(() => expect(send).toHaveBeenCalledWith(`events/${secondEvent.id}/check-in`, "POST", {
+      qr: "https://example.test/#pass/test-pass",
+    }));
+  });
+
+  it("находит нужное событие в большом списке по названию или месту", async () => {
+    const events = Array.from({ length: 8 }, (_, index) => ({ ...event, id: `event-${index}`, title: `Встреча ${index}`, venue: `Зал ${index}` }));
+    render(<QRScanner events={events} send={vi.fn()} onScan={vi.fn()} />);
+    const search = screen.getByRole("searchbox", { name: "Найти событие для проверки входа" });
+    await userEvent.type(search, "Зал 7");
+    expect(screen.getByRole("button", { name: /Встреча 7/ })).toBeVisible();
+    expect(screen.queryByRole("button", { name: /Встреча 0/ })).not.toBeInTheDocument();
+    await userEvent.clear(search);
+    await userEvent.type(search, "нет такого события");
+    expect(screen.getByRole("status")).toHaveTextContent("События не найдены");
+    await userEvent.clear(search);
+    await userEvent.type(search, "Встреча 2");
+    await userEvent.click(screen.getByRole("button", { name: /Встреча 2/ }));
+    expect(screen.getByText("Встреча 2")).toBeVisible();
+    expect(screen.getByRole("button", { name: "Включить камеру" })).toBeEnabled();
   });
 });
 
