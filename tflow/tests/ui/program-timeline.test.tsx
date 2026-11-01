@@ -90,7 +90,7 @@ function drag(target: HTMLElement, from: number, to: number, finish = true) {
 }
 
 describe("действия на графике программы", () => {
-  it("не сбрасывает перенесённое время последующим кликом и честно просит сохранить черновик", async () => {
+  it("не открывает форму после переноса и подтверждает прямое сохранение", async () => {
     const activity = item(0), onSelect = vi.fn(), onReschedule = vi.fn().mockResolvedValue(undefined);
     const {container} = render(<ProgramTimeline event={event} activities={[activity, item(90,1), item(91,1)]} onSelect={onSelect} onEdit={vi.fn()} onReschedule={onReschedule}/>);
     measureCanvas(container);
@@ -99,7 +99,7 @@ describe("действия на графике программы", () => {
     fireEvent.click(block, {detail:1});
     expect(onSelect).not.toHaveBeenCalled();
     expect(onReschedule).toHaveBeenCalledExactlyOnceWith(activity, {starts_at:activity.starts_at+1800000, ends_at:activity.ends_at+1800000});
-    await waitFor(() => expect(screen.getByRole("status")).toHaveTextContent("Нажмите галочку"));
+    await waitFor(() => expect(screen.getByRole("status")).toHaveTextContent("сохранено"));
     fireEvent.click(screen.getByRole("button", {name:/2 пунктов/}), {detail:1});
     expect(screen.getByRole("button", {name:/Лекция 91/})).toBeVisible();
   });

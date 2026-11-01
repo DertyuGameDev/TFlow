@@ -5,7 +5,7 @@ from django.utils import timezone
 from .contracts import FlowError, ProfileInput, validate
 from .profile_data import PROFILE_LABELS, participant_profile
 from .names import split_name
-from .notifications import create_notifications
+from .notifications import (create_notifications, notify_audience, event_recipients, personal_notice, event_facts, activity_facts)
 from .models import (
     Activity,
     CheckIn,
@@ -107,9 +107,13 @@ def save_profile(user, data):
 def set_requirements(user, event_id, data):
     with schedule_write():
         event = owned_event(event_id, user)
+        from .schedule_feedback import event_snapshot, event_change_message
+        before = event_snapshot(event)
         event.required_profile_fields = data["required_profile_fields"]
         event.updated_at = timezone.now()
         event.save(update_fields=["required_profile_fields", "updated_at"])
+        if before["required_profile_fields"] != event.required_profile_fields:
+            notify_audience(event, event_change_message(event, before), title="Изменились данные для записи")
         promote_event_waitlist_locked(event)
 
 
@@ -177,21 +181,9 @@ def update_event(user, event_id, data):
         event.updated_at = timezone.now()
         event.save()
         if changed:
-            users = set(event.enrollments.values_list("user_id", flat=True)) | set(
-                Registration.objects.filter(activity__event=event).values_list(
-                    "user_id", flat=True
-                )
-            )
-            create_notifications(
-                [
-                    Notification(
-                        user_id=uid,
-                        event=event,
-                        message=event_change_message(event, before_event),
-                    )
-                    for uid in users
-                ]
-            )
+            notify_audience(event, event_change_message(event, before_event), title="Изменения в мероприятии")
+        from .access_keys import sync_key_expiry
+        sync_key_expiry(event)
         promote_event_waitlist_locked(event)
         return event
 
@@ -218,8 +210,8 @@ def publish_event(user, event_id):
                     Notification(
                         user_id=uid,
                         event=event,
-                        kind="club_event",
-                        message=f"В клубе «{event.community.name}» опубликовано событие «{event.title}».",
+                        kind="club_event", title="Новое событие клуба",
+                        message=f"В клубе «{event.community.name}» опубликовано событие. {event_facts(event)} Откройте событие, чтобы записаться.",
                     )
                     for uid in recipients
                 ]
@@ -267,21 +259,8 @@ def delete_event(user, event_id):
 
         stop_webinar(event, all_rooms=True)
         title = event.title
-        users = (
-            set(event.enrollments.values_list("user_id", flat=True))
-            | set(event.waitlist_entries.values_list("user_id", flat=True))
-            | set(event.check_ins.values_list("user_id", flat=True))
-            | set(
-                Registration.objects.filter(activity__event=event).values_list(
-                    "user_id", flat=True
-                )
-            )
-            | set(
-                WaitlistEntry.objects.filter(activity__event=event).values_list(
-                    "user_id", flat=True
-                )
-            )
-        ) - {user.pk}
+        details = event_facts(event)
+        users = event_recipients(event, include_subscribers=event.status == "published")
         # Activities protect their rooms, so remove them before collecting rooms.
         event.activities.all().delete()
         event.delete()
@@ -289,8 +268,8 @@ def delete_event(user, event_id):
             [
                 Notification(
                     user_id=uid,
-                    kind="event_cancelled",
-                    message=f"Организатор отменил мероприятие «{title}». Ваша регистрация и записи на его активности отменены.",
+                    kind="event_cancelled", title="Мероприятие отменено",
+                    message=f"Организатор отменил мероприятие «{title}». {details} Регистрация и записи на его активности больше не действуют.",
                 )
                 for uid in users
             ]
@@ -304,7 +283,8 @@ def save_room(user, data, *, event_id=None, room_id=None):
                 room = Room.objects.get(pk=room_id)
             except Room.DoesNotExist as error:
                 raise FlowError("NOT_FOUND", "Аудитория не найдена", 404) from error
-            owned_event(room.event_id, user)
+            event = owned_event(room.event_id, user)
+            previous_room = (room.name, room.capacity)
             if room.activities.filter(capacity__gt=data["capacity"]).exists():
                 raise FlowError(
                     "ROOM_CAPACITY",
@@ -313,6 +293,9 @@ def save_room(user, data, *, event_id=None, room_id=None):
             for key, value in data.items():
                 setattr(room, key, value)
             room.save()
+            if previous_room != (room.name, room.capacity) and room.activities.exists():
+                facts = "\n".join(activity_facts(a) for a in room.activities.select_related("event", "room")[:5])
+                notify_audience(event, f"Аудитория: {previous_room[0]} → {room.name}. Вместимость: {previous_room[1]} → {room.capacity}.\n{facts}", title="Изменилась аудитория")
         else:
             event = owned_event(event_id, user)
             room = Room.objects.create(event=event, **data)
@@ -456,20 +439,14 @@ def save_activity(user, data, *, event_id=None, activity_id=None):
             updated_at=activity.updated_at
         )
         if activity_id and changed:
-            create_notifications(
-                [
-                    Notification(
-                        user_id=uid,
-                        event_id=activity.event_id,
-                        activity=activity,
-                        message=change_message(activity, before),
-                    )
-                    for uid in set(
-                        activity.registrations.values_list("user_id", flat=True)
-                    )
-                    | set(activity.waitlist.values_list("user_id", flat=True))
-                ]
-            )
+            notify_audience(activity.event, change_message(activity, before), activity=activity,
+                            title="Изменения в активности")
+        elif not activity_id:
+            notify_audience(activity.event, "В программу добавлена активность. " + activity_facts(activity) +
+                            (" Нужна отдельная регистрация." if activity.registration_required else " Доступна участникам события без отдельной записи."),
+                            activity=activity, title="Новая активность в программе")
+        from .access_keys import sync_key_expiry
+        sync_key_expiry(activity.event)
         promote_waitlist_locked(activity)
         if activity_id:
             for participant in User.objects.filter(registrations__activity=activity):
@@ -542,7 +519,8 @@ def promote_waitlist_locked(activity):
                         user=entry.user,
                         event=activity.event,
                         activity=activity,
-                        message=f"Место освободилось! Вы автоматически записаны на «{activity.title}» из листа ожидания. Время и аудитория — в вашей программе.",
+                        title="Вы записаны из листа ожидания", kind="registration",
+                        message="Место освободилось! Вы автоматически записаны из листа ожидания. " + activity_facts(activity),
                     )
                 ]
             )
@@ -579,11 +557,16 @@ def join_waitlist(user, activity_id, profile_data=None):
             )
         enroll_locked(user, activity.event, profile_data)
         WaitlistEntry.objects.create(user=user, activity=activity)
+        personal_notice(user, activity.event, "Вы в очереди на активность. " + activity_facts(activity) + " Когда место освободится и время не будет занято, запишем автоматически и сообщим отдельно.", title="Вы в очереди на активность", activity=activity)
 
 
 def leave_waitlist(user, activity_id):
     with schedule_write():
-        WaitlistEntry.objects.filter(user=user, activity_id=activity_id).delete()
+        entry = WaitlistEntry.objects.select_related("activity__event", "activity__room").filter(user=user, activity_id=activity_id).first()
+        if entry:
+            activity = entry.activity
+            entry.delete()
+            personal_notice(user, activity.event, "Вы вышли из очереди. " + activity_facts(activity), title="Очередь на активность отменена", activity=activity)
 
 
 def register(user, activity_id, profile_data=None):
@@ -599,6 +582,7 @@ def register(user, activity_id, profile_data=None):
                 raise FlowError("PARTICIPANT_CONFLICT", "Это время занято другой активностью в вашем расписании")
             # A personal calendar entry only: no seat is reserved or taken from a quota.
             Registration.objects.create(user=user, activity=activity)
+            personal_notice(user, activity.event, "Добавлено в личное расписание. " + activity_facts(activity) + " Отдельное место не бронируется.", title="Активность в вашем расписании", activity=activity)
             return True
         if activity.registrations.count() >= activity.capacity:
             raise FlowError(
@@ -618,6 +602,7 @@ def register(user, activity_id, profile_data=None):
             return False
         enroll_locked(user, activity.event, profile_data)
         Registration.objects.create(user=user, activity=activity)
+        personal_notice(user, activity.event, "Вы записаны, место забронировано. " + activity_facts(activity), title="Запись на активность подтверждена", activity=activity)
         activity.waitlist.filter(user=user).delete()
     return True
 
@@ -628,7 +613,8 @@ def cancel(user, activity_id):
             user=user, activity_id=activity_id
         ).delete()
         if removed:
-            activity = Activity.objects.select_related("event").get(pk=activity_id)
+            activity = Activity.objects.select_related("event", "room").get(pk=activity_id)
+            personal_notice(user, activity.event, ("Запись отменена. " if activity.registration_required else "Убрано из личного расписания. ") + activity_facts(activity), title="Отмена записи на активность", activity=activity)
             from .webinars import disconnect_viewer
             if activity.registration_required:
                 disconnect_viewer(user, activity.event_id, activity_id=activity.pk)
@@ -679,7 +665,8 @@ def promote_event_waitlist_locked(event):
         entry.delete()
         create_notifications([Notification(
             user=entry.user, event=event, kind="event_waitlist",
-            message=f"Место освободилось! Вы зарегистрированы на мероприятие «{event.title}» из листа ожидания. Событие добавлено в календарь, QR доступен в профиле.",
+            title="Место на мероприятии освободилось",
+            message="Место освободилось! Вы зарегистрированы из листа ожидания. " + event_facts(event) + " QR доступен в профиле.",
         )])
         free -= 1
         if free <= 0:
@@ -705,9 +692,12 @@ def join_event_waitlist(user, event_id, profile_data=None):
         if event.enrollments.filter(user=user).exists():
             return False
         event_registration_profile_locked(user, event, profile_data)
-        EventWaitlistEntry.objects.get_or_create(user=user, event=event)
+        _, created = EventWaitlistEntry.objects.get_or_create(user=user, event=event)
         promote_event_waitlist_locked(event)
-        return event.waitlist_entries.filter(user=user).exists()
+        waiting = event.waitlist_entries.filter(user=user).exists()
+        if created and waiting:
+            personal_notice(user, event, "Вы в очереди на мероприятие. " + event_facts(event) + " Когда место освободится, запишем автоматически и сообщим отдельно.", title="Вы в очереди на мероприятие")
+        return waiting
 
 
 def leave_event_waitlist(user, event_id):
@@ -716,7 +706,9 @@ def leave_event_waitlist(user, event_id):
         event = Event.objects.filter(pk=event_id).first()
         if not event:
             raise FlowError("NOT_FOUND", "Мероприятие не найдено", 404)
-        event.waitlist_entries.filter(user=user).delete()
+        deleted, _ = event.waitlist_entries.filter(user=user).delete()
+        if deleted:
+            personal_notice(user, event, "Вы вышли из очереди. " + event_facts(event), title="Очередь на мероприятие отменена")
         promote_event_waitlist_locked(event)
         return event.enrollments.filter(user=user).exists()
 
@@ -738,6 +730,7 @@ def enroll_locked(user, event, profile_data=None):
         raise FlowError("WAITLIST_PRIORITY", "Места распределяются по очереди. Встаньте в лист ожидания")
     snapshot = event_registration_profile_locked(user, event, profile_data)
     ticket = EventRegistration.objects.create(user=user, event=event, profile_data=snapshot)
+    personal_notice(user, event, "Регистрация подтверждена. " + event_facts(event) + " Ваш QR доступен в профиле.", title="Вы зарегистрированы на мероприятие")
     event.waitlist_entries.filter(user=user).delete()
     promote_event_waitlist_locked(event)
     return ticket
@@ -754,6 +747,8 @@ def enroll_event(user, event_id, profile_data=None):
 
 def cancel_event(user, event_id):
     with schedule_write():
+        event = Event.objects.filter(pk=event_id).first()
+        had_ticket = EventRegistration.objects.filter(user=user, event_id=event_id).exists()
         if CheckIn.objects.filter(user=user, event_id=event_id).exists():
             raise FlowError(
                 "ALREADY_CHECKED_IN",
@@ -776,6 +771,8 @@ def cancel_event(user, event_id):
         retry_user_waitlists_locked(user)
         event = Event.objects.filter(pk=event_id).first()
         if event:
+            if had_ticket:
+                personal_notice(user, event, "Ваша регистрация и записи на активности отменены. " + event_facts(event), title="Регистрация отменена")
             promote_event_waitlist_locked(event)
 
 
@@ -833,21 +830,9 @@ def move_event(user, event_id, data):
         event.updated_at = timezone.now()
         event.save()
         Activity.objects.bulk_update(activities, ["starts_at", "ends_at", "updated_at"])
-        recipients = set(event.enrollments.values_list("user_id", flat=True)) | set(
-            Registration.objects.filter(activity__event=event).values_list(
-                "user_id", flat=True
-            )
-        )
-        create_notifications(
-            [
-                Notification(
-                    user_id=uid,
-                    event=event,
-                    message=event_change_message(event, before_event, moved=True),
-                )
-                for uid in recipients
-            ]
-        )
+        from .schedule_feedback import interval
+        moved_program = "\n".join(f"«{a.title}»: {interval(a.starts_at - delta, a.ends_at - delta)} → {interval(a.starts_at, a.ends_at)} МСК, {a.room.name}." for a in activities[:10]) if delta else ""
+        notify_audience(event, event_change_message(event, before_event, moved=True) + ("\nПрограмма также перенесена:\n" + moved_program if moved_program else ""), title="Перенос мероприятия")
         for activity in activities:
             # Use the new event dates/status when processing its queues.
             activity.event = event
@@ -856,6 +841,8 @@ def move_event(user, event_id, data):
             registrations__activity__event=event
         ).distinct():
             retry_user_waitlists_locked(participant)
+        from .access_keys import sync_key_expiry
+        sync_key_expiry(event)
         promote_event_waitlist_locked(event)
 
 
@@ -913,4 +900,5 @@ def mark_event_entry(user, event, person, access_key=None):
     )
     if not created:
         raise FlowError("ALREADY_CHECKED_IN", "QR-код уже использован для входа на это мероприятие. Повторный вход запрещён")
+    personal_notice(person, event, "Вход по QR подтверждён. " + event_facts(event), title="Вы вошли на мероприятие", kind="attendance")
     return entry

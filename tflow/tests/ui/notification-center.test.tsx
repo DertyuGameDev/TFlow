@@ -94,3 +94,18 @@ describe("центр уведомлений", () => {
     expect(screen.queryByRole("alert")).not.toBeInTheDocument();
   });
 });
+
+it("при новом сообщении сохраняет загруженную историю и показывает конкретный заголовок",async()=>{
+  const user=userEvent.setup();
+  const send=vi.fn().mockResolvedValueOnce({items:[notice("one")],next_cursor:"one"})
+    .mockResolvedValueOnce({items:[notice("two")],next_cursor:null})
+    .mockResolvedValueOnce({items:[notice("fresh",{title:"Изменения в активности"}),notice("one")],next_cursor:"one"});
+  const props={send,unreadCount:2,revision:"before",onChange:vi.fn(),onOpen:vi.fn()};
+  const view=render(<NotificationCenter {...props}/>);
+  await user.click(await screen.findByRole("button",{name:"Показать ещё"}));
+  await screen.findByText("Сообщение two");
+  view.rerender(<NotificationCenter {...props} unreadCount={3} revision="after"/>);
+  expect(await screen.findByRole("heading",{name:"Изменения в активности"})).toBeVisible();
+  expect(screen.getByText("Сообщение two")).toBeVisible();
+  expect(screen.queryByRole("button",{name:"Показать ещё"})).not.toBeInTheDocument();
+});

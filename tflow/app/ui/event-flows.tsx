@@ -21,12 +21,16 @@ export function EventFlows({ onManage, focusActivityId, ...program }: Props) {
     <section id="event-flows" className="event-flows" aria-labelledby={headingId}>
       <header className="event-flows-heading">
         <div>
-          <h2 id={headingId}>Флоу <span>{program.activities.length}</span></h2>
-          <p>Активности мероприятия: выбирайте, что вам интересно.</p>
+          <h2 id={headingId}>
+            Флоу <span>{program.activities.length}</span>
+          </h2>
+          <p>Выбирайте активности и собирайте свою программу.</p>
         </div>
-        {onManage && <button className="text-button" onClick={onManage}>
-          Управлять флоу <ArrowRight size={17} />
-        </button>}
+        {onManage && (
+          <button className="text-button" onClick={onManage}>
+            Управлять флоу <ArrowRight size={17} />
+          </button>
+        )}
       </header>
       {program.activities.length ? (
         <>
@@ -35,12 +39,15 @@ export function EventFlows({ onManage, focusActivityId, ...program }: Props) {
               ? "Активности без отдельной записи доступны участникам мероприятия. Добавляйте их в расписание; на остальные бронируйте место."
               : "Запишитесь на понравившиеся активности. Проверим пересечения в расписании; если места закончились, можно встать в лист ожидания."}
           </p>}
-          <ActivityProgram {...program} />
+          <ActivityProgram {...program} focusActivityId={focusActivityId} vertical />
         </>
       ) : (
         <div className="event-flows-empty">
           <ListOrdered size={24} aria-hidden="true" />
-          <p>Активности пока не добавлены. Здесь появятся флоу с временем, аудиторией и спикером.</p>
+          <p>
+            Активности пока не добавлены. Здесь появятся флоу с временем,
+            аудиторией и спикером.
+          </p>
         </div>
       )}
     </section>

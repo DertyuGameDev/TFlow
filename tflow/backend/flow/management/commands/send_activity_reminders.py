@@ -5,7 +5,7 @@ from flow.reminders import send_due_reminders
 
 
 class Command(BaseCommand):
-    help = 'Напоминания за 30 минут до выбранных активностей (без дублей).'
+    help = 'Напоминания о событиях и активностях без дублей. На Spirit работает run_notification_worker.'
 
     def add_arguments(self, parser):
         parser.add_argument('--watch', action='store_true')

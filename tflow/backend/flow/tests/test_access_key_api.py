@@ -1,3 +1,4 @@
+from .webinar_clock import freeze_webinar_clock
 from concurrent.futures import ThreadPoolExecutor
 from threading import Barrier
 from unittest.mock import patch
@@ -16,6 +17,9 @@ from .test_webinar_transport import VIDEO
 class AccessScenario(Scenario):
     def setUp(self):
         super().setUp()
+        self.webinar_clock = freeze_webinar_clock(self, self.start)
+        self.d.starts_at, self.d.ends_at = self.a.starts_at, self.a.ends_at
+        self.d.save(update_fields=["starts_at", "ends_at"])
         self.publish()
         self.event.format = "Гибрид"
         self.event.save(update_fields=["format"])

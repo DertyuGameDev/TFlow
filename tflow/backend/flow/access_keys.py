@@ -28,6 +28,8 @@ def revoke_records(keys):
         key.revoked_at = timezone.now()
         key.save(update_fields=["revoked_at"])
         if key.purpose == "webinar":
+            from .models import HttpBroadcast
+            HttpBroadcast.objects.filter(publisher_key=key, active=True).update(active=False, publisher_hash="")
             webinar = Webinar.objects.filter(activity_id=key.activity_id, active=True).first()
             if webinar:
                 for user_id in key.uses.exclude(user_id=key.event.owner_id).values_list("user_id", flat=True):
@@ -119,3 +121,39 @@ def management(user, event_id):
         {"id": activity.pk, "title": activity.title, "key": keys.get(activity.pk)}
         for activity in event.activities.filter(room__is_online=True)
     ]}
+
+
+def invitation_secret(key):
+    from django.utils.crypto import salted_hmac
+    return salted_hmac('tflow-lecturer-invite-v1', key.pk, algorithm='sha256').hexdigest()
+
+
+def lecturer_links(user, event_id, *, activity_id=None, operation='ensure'):
+    """Idempotent owner-only link provisioning, never a mutation on GET."""
+    with schedule_write():
+        event = owned_event(event_id, user)
+        if operation not in {'ensure', 'issue', 'revoke'}:
+            raise FlowError('VALIDATION', 'Неизвестное действие', 400)
+        activities = event.activities.filter(room__is_online=True).select_related('room')
+        if activity_id:
+            activities = activities.filter(pk=activity_id)
+            if not activities.exists(): raise FlowError('NOT_FOUND', 'Онлайн-активность не найдена', 404)
+        elif operation != 'ensure': raise FlowError('VALIDATION', 'Выберите активность', 400)
+        result=[]
+        for activity in activities:
+            history=EventAccessKey.objects.filter(activity=activity,is_link=True)
+            key=history.filter(revoked_at__isnull=True).first()
+            if operation in {'issue','revoke'}:
+                revoke_records(EventAccessKey.objects.filter(activity=activity,revoked_at__isnull=True))
+                key=None
+            if activity.ends_at>timezone.now() and operation!='revoke' and (operation=='issue' or not history.exists()):
+                key=EventAccessKey(event=event,activity=activity,created_by=user,purpose='webinar',is_link=True,expires_at=min(event.ends_at,activity.ends_at))
+                key.token_hash=sha256(invitation_secret(key).encode()).hexdigest();key.save()
+            result.append({'id':activity.pk,'title':activity.title,'starts_at':round(activity.starts_at.timestamp()*1000),'ends_at':round(activity.ends_at.timestamp()*1000),'key_id':key.pk if key else None,'credential':invitation_secret(key) if key else None})
+        return {'activities':result}
+
+
+def sync_key_expiry(event):
+    keys=list(EventAccessKey.objects.filter(event=event,revoked_at__isnull=True).select_related('activity'))
+    for key in keys:key.expires_at=min(event.ends_at,key.activity.ends_at if key.activity else event.ends_at)
+    EventAccessKey.objects.bulk_update(keys,['expires_at'])

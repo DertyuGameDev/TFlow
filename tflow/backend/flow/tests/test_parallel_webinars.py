@@ -1,3 +1,4 @@
+from .webinar_clock import freeze_webinar_clock
 from concurrent.futures import ThreadPoolExecutor
 from datetime import timedelta
 from threading import Barrier
@@ -16,6 +17,7 @@ from .test_webinar_transport import VIDEO
 class ParallelScenario(Scenario):
     def setUp(self):
         super().setUp()
+        self.webinar_clock = freeze_webinar_clock(self, self.start)
         self.event.format = "Гибрид"
         self.publish()
         self.event.save(update_fields=["format"])

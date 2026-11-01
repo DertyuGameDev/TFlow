@@ -74,14 +74,13 @@ describe("превью участников события", () => {
     expect(screen.queryByRole("button")).not.toBeInTheDocument();
   });
 
-  it("переключает обзор на полный список, где можно найти и шестого участника", async () => {
+  it("показывает единый список, где можно найти и шестого участника", async () => {
     const user = userEvent.setup();
     render(<OrganizerManage {...manageProps} />);
-    await user.click(screen.getByRole("button", { name: "Все участники" }));
-    expect(screen.getByRole("tab", { name: /Участники\s*7/ })).toHaveAttribute("aria-selected", "true");
-    expect(screen.getByRole("tab", { name: /Участники\s*7/ })).toHaveFocus();
+    expect(screen.getByRole("tab", { name: "Событие" })).toHaveAttribute("aria-selected", "true");
+    expect(screen.getByRole("region", { name: "Участники события" })).toBeVisible();
     await user.type(screen.getByRole("textbox", { name: "Найти участника" }), "Участник 6");
-    const panel = screen.getByRole("tabpanel", { name: /Участники\s*7/ });
+    const panel = screen.getByRole("region", { name: "Участники события" });
     expect(within(panel).getByText("Участник 6")).toBeVisible();
     expect(within(panel).queryByText("Участник 1")).not.toBeInTheDocument();
     await user.click(within(panel).getByText("Участник 6"));
@@ -90,7 +89,16 @@ describe("превью участников события", () => {
 
   it("позволяет сразу открыть вкладку участников по переходу со страницы события", () => {
     render(<OrganizerManage {...manageProps} initialSection="participants" />);
-    expect(screen.getByRole("tab", { name: /Участники\s*7/ })).toHaveAttribute("aria-selected", "true");
+    expect(screen.getByRole("tab", { name: "Событие" })).toHaveAttribute("aria-selected", "true");
     expect(screen.getByRole("textbox", { name: "Найти участника" })).toBeVisible();
   });
+});
+
+it('открывает требования сразу в заметной верхней вкладке и сохраняет их без модального окна',async()=>{
+ const send=vi.fn().mockResolvedValue({ok:true}),refresh=vi.fn().mockResolvedValue(undefined),user=userEvent.setup();
+ render(<OrganizerManage {...manageProps} send={send} refresh={refresh}/>);
+ const tab=screen.getByRole('tab',{name:'Что спросить при записи'});await user.click(tab);
+ const panel=screen.getByRole('tabpanel',{name:'Что спросить при записи'});expect(panel).toBeVisible();
+ await user.click(within(panel).getByLabelText('Телефон'));await user.click(within(panel).getByRole('button',{name:'Сохранить требования'}));
+ expect(send).toHaveBeenCalledWith(`events/${event.id}/requirements`,'PATCH',{required_profile_fields:['phone']});expect(screen.queryByRole('dialog')).not.toBeInTheDocument();
 });

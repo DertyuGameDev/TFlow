@@ -1,12 +1,17 @@
 """Hybrid programme: physical sessions and native online flows share an event."""
+from datetime import timedelta
+from pathlib import Path
+from tempfile import TemporaryDirectory
 from unittest.mock import patch
 
 import jwt
 from django.test import TestCase, override_settings
 
-from flow.models import Activity, ActivityAttendance, CheckIn, Registration, Webinar
+from flow.models import Activity, ActivityAttendance, CheckIn, HttpBroadcast, Registration, Webinar
+from flow.serializers import milliseconds
 from .test_api import FAST_HASHER, Scenario
 from .test_webinar_transport import VIDEO
+from .webinar_clock import freeze_webinar_clock
 
 
 @override_settings(PASSWORD_HASHERS=FAST_HASHER, **VIDEO)
@@ -14,6 +19,7 @@ from .test_webinar_transport import VIDEO
 class HybridWebinarTests(Scenario, TestCase):
     def setUp(self):
         super().setUp()
+        self.webinar_clock = freeze_webinar_clock(self, self.start + timedelta(minutes=1))
         self.event.format = "Гибрид"
         self.event.save(update_fields=["format"])
         self.publish()
@@ -88,3 +94,36 @@ class HybridWebinarTests(Scenario, TestCase):
         viewer = self.request(path, "post", {"operation": "join"}, client=self.participant)
         self.assertEqual(viewer["session"], host["session"])
         self.request(f"activities/{self.a.pk}/webinar", "post", {"operation": "start"}, status=400, code="NOT_WEBINAR")
+
+    def test_hybrid_flow_cannot_start_before_its_own_scheduled_time(self, media):
+        starts_at = self.start + timedelta(minutes=30)
+        flow = self.create_online_flow(starts_at=milliseconds(starts_at))
+        path = f"activities/{flow.pk}/webinar"
+        self.webinar_clock.now.return_value = starts_at - timedelta(microseconds=1)
+        state = self.request(path)
+        self.assertTrue(state["scheduled"])
+        self.assertFalse(state["can_start"])
+        self.assertEqual(state["starts_at"], starts_at.isoformat())
+        self.request(path, "post", {"operation": "start"}, status=409, code="WEBINAR_TOO_EARLY")
+        media.assert_not_called()
+        self.assertFalse(Webinar.objects.filter(activity=flow).exists())
+        self.webinar_clock.now.return_value = starts_at
+        self.assertTrue(self.request(path)["can_start"])
+        self.request(path, "post", {"operation": "start"})
+        self.assertTrue(Webinar.objects.get(activity=flow).active)
+
+    @override_settings(HTTP_BROADCAST_ENABLED=True)
+    def test_hybrid_https_flow_cannot_start_or_resume_early(self, media):
+        flow = self.create_online_flow()
+        path = f"activities/{flow.pk}/broadcast"
+        self.webinar_clock.now.return_value = flow.starts_at - timedelta(microseconds=1)
+        with TemporaryDirectory() as directory, override_settings(HTTP_BROADCAST_ROOT=Path(directory)):
+            (Path(directory) / "worker").touch()
+            for operation in ["start", "resume"]:
+                with self.subTest(operation=operation):
+                    self.request(path, "post", {"operation": operation, "mime": "video/webm"}, status=409, code="WEBINAR_TOO_EARLY")
+            self.assertFalse(HttpBroadcast.objects.filter(activity=flow).exists())
+            self.webinar_clock.now.return_value = flow.starts_at
+            self.request(path, "post", {"operation": "start", "mime": "video/webm"})
+            self.assertTrue(HttpBroadcast.objects.get(activity=flow).active)
+        media.assert_not_called()

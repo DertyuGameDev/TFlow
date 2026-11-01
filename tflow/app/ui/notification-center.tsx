@@ -4,6 +4,7 @@ import type { Notice, NoticePage } from "../../lib/types";
 import { dateLabel, timeLabel } from "../../lib/time";
 import { FormError, type Send } from "./forms";
 import "../notifications.css";
+import { PushSettings } from "./push-settings";
 
 export function NotificationCenter({
   send,
@@ -28,7 +29,7 @@ export function NotificationCenter({
   const [error, setError] = useState("");
   const sequence = useRef(0);
   const load = useCallback(
-    async (before?: string) => {
+    async (before?: string, keepHistory = false) => {
       const current = ++sequence.current;
       setLoading(true);
       setError("");
@@ -48,8 +49,10 @@ export function NotificationCenter({
                   ]),
                 ).values(),
               ]
-            : next.items,
-          next_cursor: next.next_cursor,
+            : keepHistory && next.items.some(item => previous.items.some(old => old.id === item.id))
+              ? [...next.items, ...previous.items.filter(old => !next.items.some(item => item.id === old.id) && (!unreadOnly || !old.read))]
+              : next.items,
+          next_cursor: keepHistory && next.items.some(item => previous.items.some(old => old.id === item.id)) ? previous.next_cursor : next.next_cursor,
         }));
       } catch (cause) {
         if (current === sequence.current) setError((cause as Error).message);
@@ -64,6 +67,13 @@ export function NotificationCenter({
     return () => {
       sequence.current++;
     };
+  }, [load]);
+  const previousRevision = useRef(revision);
+  useEffect(() => {
+    if (previousRevision.current !== revision) {
+      previousRevision.current = revision;
+      void load(undefined, true);
+    }
   }, [load, revision]);
 
   async function markRead(path: string, after?: () => void) {
@@ -72,6 +82,10 @@ export function NotificationCenter({
     setError("");
     try {
       await send(path, "PATCH", {});
+      setPage(previous => ({ ...previous, items: previous.items.flatMap(item => {
+        const read = path === "notifications" || path === `notifications/${item.id}`;
+        return read && unreadOnly ? [] : [{ ...item, read: read ? 1 : item.read }];
+      }) }));
       await onChange();
       after?.();
     } catch (cause) {
@@ -94,7 +108,7 @@ export function NotificationCenter({
       <header className="flow-heading">
         <div>
           <h1>Центр уведомлений</h1>
-          <p>Новые встречи клубов и изменения ваших событий</p>
+          <p>Записи, переносы, изменения программы и напоминания</p>
         </div>
         <button
           className="button secondary"
@@ -105,6 +119,7 @@ export function NotificationCenter({
           Прочитать все
         </button>
       </header>
+      <PushSettings send={send} />
       <div className="notification-toolbar">
         <div
           className="notification-filters"
@@ -175,14 +190,18 @@ export function NotificationCenter({
                 </span>
               </div>
               <h2>
-                {notice.kind === "event_cancelled"
+                {notice.title || (notice.kind === "event_cancelled"
                   ? "Мероприятие отменено организатором"
                   : notice.kind === "club_event"
                     ? "Новое событие клуба"
                   : notice.kind === "event_waitlist"
                     ? "Место на мероприятии освободилось"
                   : notice.kind === "activity_reminder" ? "Скоро начнётся активность"
-                  : "Обновление события"}
+                  : notice.kind === "event_reminder" ? "Напоминание о мероприятии"
+                  : notice.kind === "registration" ? "Ваша запись"
+                  : notice.kind === "attendance" ? "Посещение подтверждено"
+                  : notice.kind === "webinar" ? "Трансляция"
+                  : "Обновление события")}
               </h2>
               <p>{notice.message}</p>
               <div className="notification-actions">

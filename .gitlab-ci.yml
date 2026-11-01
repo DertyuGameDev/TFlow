@@ -6,8 +6,10 @@ stages:
 
 workflow:
   rules:
+    - if: '$CI_COMMIT_BRANCH == "gosha" && ($CI_PIPELINE_SOURCE == "api" || $CI_PIPELINE_SOURCE == "web")'
     - if: '$CI_COMMIT_BRANCH == "main" || $CI_COMMIT_BRANCH == $CI_DEFAULT_BRANCH'
     - if: '$CI_PIPELINE_SOURCE == "merge_request_event" && $CI_MERGE_REQUEST_SOURCE_BRANCH_NAME != "main"'
+    - if: '$CI_COMMIT_BRANCH == "Sviat" && $CI_PIPELINE_SOURCE == "api" && $TFLOW_VIDEO_NETWORK_CHECK == "1"'
 
 default:
   interruptible: true
@@ -34,7 +36,7 @@ backend:
   image: python:3.12-slim
   before_script:
     - apt-get update -qq
-    - apt-get install -y --no-install-recommends git ca-certificates
+    - apt-get install -y --no-install-recommends git ca-certificates ffmpeg
   services:
     - name: postgres:16-alpine
       alias: postgres
@@ -156,6 +158,32 @@ deploy-spirit-cu:
     - if: '$CI_COMMIT_BRANCH == $CI_DEFAULT_BRANCH'
       when: manual
 
+
+spirit-ingress-diagnostics:
+  extends: .spirit-control
+  needs: []
+  timeout: 5m
+  rules:
+    - if: '$CI_COMMIT_BRANCH == "gosha"'
+      when: manual
+  before_script:
+    - apt-get update -qq
+    - apt-get install -y --no-install-recommends openssh-client ca-certificates
+  script:
+    - python -m unittest discover -s tflow/deploy/spirit -p 'test_video_ingress.py'
+    - python tflow/deploy/spirit/inspect_video_ingress.py
+
+spirit-video-media-port:
+  extends: .spirit-control
+  needs: []
+  timeout: 5m
+  rules:
+    - if: '$CI_COMMIT_BRANCH == "gosha"'
+      when: manual
+  script:
+    - python -m unittest discover -s tflow/deploy/spirit -p 'test_video_network_setup.py'
+    - python tflow/deploy/spirit/configure_video_network.py
+
 spirit-readiness:
   extends: .spirit-control
   script:
@@ -164,6 +192,28 @@ spirit-readiness:
   artifacts:
     expire_in: 1 day
     paths: [.spirit-cli/dp]
+
+# Independent of application deployment. Adds at most UDP 8082 if explicitly
+# requested; never reapplies a template, restarts services or rebuilds the VM.
+spirit-video-ingress:
+  extends: .spirit-control
+  needs: []
+  rules:
+    - if: '$CI_COMMIT_BRANCH == "Sviat" && $CI_PIPELINE_SOURCE == "api" && $TFLOW_VIDEO_NETWORK_CHECK == "1"'
+      when: on_success
+      allow_failure: false
+    - if: '$CI_COMMIT_BRANCH == $CI_DEFAULT_BRANCH'
+      when: manual
+  before_script:
+    - apt-get update -qq
+    - apt-get install -y --no-install-recommends openssh-client ca-certificates
+  script:
+    - |
+      if [ "${TFLOW_VIDEO_ALLOW_UDP:-0}" = "1" ]; then
+        python tflow/deploy/spirit/video_ingress.py --allow-udp --check-media
+      else
+        python tflow/deploy/spirit/video_ingress.py --check-media
+      fi
 
 provision-owned-video:
   extends: .spirit-control

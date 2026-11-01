@@ -5,8 +5,8 @@ import { timeLabel } from "../../lib/time";
 import type { Send } from "./forms";
 import { ParticipantDetails } from "./profile-data";
 
-export function QRScanner({event,events,initialToken,send,onScan,endpoint,activities}:{event?:Pick<FlowEvent,"id"|"title">;events:Pick<FlowEvent,"id"|"title">[];initialToken?:string;send:Send;onScan:()=>void;endpoint?:string;activities?:Pick<Activity,"id"|"title">[]}) {
-  const [eventId,setEventId]=useState(event?.id??""),[result,setResult]=useState<ScanResult|null>(null),[error,setError]=useState("");
+export function QRScanner({event,events,initialToken,send,onScan,endpoint,activities,simple=false,autoStart=false}:{event?:Pick<FlowEvent,"id"|"title">;events:Pick<FlowEvent,"id"|"title">[];initialToken?:string;send:Send;onScan:()=>void;simple?:boolean;autoStart?:boolean;endpoint?:string;activities?:Pick<Activity,"id"|"title">[]}) {
+  const [eventId,setEventId]=useState(event?.id??(events.length===1?events[0].id:"")),[result,setResult]=useState<ScanResult|null>(null),[error,setError]=useState("");
   const [programError,setProgramError]=useState("");
   const [activityId,setActivityId]=useState(""),[choices,setChoices]=useState<Pick<Activity,"id"|"title">[]>(activities??[]);
   useEffect(()=>{let active=true;setProgramError("");setActivityId("");setResult(null);if(activities){setChoices(activities);return;}setChoices([]);if(eventId)void send(`events/${eventId}`,"GET").then(value=>{if(active)setChoices((value as EventDetail).activities??[]);}).catch(()=>{if(active)setProgramError("Не удалось загрузить флоу. Сейчас доступна только отметка входа на мероприятие. Обновите страницу для выбора активности.");});return()=>{active=false;};},[eventId,activities,send]);
@@ -36,8 +36,9 @@ export function QRScanner({event,events,initialToken,send,onScan,endpoint,activi
     setCamera(true);
     try{
       const {BrowserQRCodeReader}=await import("@zxing/browser");
+      if(!alive.current||cameraGeneration.current!==generation)return;
       const reader=new BrowserQRCodeReader();
-      const next=await reader.decodeFromConstraints({audio:false,video:{facingMode:{ideal:"environment"}}},video.current!, (value,_error,controller)=>{if(value&&alive.current&&cameraGeneration.current===generation&&!locked.current){controller.stop();void scan(value.getText());}});
+      const next=await reader.decodeFromConstraints({audio:false,video:{facingMode:{ideal:"environment"}}},video.current!, (value,_error,controller)=>{if(value&&eventId&&alive.current&&cameraGeneration.current===generation&&!locked.current){controller.stop();void scan(value.getText());}});
       if(!alive.current||cameraGeneration.current!==generation)next.stop();else controls.current=next;
     }catch(reason){if(alive.current&&cameraGeneration.current===generation){setCamera(false);const name=(reason as Error).name;setError(name==="NotAllowedError"?"Разрешите доступ к камере или загрузите QR с фотографии.":"Не удалось открыть камеру. Попробуйте загрузить QR с фотографии.");}}
   }
@@ -56,14 +57,18 @@ export function QRScanner({event,events,initialToken,send,onScan,endpoint,activi
     }
     catch{if(alive.current){setError("QR-код не найден на изображении. Выберите чёткую фотографию кода целиком.");setBusy(false);}}finally{URL.revokeObjectURL(url);}
   }
+  useEffect(()=>{if(!eventId&&events.length===1)setEventId(events[0].id);},[eventId,events]);
+  const autoCamera=useRef(startCamera);autoCamera.current=startCamera;
+  useEffect(()=>{if(autoStart&&(eventId||events.length))void autoCamera.current();return()=>{cameraGeneration.current++;controls.current?.stop();controls.current=null;};},[autoStart,eventId,events.length]);
   if(!event&&!events.length)return <div className="quiet-empty"><span className="empty-symbol"><ScanLine size={28}/></span><h2>Сначала создайте событие</h2><p>У каждого события свой список участников. После создания здесь появится его сканер.</p><a className="button primary" href="#organizer">К моим событиям</a></div>;
-  return <section className="scanner-panel" aria-label="Сканер участников" aria-busy={busy}>
-    {!event&&<label className="scanner-event-label">Событие<select value={eventId} disabled={busy||camera} onChange={e=>{stop();setEventId(e.target.value);setError("");setResult(null);}}><option value="">Выберите ваше событие</option>{events.map(e=><option key={e.id} value={e.id}>{e.title}</option>)}</select></label>}
+  return <section className={`scanner-panel ${simple?"scanner-simple":""}`} aria-label="Сканер участников" aria-busy={busy}>
+    {!event&&<label className="scanner-event-label">Событие<select value={eventId} disabled={busy||(!simple&&camera)} onChange={e=>{stop();setEventId(e.target.value);setError("");setResult(null);}}><option value="">Выберите ваше событие</option>{events.map(e=><option key={e.id} value={e.id}>{e.title}</option>)}</select></label>}
     {programError&&<p role="alert">{programError}</p>}
-    {eventId&&<label className="scanner-event-label">Что отмечаем<select aria-label="Что отмечаем" value={activityId} disabled={busy||camera} onChange={e=>{setActivityId(e.target.value);setResult(null);setError("");}}><option value="">Вход на мероприятие</option>{choices.map(a=><option key={a.id} value={a.id}>Посещение флоу: {a.title}</option>)}</select></label>}
-    {!eventId&&<p className="scanner-help">Выберите событие, чтобы включить камеру или загрузить QR.</p>}
-    <div className={`camera-view ${camera?"camera-active":""}`} hidden={!!result}><video ref={video} playsInline muted aria-label="Изображение с камеры для сканирования QR"/>{!camera&&<div className="camera-placeholder"><ScanLine size={48} strokeWidth={1.25}/><h2>Пропуск участника</h2><p>Включите камеру и наведите её на QR из профиля участника</p></div>}{camera&&<><div className="scan-frame"/><button className="camera-stop icon-button" onClick={stop} aria-label="Остановить камеру"><X size={20}/></button></>}</div>
-    {!result&&<div className="scanner-buttons"><button className="button primary" onClick={()=>void startCamera()} disabled={!eventId||busy||camera}><Camera size={19}/>{camera?"Камера включена":"Включить камеру"}</button><label className={`button secondary image-upload ${!eventId||busy||camera?"disabled":""}`}><ImagePlus size={19}/>Загрузить QR<input aria-label="Загрузить фотографию QR" type="file" accept="image/*" disabled={!eventId||busy||camera} onChange={e=>{const file=e.target.files?.[0];if(file)void readImage(file);e.target.value="";}}/></label></div>}
+    {simple&&event&&<p className="scanner-current-event">{event.title}</p>}
+    {eventId&&<details className="scanner-options" open={!simple}><summary>Что отмечаем</summary><label className="scanner-event-label">Что отмечаем<select aria-label="Что отмечаем" value={activityId} disabled={busy||camera} onChange={e=>{setActivityId(e.target.value);setResult(null);setError("");}}><option value="">Вход на мероприятие</option>{choices.map(a=><option key={a.id} value={a.id}>Посещение флоу: {a.title}</option>)}</select></label></details>}
+    {!eventId&&<p className="scanner-help">Выберите событие для отметки входа.</p>}
+    <div className={`camera-view ${camera?"camera-active":""}`} hidden={!!result}><video ref={video} playsInline muted aria-label="Изображение с камеры для сканирования QR"/>{!camera&&<div className="camera-placeholder"><ScanLine size={48} strokeWidth={1.25}/><h2>Наведите на QR участника</h2></div>}{camera&&<><div className="scan-frame"/><button className="camera-stop icon-button" onClick={stop} aria-label="Остановить камеру"><X size={20}/></button></>}</div>
+    {!result&&<div className="scanner-buttons">{(!simple||!camera)&&<button className="button primary" onClick={()=>void startCamera()} disabled={!eventId||busy||camera}><Camera size={19}/>{camera?"Камера включена":"Включить камеру"}</button>}<details className="scanner-fallback" open={!simple}><summary>Другие способы</summary><label className={`button secondary image-upload ${!eventId||busy||camera?"disabled":""}`}><ImagePlus size={19}/>Загрузить QR<input aria-label="Загрузить фотографию QR" type="file" accept="image/*" disabled={!eventId||busy||camera} onChange={e=>{const file=e.target.files?.[0];if(file)void readImage(file);e.target.value="";}}/></label></details></div>}
     {busy&&<div className="scan-progress" role="status"><LoaderCircle className="spin" size={20}/>Проверяем регистрацию…</div>}
     <div ref={feedback}>
       {result&&<div className="scan-result scan-approved" role="status"><span className="result-icon"><Check size={26}/></span><div><h2>{activityId?"Посещение флоу подтверждено":"Вход подтверждён"}</h2><p>{activityId?choices.find(a=>a.id===activityId)?.title:"Регистрация на это событие найдена"} · {timeLabel(result.checked_in_at)}</p></div><div className="scanned-profile"><h3>{result.attendee.name}</h3>{result.attendee.profile_data&&<ParticipantDetails data={result.attendee.profile_data}/>}{result.attendee.activities.length>0&&<p>Программа: {result.attendee.activities.join(", ")}</p>}</div></div>}

@@ -246,6 +246,8 @@ def notice_json(notice):
         "id": notice.pk,
         "event_id": notice.event_id,
         "kind": notice.kind,
+        "title": notice.title,
+        "data": notice.data,
         "activity_id": notice.activity_id,
         "message": notice.message,
         "created_at": milliseconds(notice.created_at),

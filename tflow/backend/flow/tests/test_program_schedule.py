@@ -39,6 +39,7 @@ class ProgramScheduleTests(Scenario, TestCase):
         self.assertEqual(self.a.ends_at, self.start + timedelta(hours=5))
 
     def test_preview_rolls_back_every_write_and_sends_no_notifications(self):
+        self.publish()
         Registration.objects.create(user=self.person, activity=self.a)
         before = list(Activity.objects.order_by("id").values())
         self.event.refresh_from_db()

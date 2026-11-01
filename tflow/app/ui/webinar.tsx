@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState } from "react";
+import { lazy, Suspense, useEffect, useRef, useState } from "react";
 import {
   LogOut,
   Copy,
@@ -25,6 +25,7 @@ import {
   type Participant,
 } from "livekit-client";
 import type { Activity, FlowEvent, UserIdentity } from "../../lib/types";
+import { dateLabel, timeLabel } from "../../lib/time";
 import { webinarPath } from "../../lib/webinars";
 import { publishScreenShare, screenShareContext, screenShareError, screenShareUnavailable } from "../../lib/screen-share";
 import { microphoneError, microphoneSignal } from "../../lib/audio-level";
@@ -32,8 +33,13 @@ import { webinarConnectionIssue } from "../../lib/webinars";
 import { FormError, type Send } from "./forms";
 import { Modal } from "./dialog";
 import "../webinar.css";
+const HttpWebinar = lazy(() => import("./http-webinar"));
 
 type Status = {
+  transport?: string;
+  scheduled?: boolean;
+  can_start?: boolean;
+  starts_at?: string;
   configured: boolean;
   configuration_error?: string;
   host: boolean;
@@ -77,12 +83,16 @@ export default function Webinar({
   event,
   activity,
   delegated = false,
+  broadcastAccessKey,
+  studio = false,
   user,
   send,
 }: {
   event: FlowEvent;
   activity?: Activity;
   delegated?: boolean;
+  broadcastAccessKey?: string;
+  studio?: boolean;
   user: UserIdentity;
   send: Send;
 }) {
@@ -446,6 +456,7 @@ export default function Webinar({
     return () => { current = false; room.off(RoomEvent.MediaDevicesChanged, load); };
   }, [room, host, microphoneEnabled]);
   void tick;
+  if (status?.transport === "https") return <Suspense fallback={<p role="status">Открываем трансляцию…</p>}><HttpWebinar event={event} activity={activity} initialStatus={status} accessKey={broadcastAccessKey} studio={studio}/></Suspense>;
   return (
     <section
       id={`webinar-${activity?.id ?? event.id}`}
@@ -506,6 +517,8 @@ export default function Webinar({
                   ? "Сначала опубликуйте событие, затем начните эфир."
                   : status.ended
                     ? "Событие завершилось."
+                    : status.scheduled
+                      ? `Начало ${dateLabel(Date.parse(status.starts_at!))} в ${timeLabel(Date.parse(status.starts_at!))} МСК. Запуск станет доступен в назначенное время.`
                     : status.finished
                       ? host
                         ? "Предыдущий эфир завершён. Вы можете начать новую трансляцию."
@@ -523,6 +536,7 @@ export default function Webinar({
               !status?.configured ||
               !status?.published ||
               status?.ended ||
+              (host && (status?.scheduled || status?.can_start === false)) ||
               (!host && !status?.active)
             }
             onClick={() => void connect()}

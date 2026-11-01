@@ -14,16 +14,16 @@ const first: Activity = { id: "python", event_id: event.id, room_id: "online-a",
   capacity: 20, taken: 1, registered: 1, waitlisted: 0, waiting_count: 0, waitlist_position: 0, updated_at: 1, room_is_online: true };
 const second = { ...first, id: "django", room_id: "online-b", room_name: "Django", title: "Флоу Django", registered: 0 };
 
-function mount(user = participant, mode = "", options: { activities?: Activity[]; enrolled?: number; format?: string } = {}) {
-  const activities = (options.activities ?? [first, second]).map((a) => ({ ...a, registered: user.role === "participant" ? a.registered : 0 }));
-  const current = { ...event, format: options.format ?? "Гибрид", enrolled: options.enrolled ?? Number(user.role === "participant") };
+function mount(user: UserIdentity | null = participant, mode = "", options: { activities?: Activity[]; enrolled?: number; format?: string } = {}) {
+  const activities = (options.activities ?? [first, second]).map((a) => ({ ...a, registered: user?.role === "participant" ? a.registered : 0 }));
+  const current = { ...event, format: options.format ?? "Гибрид", enrolled: options.enrolled ?? Number(user?.role === "participant") };
   history.replaceState({}, "", `/#webinar/${event.id}${mode ? `/${mode}` : ""}`);
   vi.spyOn(window, "scrollTo").mockImplementation(() => {});
   const fetch = vi.fn(async (path: string) => {
     const payload = path === "/api/bootstrap" ? {
       events: [current], tickets: current.enrolled ? [current] : [], schedule: activities.filter((a) => a.registered),
       waitlist: [], communities: [], notifications: [], unread_notification_count: 0,
-      profile: { ...profile, id: user.userId, role: user.role },
+      profile: user ? { ...profile, id: user.userId, role: user.role } : null,
     } : path === `/api/events/${event.id}` ? { event: current, rooms: [], activities } : undefined;
     if (!payload) throw new Error(`Unexpected request: ${path}`);
     return new Response(JSON.stringify(payload));
@@ -35,6 +35,13 @@ function mount(user = participant, mode = "", options: { activities?: Activity[]
 afterEach(() => history.replaceState({}, "", "/"));
 
 describe("выбор параллельных онлайн-флоу", () => {
+  it.each(["python", "general"])("общая ссылка сохраняет комнату %s после входа или регистрации", async (mode) => {
+    mount(null, mode);
+    const next = encodeURIComponent(`/#webinar/${event.id}/${mode}`);
+    expect(await screen.findByRole("link", { name: "Войти в аккаунт" })).toHaveAttribute("href", `/login/?next=${next}`);
+    expect(screen.getByRole("link", { name: "Создать аккаунт" })).toHaveAttribute("href", `/register/?next=${next}`);
+  });
+
   it("показывает организатору две отдельные студии с разными ссылками в новых вкладках", async () => {
     mount(owner);
     const section = await screen.findByRole("region", { name: "Онлайн-флоу мероприятия" });
@@ -72,9 +79,10 @@ describe("выбор параллельных онлайн-флоу", () => {
     expect(screen.queryByRole("region", { name: "Открытый эфир" })).not.toBeInTheDocument();
   });
 
-  it("сохраняет явный доступ к общему эфиру мероприятия", async () => {
+  it("старая общая ссылка открывает выбор конкретной активности", async () => {
     mount(owner, "general");
-    expect(await screen.findByRole("region", { name: "Открытый эфир" })).toHaveTextContent("general");
+    expect(await screen.findByRole("region", { name: "Онлайн-флоу мероприятия" })).toBeVisible();
+    expect(screen.queryByRole("region",{name:"Открытый эфир"})).not.toBeInTheDocument();
   });
 });
 
@@ -101,21 +109,22 @@ describe("вход в открытый вебинар гибридного со�
     expect(screen.queryByRole("region", { name: "Открытый эфир" })).not.toBeInTheDocument();
   });
 
-  it("гибридное событие с очной программой сохраняет общий онлайн-эфир", async () => {
+  it("для очной программы не открывает эфир без выбранной онлайн-активности", async () => {
     mount(participant, "", { activities: [{ ...first, room_is_online: false }] });
-    expect(await screen.findByRole("region", { name: "Открытый эфир" })).toHaveTextContent("general");
+    const section = await screen.findByRole("region", { name: "Онлайн-флоу мероприятия" });
+    expect(within(section).getByText("Онлайн-флоу пока нет")).toBeVisible();
+    expect(screen.queryByRole("region", { name: "Открытый эфир" })).not.toBeInTheDocument();
   });
 });
 
 describe("студия гибридного события без онлайн-программы", () => {
-  it("объясняет организатору, как добавить онлайн-флоу, и сохраняет общий эфир", async () => {
+  it("объясняет организатору, как добавить онлайн-флоу, без устаревшей общей студии", async () => {
     mount(owner, "", { activities: [{ ...first, room_is_online: false }] });
     const section = await screen.findByRole("region", { name: "Онлайн-флоу мероприятия" });
     expect(within(section).getByText("Онлайн-флоу пока нет")).toBeVisible();
     expect(within(section).getByRole("link", { name: "Добавить онлайн-флоу" }))
       .toHaveAttribute("href", `#manage/${event.id}/program`);
-    expect(within(section).getByRole("link", { name: "Студия общего эфира мероприятия" }))
-      .toHaveAttribute("href", `#webinar/${event.id}/general`);
+    expect(within(section).queryByRole("link", { name: "Студия общего эфира мероприятия" })).not.toBeInTheDocument();
     expect(within(section).queryByText(first.title)).not.toBeInTheDocument();
   });
 });

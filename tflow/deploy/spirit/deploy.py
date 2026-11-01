@@ -63,6 +63,14 @@ for attempt in range(25):
 sys.path.insert(0, str(repo / "tflow/deploy/spirit"))
 from runtime_check import verify_runtime
 verify_runtime(incoming, "hack-mmk-25-vm1-162f2c.vm.prodcontest.com")
+request = urllib.request.Request("http://127.0.0.1:8000/api/broadcast-health", headers={"Host":"hack-mmk-25-vm1-162f2c.vm.prodcontest.com","X-Forwarded-Proto":"https"})
+with urllib.request.urlopen(request, timeout=5) as response:
+    if json.load(response) != {"enabled":True,"ready":True}:
+        raise SystemExit("HTTPS broadcast service is not enabled and ready")
+request = urllib.request.Request("http://127.0.0.1:8000/api/notification-health", headers={"Host":"hack-mmk-25-vm1-162f2c.vm.prodcontest.com","X-Forwarded-Proto":"https"})
+with urllib.request.urlopen(request, timeout=5) as response:
+    if json.load(response) != {"enabled":True,"ready":True}:
+        raise SystemExit("Notification worker is not enabled and ready")
 print("Exact CI source, runtime version, frontend HTML and assets verified")
 '''
 

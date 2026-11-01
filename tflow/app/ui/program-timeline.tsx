@@ -1,4 +1,5 @@
 import {
+  useCallback,
   useEffect,
   useId,
   useMemo,
@@ -17,9 +18,13 @@ import {
   Plus,
   Search,
   ArrowLeftRight,
+  Undo2,
 } from "lucide-react";
 import type { Activity, FlowEvent, Room } from "../../lib/types";
 import { PROGRAM_MINUTE, type ProgramRange } from "../../lib/program-editing";
+import type { MontageAction, MontageResult } from "../../lib/program-montage";
+import { useProgramMontage } from "./use-program-montage";
+import { TimelineMenu, type TimelineMenuItem } from "./timeline-menu";
 import { useTimelineEditor } from "./use-timeline-editor";
 import { FormError } from "./forms";
 import { dateKey, dateLabel, timeLabel } from "../../lib/time";
@@ -52,6 +57,7 @@ export function ProgramTimeline({
   onSelect,
   selectedActivityId,
   inlineEditor,
+  onMontage,
 }: {
   event: FlowEvent;
   activities: Activity[];
@@ -63,8 +69,26 @@ export function ProgramTimeline({
   onSelect?: (activity: Activity) => void;
   selectedActivityId?: string;
   inlineEditor?: { item: Activity; content: ReactNode };
+  onMontage?: (action:MontageAction)=>Promise<MontageResult>;
 }) {
   const id = useId();
+  const [cutAt,setCutAt]=useState<number|null>(null);
+  const montage=useProgramMontage(activities,onMontage);
+  const [menu,setMenu]=useState<{x:number;y:number;at:number;item?:Activity;trigger:HTMLElement|null}|null>(null);
+  const closeMenu=useCallback(()=>setMenu(null),[]);
+  const nativeEditing=!!onMontage&&!inlineEditor;
+  function placement(target:Activity,at:number): "before"|"after"|"inside" {
+    const duration=target.ends_at-target.starts_at;
+    return at-target.starts_at<Math.min(duration/4,5*PROGRAM_MINUTE)?"before":target.ends_at-at<Math.min(duration/4,5*PROGRAM_MINUTE)?"after":"inside";
+  }
+  function quietly(action:Promise<unknown>){void action.catch(()=>{});}
+  function context(e:React.MouseEvent<HTMLElement>,item?:Activity){
+    if(!nativeEditing)return;e.preventDefault();e.stopPropagation();
+    if(item)setSelectedId(item.id);
+    const bounds=canvas.current!.getBoundingClientRect();
+    const at= Math.round((start+((e.clientX-bounds.left)/Math.max(1,bounds.width))*(end-start))/PROGRAM_MINUTE)*PROGRAM_MINUTE;
+    setMenu({x:e.clientX,y:e.clientY,at:Math.max(start,Math.min(end,at)),item,trigger:e.currentTarget});
+  }
   const viewport = useRef<HTMLDivElement>(null);
   const canvas = useRef<HTMLDivElement>(null);
   const inlineContent = useRef<HTMLDivElement>(null);
@@ -123,7 +147,7 @@ export function ProgramTimeline({
   const dense = projection.nodes.some((node) => node.segment.items.length > 1);
   const selectedItem =
     inlineEditor?.item ??
-    items.find((item) => item.id === (selectedActivityId || selectedId)) ??
+    items.find((item) => item.id === (selectedId || selectedActivityId)) ??
     items[0];
   const step = PROGRAM_MINUTE;
   const editor = useTimelineEditor({
@@ -135,14 +159,16 @@ export function ProgramTimeline({
     canvas,
     roomId: room || (rooms.length === 1 ? rooms[0][0] : undefined),
     onCreate,
-    onReschedule,
-    deferredSave: Boolean(onSelect),
+    onReschedule: nativeEditing ? async(activity,range)=>{await montage.run({operation:"move",activity_id:activity.id,...range});} : onReschedule,
+    onDropActivity: nativeEditing ? async(activity,target,at,swap)=>{await montage.run({operation:swap?"swap":"insert",activity_id:activity.id,target_id:target.id,position:placement(target,at),at});} : undefined,
+    deferredSave: Boolean(inlineEditor),
   });
+  useEffect(()=>{if(montage.busy)editor.resetFeedback()},[montage.busy,editor.resetFeedback]);
   const selected =
     selectedItem && editor.preview?.activity?.id === selectedItem.id
       ? { ...selectedItem, ...editor.preview.range }
       : selectedItem;
-  const editing = editor.dragging || editor.saving;
+  const editing = editor.dragging || editor.saving || montage.busy;
   const focusedGroup =
     !inlineEditor &&
     onReschedule &&
@@ -325,6 +351,7 @@ export function ProgramTimeline({
       });
   }
   function selectSegment(segment: TimelineSegment) {
+    setSelectedId(segment.items[0].id);
     if (onSelect && segment.items.length === 1) {
       onSelect(segment.items[0]);
       return;
@@ -343,9 +370,15 @@ export function ProgramTimeline({
 
   return (
     <section
-      className={`program-timeline ${editing ? "is-editing" : ""} ${inlineEditor ? "has-inline-editor" : ""}`}
+      className={`program-timeline ${cutAt!==null?"timeline-cutting":""} ${editing ? "is-editing" : ""} ${inlineEditor ? "has-inline-editor" : ""}`}
       aria-label="Графическое расписание"
       onKeyDownCapture={(e) => {
+        if(nativeEditing&&!((e.target as HTMLElement).closest("input,textarea,select,[contenteditable=true],[role=menu]"))){
+          if(e.key==="Escape"&&montage.clipboard){e.preventDefault();montage.clear();return;}
+          if(e.ctrlKey||e.metaKey){const key=e.key.toLowerCase();if(key==="z"&&e.shiftKey)return;if(["x","c","v","z"].includes(key)){e.preventDefault();if(editing||e.repeat)return;
+            if(key==="z")quietly(montage.undo());else if(selectedItem&&(key==="x"||key==="c"))montage.copy(selectedItem,key==="c");else if(key==="v")quietly(montage.paste(selectedItem,"before"));return;}}
+        }
+
         if (e.key === "Escape" && editor.dragging) {
           e.preventDefault();
           e.stopPropagation();
@@ -439,9 +472,10 @@ export function ProgramTimeline({
           </div>
         </div>
       </div>
-      <p className="timeline-caption" id={`${id}-hint`}>
+      {onMontage && <div className="timeline-montage-toolbar"><span>Правая кнопка — монтаж · Alt + клик — разрез · Shift + перенос на пункт — обмен</span><button type="button" className="text-button" disabled={!montage.canUndo||editing||!!inlineEditor} onClick={()=>quietly(montage.undo())}><Undo2 size={16}/>Отменить</button></div>}
+      <p className={onMontage && !inlineEditor ? "sr-only" : "timeline-caption"} id={`${id}-hint`}>
         {onSelect ? (
-          "Тяните цветной отрезок, чтобы перенести активность целиком. Края меняют длительность. Нажмите на пункт, чтобы изменить название и время."
+          "Тяните отрезок для переноса, края — для изменения длительности. Время сохраняется сразу. Нажмите без перетаскивания, чтобы изменить название."
         ) : (
           <>
             Пунктов: {items.length} · время по МСК. Выберите отрезок для
@@ -461,8 +495,10 @@ export function ProgramTimeline({
         )}
       </p>
       {(onCreate || onReschedule) && (
-        <div className="timeline-edit-feedback" role="status">
-          {editor.saving
+        <div className={`timeline-edit-feedback ${onMontage && !inlineEditor ? "timeline-native-feedback" : ""}`} role="status">
+          {onMontage && !inlineEditor ? (
+            montage.busy ? "Сохраняем программу…" : editor.dropTarget ? `${editor.dropTarget.swap ? "Поменять местами" : placement(activities.find(a=>a.id===editor.dropTarget!.id)!,editor.dropTarget.at)==="inside" ? "Вставить внутрь" : "Вставить рядом"} · ${timeLabel(editor.dropTarget.at)}` : editor.preview ? `${editor.preview.activity?.title}: ${timeLabel(editor.preview.range.starts_at)}–${timeLabel(editor.preview.range.ends_at)}` : montage.notice || editor.notice || "Перенос и края сохраняются сразу · шаг 1 минута"
+          ) : editor.saving
               ? onSelect ? "Выбираем время…" : "Сохраняем время…"
               : editor.preview
                 ? `${editor.preview.activity?.title ?? "Новый пункт"}: ${timeLabel(editor.preview.range.starts_at)}–${timeLabel(editor.preview.range.ends_at)} МСК`
@@ -471,7 +507,6 @@ export function ProgramTimeline({
                   : `Перетащите отрезок для переноса, края — для изменения длины. Шаг ${step / PROGRAM_MINUTE} мин.`)}
         </div>
       )}
-      <FormError error={editor.error} />
       <div
         ref={viewport}
         className="timeline-scroll"
@@ -483,6 +518,10 @@ export function ProgramTimeline({
         <div
           className="timeline-canvas"
           ref={canvas}
+          onContextMenu={e=>context(e)}
+          onPointerMove={e=>{if(nativeEditing&&e.altKey){const b=e.currentTarget.getBoundingClientRect();setCutAt(Math.max(start,Math.min(end,Math.round((start+(e.clientX-b.left)/b.width*(end-start))/PROGRAM_MINUTE)*PROGRAM_MINUTE)))}else setCutAt(null)}}
+          onPointerLeave={()=>setCutAt(null)}
+          onKeyUp={e=>{if(e.key==="Alt")setCutAt(null)}}
           style={{ width: canvasWidth, height: plotHeight }}
         >
           <div
@@ -500,6 +539,7 @@ export function ProgramTimeline({
               </span>
             ))}
           </div>
+          {cutAt!==null && <div className="timeline-cut-guide" aria-hidden="true" style={{left:(cutAt-start)/(end-start)*canvasWidth,height:plotHeight}}><span>Разрез · {timeLabel(cutAt)}</span></div>}
           {onCreate && (
             <button
               type="button"
@@ -581,7 +621,7 @@ export function ProgramTimeline({
                 return (
                   <div
                     key={segment.id}
-                    className={`timeline-node timeline-node-${node.side} ${selectedNode ? "is-selected" : ""} ${right - left < 44 ? "is-compact" : ""} ${node.roomKey === "__inline" ? "timeline-node-inline" : ""}`}
+                    className={`timeline-node ${montage.clipboard?.id===item.id&&!montage.clipboard.copy?"timeline-is-cut":""} ${editor.dropTarget?.id===item.id?"timeline-drop-target":""} timeline-node-${node.side} ${selectedNode ? "is-selected" : ""} ${right - left < 44 ? "is-compact" : ""} ${node.roomKey === "__inline" ? "timeline-node-inline" : ""}`}
                     data-row={node.row}
                     style={
                       {
@@ -633,14 +673,17 @@ export function ProgramTimeline({
                       <button
                         type="button"
                         className={`timeline-segment ${multiple ? "timeline-cluster" : onReschedule ? "timeline-movable" : ""}`}
+                        data-program-item={multiple?undefined:item.id}
                         aria-label={label}
+                        onContextMenu={e=>{if(!multiple)context(e,item)}}
                         aria-pressed={selectedNode}
                         title={`${label} · ${node.roomName}`}
-                        onClick={(event) => { if (!editor.shouldIgnoreClick(event.detail, multiple ? "" : item.id)) selectSegment(segment); }}
+                        onClick={(event) => { if(editor.shouldIgnoreClick(event.detail,multiple?"":item.id))return;if(event.altKey&&nativeEditing&&!multiple){const bounds=canvas.current!.getBoundingClientRect();const at=Math.round((start+(event.clientX-bounds.left)/bounds.width*(end-start))/PROGRAM_MINUTE)*PROGRAM_MINUTE;quietly(montage.run({operation:"split",activity_id:item.id,at}));}else selectSegment(segment); }}
                         disabled={editor.saving}
                         onPointerDown={
                           onReschedule && !multiple
                             ? (e) => {
+                                if(e.altKey&&nativeEditing){editor.resetClickGuard();e.preventDefault();return;}
                                 setSelectedId(item.id);
                                 editor.begin(e, item, "move");
                               }
@@ -649,7 +692,13 @@ export function ProgramTimeline({
                         {...editor.pointerHandlers}
                         onKeyDown={
                           onReschedule && !multiple
-                            ? (e) => editor.moveWithKeyboard(e, item)
+                            ? (e) => {
+                                if(nativeEditing&&(e.key==="ContextMenu"||(e.key==="F10"&&e.shiftKey))){
+                                  e.preventDefault();const bounds=e.currentTarget.getBoundingClientRect();
+                                  setMenu({item,trigger:e.currentTarget,x:bounds.left,y:bounds.bottom,at:Math.round((item.starts_at+item.ends_at)/2/PROGRAM_MINUTE)*PROGRAM_MINUTE});return;
+                                }
+                                if(e.key==="Enter"||e.key===" ")editor.resetClickGuard();editor.moveWithKeyboard(e, item);
+                              }
                             : undefined
                         }
                       >
@@ -685,7 +734,6 @@ export function ProgramTimeline({
                       </button>
                     )}
                     {onReschedule &&
-                      (!onSelect || inlineEditor) &&
                       selectedNode &&
                       !multiple &&
                       (["start", "end"] as const).map(
@@ -725,6 +773,17 @@ export function ProgramTimeline({
           )}
         </div>
       </div>
+      <FormError error={editor.error || montage.error} />
+      {menu && <TimelineMenu x={menu.x} y={menu.y} trigger={menu.trigger} onClose={closeMenu} items={(()=>{
+        const item=menu.item,clip=montage.clipboard;
+        const entries:TimelineMenuItem[]=[];
+        if(item){entries.push({label:"Вырезать",shortcut:"Ctrl / ⌘ X",action:()=>montage.copy(item)},{label:"Копировать",shortcut:"Ctrl / ⌘ C",action:()=>montage.copy(item,true)},
+          {label:`Разрезать здесь · ${timeLabel(menu.at)}`,shortcut:"Alt + клик",disabled:menu.at-item.starts_at<PROGRAM_MINUTE||item.ends_at-menu.at<PROGRAM_MINUTE,action:()=>quietly(montage.run({operation:"split",activity_id:item.id,at:menu.at}))});}
+        if(clip&&(clip.copy||clip.id!==item?.id)){if(item){for(const position of ["before","inside","after"] as const)entries.push({label:`Вставить ${position==="before"?"перед":position==="after"?"после":"внутрь"}`,disabled:position==="inside"&&(menu.at-item.starts_at<PROGRAM_MINUTE||item.ends_at-menu.at<PROGRAM_MINUTE),action:()=>quietly(montage.paste(item,position,menu.at))});
+          entries.push({label:"Поменять местами с вырезанным",disabled:clip.copy,action:()=>{quietly(montage.run({operation:"swap",activity_id:clip.id,target_id:item.id}).then(()=>montage.clear()))}});
+        }else entries.push({label:`Вставить в ${timeLabel(menu.at)}`,shortcut:"Ctrl / ⌘ V",action:()=>quietly(montage.paste(undefined,undefined,menu.at,room||undefined))});}
+        entries.push({label:"Отменить последнее действие",shortcut:"Ctrl / ⌘ Z",disabled:!montage.canUndo,action:()=>quietly(montage.undo())});return entries;
+      })()}/>}
       {!onSelect && selected && (
         <article
           className="timeline-detail"

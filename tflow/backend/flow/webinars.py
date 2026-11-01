@@ -87,10 +87,30 @@ def event_for_webinar(user, event_id, *, activity_id=None, access_key=None):
     return event, owner, activity
 
 
+def start_time(event, activity=None):
+    return max(event.starts_at, activity.starts_at if activity else event.starts_at)
+
+
+def start_schedule(event, activity=None):
+    starts_at = start_time(event, activity)
+    now = timezone.now()
+    return {"starts_at": starts_at.isoformat(), "scheduled": now < starts_at,
+            "can_start": event.status == "published" and starts_at <= now < min(event.ends_at, activity.ends_at if activity else event.ends_at)}
+
+
+def ensure_started(event, activity=None):
+    if timezone.now() < start_time(event, activity):
+        raise FlowError("WEBINAR_TOO_EARLY", "Начать трансляцию можно только в назначенное время", 409)
+
+
 def status(user, event_id, *, activity_id=None, access_key=None):
+    if settings.HTTP_BROADCAST_ENABLED:
+        from .broadcasts import status as http_status
+        return http_status(user, event_id, activity_id=activity_id, access_key=access_key)
     event, owner, activity = event_for_webinar(user, event_id, activity_id=activity_id, access_key=access_key)
     webinar = Webinar.objects.filter(event=event, activity=activity).first()
     return {
+        **start_schedule(event, activity),
         "configured": configured(),
         "configuration_error": configuration_error(),
         "host": owner,
@@ -170,6 +190,11 @@ def room_api(method, room, **values):
 
 
 def stop_webinar(event, *, activity_id=None, all_rooms=False):
+    from .models import HttpBroadcast
+    broadcasts = HttpBroadcast.objects.filter(event=event, active=True)
+    if not all_rooms:
+        broadcasts = broadcasts.filter(activity_id=activity_id)
+    broadcasts.update(active=False, publisher_hash="")
     webinars = Webinar.objects.filter(event=event, active=True)
     if not all_rooms:
         webinars = webinars.filter(activity_id=activity_id)
@@ -214,7 +239,11 @@ def operate(user, event_id, operation, session=None, *, activity_id=None, access
                 503,
             )
         if operation == "end":
+            was_active = Webinar.objects.filter(event=event, activity=activity, active=True).exists()
             stop_webinar(event, activity_id=activity_id)
+            if was_active:
+                from .notifications import broadcast_notice
+                broadcast_notice(event, activity, ended=True)
             return {"active": False}
         ends_at = min(event.ends_at, activity.ends_at if activity else event.ends_at)
         if event.status != "published" or ends_at <= timezone.now():
@@ -223,6 +252,10 @@ def operate(user, event_id, operation, session=None, *, activity_id=None, access
                 "Эфир доступен у опубликованного незавершённого события",
                 409,
             )
+        if operation == "start":
+            if settings.HTTP_BROADCAST_ENABLED and activity is None:
+                raise FlowError("WEBINAR_ACTIVITY_REQUIRED", "Выберите онлайн-активность", 400)
+            ensure_started(event, activity)
         webinar, _ = Webinar.objects.get_or_create(event=event, activity=activity)
         if operation == "start" and not webinar.active:
             webinar.room = uuid.uuid4()
@@ -246,6 +279,8 @@ def operate(user, event_id, operation, session=None, *, activity_id=None, access
                 None,
             )
             webinar.save()
+            from .notifications import broadcast_notice
+            broadcast_notice(event, activity)
         if not webinar.active:
             raise FlowError("WEBINAR_NOT_STARTED", "Организатор ещё не начал эфир", 409)
         if operation == "confirm":
@@ -256,10 +291,9 @@ def operate(user, event_id, operation, session=None, *, activity_id=None, access
             participant = room_api("GetParticipant", room_name(webinar), identity=str(user.pk))
             if participant.get("identity") != str(user.pk) or participant.get("state") not in {"JOINED", "ACTIVE", 1, 2}:
                 raise FlowError("ATTENDANCE_UNCONFIRMED", "Сервер ещё не подтвердил подключение к эфиру", 409)
-            entry, _ = CheckIn.objects.get_or_create(user=user, event=event, defaults={"source": "webinar", "checked_by": None})
-            if activity is not None:
-                from .models import ActivityAttendance
-                ActivityAttendance.objects.get_or_create(user=user, activity=activity, defaults={"source": "webinar", "checked_by": None})
+            from .notifications import online_attendance
+            online_attendance(user, event, activity)
+            entry = CheckIn.objects.get(user=user, event=event)
             return {"ok": True, "confirmed": True, "checked_in_at": round(entry.created_at.timestamp() * 1000)}
         grants = {
             "roomJoin": True,

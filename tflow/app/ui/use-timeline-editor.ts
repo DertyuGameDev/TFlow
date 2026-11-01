@@ -23,6 +23,7 @@ type Preview = { activity?: Activity; range: ProgramRange };
 type Gesture = {
   pointerId: number;
   x: number;
+  moved: boolean;
   anchor: number;
   activity?: Activity;
   edge?: ProgramEdge | "move";
@@ -40,6 +41,7 @@ export function useTimelineEditor({
   onCreate,
   onReschedule,
   deferredSave = false,
+  onDropActivity,
 }: {
   event: FlowEvent;
   activities: Activity[];
@@ -51,10 +53,12 @@ export function useTimelineEditor({
   onCreate?: (range: ProgramRange) => void;
   onReschedule?: (activity: Activity, range: ProgramRange) => Promise<void>;
   deferredSave?: boolean;
+  onDropActivity?: (activity: Activity, target: Activity, at: number, swap: boolean) => Promise<void>;
 }) {
   const gesture = useRef<Gesture | null>(null),
     locked = useRef(false);
   const draggedClick = useRef<string | null>(null);
+  const [dropTarget, setDropTarget] = useState<{id:string; at:number; swap:boolean} | null>(null);
   const [preview, setPreview] = useState<Preview | null>(null);
   const [dragging, setDragging] = useState(false),
     [saving, setSaving] = useState(false);
@@ -88,6 +92,7 @@ export function useTimelineEditor({
     gesture.current = {
       pointerId: e.pointerId,
       x: e.clientX,
+      moved: false,
       anchor,
       activity,
       edge,
@@ -117,7 +122,7 @@ export function useTimelineEditor({
     if (current.activity && current.edge === "move")
       return moveProgramRange(
         current.activity,
-        Math.abs(x - current.x) < 4 ? 0 : delta,
+        Math.abs(x - current.x) < 6 ? 0 : delta,
         event.starts_at,
         event.ends_at,
       );
@@ -136,13 +141,14 @@ export function useTimelineEditor({
           value,
           start,
           end,
-          Math.abs(x - current.x) < 4,
+          Math.abs(x - current.x) < 6,
         );
   }
   function release() {
     const current = gesture.current;
     gesture.current = null;
     setDragging(false);
+    setDropTarget(null);
     if (current?.target.hasPointerCapture?.(current.pointerId))
       current.target.releasePointerCapture(current.pointerId);
   }
@@ -231,10 +237,27 @@ export function useTimelineEditor({
       (e.key === "ArrowLeft" ? -1 : 1) * (e.shiftKey ? 15 * PROGRAM_MINUTE : step),
       event.starts_at, event.ends_at));
   }
+  function targetAt(e: PointerEvent<HTMLElement>, current: Gesture) {
+    if(!onDropActivity || current.edge !== "move" || !current.activity || !current.moved)return null;
+    const element=document.elementsFromPoint?.(e.clientX,e.clientY).find(el=>{
+      const key=el.closest<HTMLElement>("[data-program-item]")?.dataset.programItem;
+      return key && key!==current.activity!.id;
+    })?.closest<HTMLElement>("[data-program-item]");
+    const target=activities.find(a=>a.id===element?.dataset.programItem);
+    return target ? {target,at:timeAt(e.clientX),swap:e.shiftKey} : null;
+  }
+  async function drop(current:Gesture,target:Activity,at:number,swap:boolean){
+    if(!onDropActivity||!current.activity||locked.current)return;
+    locked.current=true;setSaving(true);setError("");
+    try{await onDropActivity(current.activity,target,at,swap);setNotice("Программа сохранена");}
+    catch(e){setError((e as Error).message)}finally{locked.current=false;setSaving(false);setPreview(null)}
+  }
   const pointerHandlers = {
     onPointerMove(e: PointerEvent<HTMLElement>) {
       const current = gesture.current;
       if (!current || current.pointerId !== e.pointerId) return;
+      current.moved ||= Math.abs(e.clientX-current.x)>=(current.edge==="move"?6:1);
+      const target=targetAt(e,current);setDropTarget(target?{id:target.target.id,at:target.at,swap:target.swap}:null);
       setPreview({
         activity: current.activity,
         range: rangeAt(current, e.clientX),
@@ -244,9 +267,13 @@ export function useTimelineEditor({
       const current = gesture.current;
       if (!current || current.pointerId !== e.pointerId) return;
       const range = rangeAt(current, e.clientX);
-      draggedClick.current = current.activity && Math.abs(e.clientX - current.x) >= 4 ? current.activity.id : null;
+      current.moved ||= Math.abs(e.clientX-current.x)>=(current.edge==="move"?6:1);
+      const target=targetAt(e,current);
+      draggedClick.current = current.activity && current.moved ? current.activity.id : null;
       release();
-      if (current.activity) void save(current.activity, range);
+      if(current.activity&&!current.moved){setPreview(null);return;}
+      if(target)void drop(current,target.target,target.at,target.swap);
+      else if (current.activity) void save(current.activity, range);
       else {
         setPreview(null);
         onCreate?.({ ...range, room_id: roomId });
@@ -265,7 +292,9 @@ export function useTimelineEditor({
     saving,
     error,
     notice,
-    shouldIgnoreClick: (detail: number, activityId: string) => detail !== 0 && draggedClick.current === activityId,
+    dropTarget,
+    resetClickGuard: () => {draggedClick.current=null;},
+    shouldIgnoreClick: (_detail: number, activityId: string) => {const ignore=draggedClick.current===activityId;draggedClick.current=null;return ignore;},
     begin,
     cancel,
     createAtStart,
