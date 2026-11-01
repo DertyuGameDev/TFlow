@@ -1,0 +1,32 @@
+.http-webinar { min-width:0; padding-block:8px 24px; }
+.http-webinar-heading { display:flex; justify-content:space-between; align-items:flex-start; gap:16px; flex-wrap:wrap; }
+.http-webinar-heading h2 { margin:0 0 6px; font-size:clamp(20px,2vw,28px); line-height:1.3; }
+.http-webinar-heading > div { min-width:0; flex:1; overflow-wrap:anywhere; }
+.http-webinar-heading p { margin:0; }
+.http-webinar-heading p,.http-webinar-delay,.http-webinar-help { color:var(--muted); line-height:1.55; }
+.http-webinar-delay { margin:12px 0 20px; font-size:14px; }
+.http-webinar-schedule { margin:16px 0 0; padding:14px 16px; border-radius:12px; background:var(--soft); line-height:1.6; font-size:14px; }
+.http-webinar-badge { padding:8px 12px; border-radius:24px; background:var(--soft); font-size:13px; white-space:nowrap; }
+.http-webinar .webinar-layout { grid-template-columns:minmax(0,1fr) minmax(260px,320px); align-items:stretch; gap:20px; }
+.http-webinar .webinar-video-area { min-width:0; }
+.http-webinar-stage { position:relative; aspect-ratio:16/9; min-height:0; overflow:hidden; border-radius:15px; background:#17191b; color:#fff; }
+.http-webinar-stage canvas,.http-webinar-stage video { position:absolute; inset:0; display:block; width:100%; height:100%; object-fit:contain; }
+.http-webinar-stage video[hidden] { display:none; }
+.http-webinar-stage p { position:absolute; inset:0; display:grid; place-content:center; text-align:center; padding:20px; margin:0; }
+.http-webinar .webinar-controls { display:flex; flex-wrap:wrap; gap:8px; }
+.http-webinar .webinar-controls button { white-space:normal; min-height:44px; flex:1 1 140px; justify-content:center; }
+.http-webinar .webinar-controls svg { width:18px; height:18px; flex-shrink:0; }
+.http-webinar-help { margin:12px 0 0; font-size:13px; }
+.http-webinar .webinar-chat { min-width:0; min-height:0; }
+.http-webinar .webinar-messages { flex:1; height:0; min-height:100px; }
+.http-webinar .webinar-message p,.http-webinar .webinar-message strong { overflow-wrap:anywhere; }
+@media(max-width:1000px) {
+  .http-webinar .webinar-layout { grid-template-columns:minmax(0,1fr); }
+  .http-webinar .webinar-messages { flex:none; height:220px; }
+}
+@media(max-width:600px) {
+  .http-webinar .webinar-controls { display:grid; grid-template-columns:repeat(2,minmax(0,1fr)); gap:8px; }
+  .http-webinar .webinar-controls button { font-size:13px; padding:10px; }
+  .http-webinar-heading { gap:10px; }
+  .http-webinar-heading > div { flex-basis:100%; }
+}

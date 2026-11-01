@@ -31,6 +31,8 @@ import type {
 } from "../../lib/types";
 import { dateLabel, timeLabel } from "../../lib/time";
 import { hasWebinar } from "../../lib/webinars";
+import { LecturerLinks } from "./lecturer-links";
+import "../access-keys.css";
 import { REQUIREMENT_FIELDS } from "../../lib/profile-fields";
 import { Modal } from "./dialog";
 import { ParticipantDetails, RegistrationSettings } from "./profile-data";
@@ -42,7 +44,7 @@ import { ProgramGraphEditor } from "./program-graph-editor";
 import { OrganizerFlow } from "./organizer-flow";
 import { OrganizerProgramList } from "./organizer-program-list";
 import { ProgramSwap } from "./program-swap";
-import type { ProgramRange } from "../../lib/program-editing";
+import { NEW_ONLINE_ROOM, type ProgramRange } from "../../lib/program-editing";
 import { OrganizerTutorial } from "./organizer-tutorial";
 import "../event-management.css";
 
@@ -151,7 +153,7 @@ export function OrganizerManage({
           graphRoom?.id ??
           "",
         room_name:
-          graphRoom?.name ??
+          graphDraft.range.room_id === NEW_ONLINE_ROOM ? "Новый онлайн-поток" : graphRoom?.name ??
           (e.format === "Онлайн" ? "Онлайн" : "Основная площадка"),
       }
     : undefined;
@@ -494,6 +496,7 @@ export function OrganizerManage({
             </div>
           </dl>
         </section>
+        {hasWebinar(e) && <LecturerLinks event={e} send={send} />}
         <section className="management-card management-rooms">
           <header className="management-section-heading">
             <div>

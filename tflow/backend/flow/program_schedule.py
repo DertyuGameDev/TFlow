@@ -91,4 +91,6 @@ def swap_activities(user, activity_id, other_id, expected_event_updated_at=None,
                 promote_waitlist_locked(activity)
             for participant in User.objects.filter(pk__in=affected_users):
                 retry_user_waitlists_locked(participant)
+        from .access_keys import sync_key_expiry
+        sync_key_expiry(event)
         return {"ok": True, "preview": False, "changes": changes}

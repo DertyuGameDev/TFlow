@@ -10,6 +10,7 @@ from django.conf import settings
 from django.utils import timezone
 from .contracts import FlowError
 from .models import Activity, CheckIn, Event, Webinar
+from .webinar_names import chat_author
 
 
 class NoMediaRedirects(HTTPRedirectHandler):
@@ -49,7 +50,7 @@ def configured():
     return not configuration_error()
 
 
-def event_for_webinar(user, event_id, *, activity_id=None):
+def event_for_webinar(user, event_id, *, activity_id=None, access_key=None):
     activity = None
     try:
         if activity_id:
@@ -60,6 +61,12 @@ def event_for_webinar(user, event_id, *, activity_id=None):
     except (Event.DoesNotExist, Activity.DoesNotExist) as error:
         raise FlowError("NOT_FOUND", "Мероприятие не найдено", 404) from error
     owner = event.owner_id == user.pk and user.role == "organizer"
+    if access_key is not None:
+        from .access_keys import resolve_key
+        if activity is None:
+            raise FlowError("INVALID_SCAN_KEY", "Ключ ведущего относится к конкретному онлайн-флоу", 403)
+        resolve_key(user, access_key, purpose="webinar", event_id=event.pk, activity_id=activity.pk)
+        owner = True
     if event.status != "published" and not owner:
         raise FlowError("NOT_FOUND", "Мероприятие не найдено", 404)
     if event.format not in {"Онлайн", "Гибрид"}:
@@ -76,15 +83,35 @@ def event_for_webinar(user, event_id, *, activity_id=None):
         raise FlowError(
             "NOT_REGISTERED", "Сначала зарегистрируйтесь на это событие", 403
         )
-    if activity and not owner and not activity.registrations.filter(user=user).exists():
+    if activity and activity.registration_required and not owner and not activity.registrations.filter(user=user).exists():
         raise FlowError("NOT_REGISTERED", "Сначала запишитесь на эту онлайн-активность", 403)
     return event, owner, activity
 
 
-def status(user, event_id, *, activity_id=None):
-    event, owner, activity = event_for_webinar(user, event_id, activity_id=activity_id)
+def start_time(event, activity=None):
+    return max(event.starts_at, activity.starts_at if activity else event.starts_at)
+
+
+def start_schedule(event, activity=None):
+    starts_at = start_time(event, activity)
+    now = timezone.now()
+    return {"starts_at": starts_at.isoformat(), "scheduled": now < starts_at,
+            "can_start": event.status == "published" and starts_at <= now < min(event.ends_at, activity.ends_at if activity else event.ends_at)}
+
+
+def ensure_started(event, activity=None):
+    if timezone.now() < start_time(event, activity):
+        raise FlowError("WEBINAR_TOO_EARLY", "Начать трансляцию можно только в назначенное время", 409)
+
+
+def status(user, event_id, *, activity_id=None, access_key=None):
+    if settings.HTTP_BROADCAST_ENABLED:
+        from .broadcasts import status as http_status
+        return http_status(user, event_id, activity_id=activity_id, access_key=access_key)
+    event, owner, activity = event_for_webinar(user, event_id, activity_id=activity_id, access_key=access_key)
     webinar = Webinar.objects.filter(event=event, activity=activity).first()
     return {
+        **start_schedule(event, activity),
         "configured": configured(),
         "configuration_error": configuration_error(),
         "host": owner,
@@ -164,6 +191,11 @@ def room_api(method, room, **values):
 
 
 def stop_webinar(event, *, activity_id=None, all_rooms=False):
+    from .models import HttpBroadcast
+    broadcasts = HttpBroadcast.objects.filter(event=event, active=True)
+    if not all_rooms:
+        broadcasts = broadcasts.filter(activity_id=activity_id)
+    broadcasts.update(active=False, publisher_hash="")
     webinars = Webinar.objects.filter(event=event, active=True)
     if not all_rooms:
         webinars = webinars.filter(activity_id=activity_id)
@@ -190,11 +222,11 @@ def disconnect_viewer(user, event_id, *, activity_id=None):
             pass
 
 
-def operate(user, event_id, operation, session=None, *, activity_id=None):
+def operate(user, event_id, operation, session=None, *, activity_id=None, access_key=None):
     from .services import schedule_write
 
     with schedule_write():
-        event, owner, activity = event_for_webinar(user, event_id, activity_id=activity_id)
+        event, owner, activity = event_for_webinar(user, event_id, activity_id=activity_id, access_key=access_key)
         if operation not in {"start", "join", "end", "confirm"}:
             raise FlowError("VALIDATION", "Неизвестное действие с эфиром", 400)
         if operation in {"start", "end"} and not owner:
@@ -208,7 +240,11 @@ def operate(user, event_id, operation, session=None, *, activity_id=None):
                 503,
             )
         if operation == "end":
+            was_active = Webinar.objects.filter(event=event, activity=activity, active=True).exists()
             stop_webinar(event, activity_id=activity_id)
+            if was_active:
+                from .webinar_notifications import broadcast_notice
+                broadcast_notice(event, activity, ended=True)
             return {"active": False}
         ends_at = min(event.ends_at, activity.ends_at if activity else event.ends_at)
         if event.status != "published" or ends_at <= timezone.now():
@@ -217,6 +253,10 @@ def operate(user, event_id, operation, session=None, *, activity_id=None):
                 "Эфир доступен у опубликованного незавершённого события",
                 409,
             )
+        if operation == "start":
+            if settings.HTTP_BROADCAST_ENABLED and activity is None:
+                raise FlowError("WEBINAR_ACTIVITY_REQUIRED", "Выберите онлайн-активность", 400)
+            ensure_started(event, activity)
         webinar, _ = Webinar.objects.get_or_create(event=event, activity=activity)
         if operation == "start" and not webinar.active:
             webinar.room = uuid.uuid4()
@@ -240,6 +280,8 @@ def operate(user, event_id, operation, session=None, *, activity_id=None):
                 None,
             )
             webinar.save()
+            from .webinar_notifications import broadcast_notice
+            broadcast_notice(event, activity)
         if not webinar.active:
             raise FlowError("WEBINAR_NOT_STARTED", "Организатор ещё не начал эфир", 409)
         if operation == "confirm":
@@ -250,7 +292,9 @@ def operate(user, event_id, operation, session=None, *, activity_id=None):
             participant = room_api("GetParticipant", room_name(webinar), identity=str(user.pk))
             if participant.get("identity") != str(user.pk) or participant.get("state") not in {"JOINED", "ACTIVE", 1, 2}:
                 raise FlowError("ATTENDANCE_UNCONFIRMED", "Сервер ещё не подтвердил подключение к эфиру", 409)
-            entry, _ = CheckIn.objects.get_or_create(user=user, event=event, defaults={"source": "webinar", "checked_by": None})
+            from .webinar_notifications import online_attendance
+            online_attendance(user, event, activity)
+            entry = CheckIn.objects.get(user=user, event=event)
             return {"ok": True, "confirmed": True, "checked_in_at": round(entry.created_at.timestamp() * 1000)}
         grants = {
             "roomJoin": True,
@@ -260,9 +304,12 @@ def operate(user, event_id, operation, session=None, *, activity_id=None):
             "canPublishData": True,
             "canUpdateOwnMetadata": False,
         }
+        if access_key is not None:
+            from .access_keys import resolve_key, record_use
+            record_use(resolve_key(user, access_key, purpose="webinar", event_id=event.pk, activity_id=activity_id), user)
         return {
             "url": settings.LIVEKIT_URL.replace("https://", "wss://", 1).replace("http://", "ws://", 1),
-            "token": signed_token(str(user.pk), user.name, grants),
+            "token": signed_token(str(user.pk), chat_author(user), grants),
             "host": owner,
             "session": str(webinar.room),
         }

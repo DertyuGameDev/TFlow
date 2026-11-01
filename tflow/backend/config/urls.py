@@ -4,7 +4,14 @@ from flow import openapi
 from flow.deploy_hooks import dns_challenge
 from flow.observability import metrics_view
 
+from flow import broadcasts
+
 urlpatterns = [
+    path("api/<str:resource>/<str:item_id>/broadcast", broadcasts.control),
+    path("api/broadcasts/<uuid:session>/chunks/<int:sequence>", broadcasts.upload),
+    path("api/broadcasts/<uuid:session>/media/<int:epoch>/<str:filename>", broadcasts.media),
+    path("api/broadcasts/<uuid:session>/media/<str:filename>", broadcasts.media),
+    path("api/broadcasts/<uuid:session>/chat", broadcasts.chat),
     path("internal/metrics", metrics_view),
     path("login/", views.login_view, name="login"),
     path("register/", views.register_view, name="register"),

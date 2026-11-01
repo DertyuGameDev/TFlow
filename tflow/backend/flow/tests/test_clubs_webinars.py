@@ -1,3 +1,4 @@
+from .webinar_clock import freeze_webinar_clock
 from datetime import timedelta
 from unittest.mock import patch
 import jwt
@@ -107,11 +108,22 @@ VIDEO_SECRET = "test-only-livekit-secret-at-least-32-bytes"
 class WebinarTests(Scenario, TestCase):
     def setUp(self):
         super().setUp()
+        self.webinar_clock = freeze_webinar_clock(self, self.start)
         self.event.format = "Онлайн"
         self.event.status = "published"
         self.event.save()
         EventRegistration.objects.create(event=self.event, user=self.person)
         self.path = f"events/{self.event.pk}/webinar"
+
+    @patch("flow.webinars.room_api", return_value={})
+    def test_legacy_start_cannot_bypass_scheduled_time(self, media):
+        self.webinar_clock.now.return_value = self.start - timedelta(seconds=1)
+        self.request(self.path, "post", {"operation": "start"}, status=409, code="WEBINAR_TOO_EARLY")
+        media.assert_not_called()
+        self.assertFalse(Webinar.objects.exists())
+        self.webinar_clock.now.return_value = self.start
+        self.request(self.path, "post", {"operation": "start"})
+        self.assertEqual(media.call_count, 1)
 
     def decode(self, result):
         return jwt.decode(
@@ -128,6 +140,8 @@ class WebinarTests(Scenario, TestCase):
             client=self.participant,
         )
         host_claims, viewer_claims = self.decode(host), self.decode(viewer)
+        self.assertEqual(host_claims["name"], "owner")
+        self.assertEqual(viewer_claims["name"], "person")
         self.assertTrue(host_claims["video"]["canPublish"])
         self.assertFalse(viewer_claims["video"]["canPublish"])
         self.assertTrue(viewer_claims["video"]["canSubscribe"])

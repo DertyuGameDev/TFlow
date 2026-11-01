@@ -98,7 +98,7 @@ export function ActivityCard({
         {a.room_is_online &&
           userId &&
           a.ends_at > now &&
-          (organizer ? webinarOwnerId === userId : !!a.registered) && (
+          (organizer ? webinarOwnerId === userId : a.registration_required === false || !!a.registered) && (
             <a
               className="text-button program-webinar-entry"
               href={webinarPath(a.event_id, a.id)}

@@ -2,7 +2,7 @@ import { useEffect, useRef, useState } from "react";
 import { Check, Settings2, X } from "lucide-react";
 import type { Activity, FlowEvent, Room } from "../../lib/types";
 import { dateKey, dateLabel, fromLocalInput, localInput } from "../../lib/time";
-import type { ProgramRange } from "../../lib/program-editing";
+import { NEW_ONLINE_ROOM, type ProgramRange } from "../../lib/program-editing";
 import { FormError, type Send } from "./forms";
 import "../program-graph-editor.css";
 
@@ -43,6 +43,10 @@ export function ProgramGraphEditor({
         : rooms.find((room) => !room.is_online)?.id) ??
       rooms[0]?.id ??
       "",
+  );
+  const creatingOnlineRoom = roomId === NEW_ONLINE_ROOM;
+  const [onlineRoomName, setOnlineRoomName] = useState(
+    `Онлайн-поток ${rooms.filter((room) => room.is_online).length + 1}`,
   );
   const [busy, setBusy] = useState(false),
     [error, setError] = useState("");
@@ -114,6 +118,10 @@ export function ProgramGraphEditor({
       setError("Выберите время в пределах мероприятия.");
       return;
     }
+    if (creatingOnlineRoom && !onlineRoomName.trim()) {
+      setError("Впишите название онлайн-потока.");
+      return;
+    }
     locked.current = true;
     setBusy(true);
     setError("");
@@ -126,10 +134,11 @@ export function ProgramGraphEditor({
         {
           title: name,
           ...next,
-          room_id: roomId,
-          online_room: room
+          room_id: creatingOnlineRoom ? "" : roomId,
+          ...(creatingOnlineRoom ? { new_room_name: onlineRoomName.trim(), new_room_capacity: event.capacity } : {}),
+          online_room: creatingOnlineRoom || (room
             ? Boolean(room.is_online)
-            : event.format === "Онлайн",
+            : event.format === "Онлайн"),
           capacity: Math.min(
             activity?.capacity ?? event.capacity,
             room?.capacity ?? event.capacity,
@@ -223,28 +232,12 @@ export function ProgramGraphEditor({
         </button>
       </div>
       <div className="program-graph-room">
-        {rooms.length > 1 ? (
-          <select
-            aria-label="Аудитория пункта на графике"
-            value={roomId}
-            disabled={busy}
-            onChange={(e) => {
-              setRoomId(e.target.value);
-              preview(start, end, e.target.value);
-            }}
-          >
-            {rooms.map((room) => (
-              <option key={room.id} value={room.id}>
-                {room.name}
-              </option>
-            ))}
-          </select>
-        ) : (
-          <span>
-            {rooms[0]?.name ??
-              (event.format === "Онлайн" ? "Онлайн" : "Основная площадка")}
-          </span>
-        )}
+        <select aria-label="Аудитория пункта на графике" value={roomId} disabled={busy}
+          onChange={e => { setRoomId(e.target.value); preview(start, end, e.target.value); }}>
+          {!rooms.length && <option value="">{event.format === "Онлайн" ? "Онлайн" : "Основная площадка"}</option>}
+          {rooms.map(room => <option key={room.id} value={room.id}>{room.is_online ? "Онлайн · " : "Очно · "}{room.name}</option>)}
+          <option value={NEW_ONLINE_ROOM}>Создать онлайн-поток</option>
+        </select>
         {onDetails && (
           <button
             type="button"
@@ -263,6 +256,11 @@ export function ProgramGraphEditor({
           Сохраняем…
         </span>
       )}
+      {creatingOnlineRoom && <label className="program-graph-online-name">
+        Название онлайн-потока
+        <input value={onlineRoomName} required disabled={busy} onChange={event => setOnlineRoomName(event.target.value)} />
+      </label>}
+      {creatingOnlineRoom && <small className="muted">Создадим отдельную онлайн-аудиторию и вебинар для этого флоу.</small>}
       <FormError error={error} />
     </form>
   );

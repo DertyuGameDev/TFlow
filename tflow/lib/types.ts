@@ -21,6 +21,7 @@ export type Activity = {
   starts_at: number; ends_at: number; capacity: number; updated_at: number; room_name: string;
   taken: number; registered: number; waiting_count: number; waitlisted: number; waitlist_position: number;
   room_is_online?: boolean;
+  registration_required?: boolean;
   event_title?: string; city?: string; venue?: string; event_cover?: string;
 };
 export type Community = { id: string; name: string; description: string; topic: string; color: string; member_count: number; joined: number; subscribed: boolean; owner_id: string | null; event_count: number; avatar_url: string | null };

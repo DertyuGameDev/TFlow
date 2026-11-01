@@ -1,3 +1,4 @@
+from .webinar_clock import freeze_webinar_clock
 from datetime import timedelta
 from unittest.mock import patch
 
@@ -18,6 +19,7 @@ from .test_api import FAST_HASHER, Scenario
 class OnlineRoomTests(Scenario, TestCase):
     def setUp(self):
         super().setUp()
+        self.webinar_clock = freeze_webinar_clock(self, self.start)
         self.path = f"events/{self.event.pk}/activities"
         self.body = {**self.activity_body(self.a), "room_id": "", "online_room": True}
 

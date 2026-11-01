@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState } from "react";
+import { lazy, Suspense, useEffect, useRef, useState } from "react";
 import {
   LogOut,
   Copy,
@@ -25,15 +25,21 @@ import {
   type Participant,
 } from "livekit-client";
 import type { Activity, FlowEvent, UserIdentity } from "../../lib/types";
-import { webinarPath } from "../../lib/webinars";
+import { dateLabel, timeLabel } from "../../lib/time";
+import { webinarChatAuthor, webinarPath } from "../../lib/webinars";
 import { publishScreenShare, screenShareContext, screenShareError, screenShareUnavailable } from "../../lib/screen-share";
 import { microphoneError, microphoneSignal } from "../../lib/audio-level";
 import { webinarConnectionIssue } from "../../lib/webinars";
 import { FormError, type Send } from "./forms";
 import { Modal } from "./dialog";
 import "../webinar.css";
+const HttpWebinar = lazy(() => import("./http-webinar"));
 
 type Status = {
+  transport?: string;
+  scheduled?: boolean;
+  can_start?: boolean;
+  starts_at?: string;
   configured: boolean;
   configuration_error?: string;
   host: boolean;
@@ -76,11 +82,17 @@ function Media({ track, muted = false }: { track: Track; muted?: boolean }) {
 export default function Webinar({
   event,
   activity,
+  delegated = false,
+  broadcastAccessKey,
+  studio = false,
   user,
   send,
 }: {
   event: FlowEvent;
   activity?: Activity;
+  delegated?: boolean;
+  broadcastAccessKey?: string;
+  studio?: boolean;
   user: UserIdentity;
   send: Send;
 }) {
@@ -97,6 +109,7 @@ export default function Webinar({
     [error, setError] = useState(""),
     [tick, setTick] = useState(0),
     [confirmEnd, setConfirmEnd] = useState(false);
+  const [accessDenied, setAccessDenied] = useState(false);
   const [messages, setMessages] = useState<ChatMessage[]>([]),
     [draft, setDraft] = useState(""),
     [chatBusy, setChatBusy] = useState(false),
@@ -111,9 +124,9 @@ export default function Webinar({
   const [microphoneId, setMicrophoneId] = useState("default");
   const screenOperation = useRef<symbol | null>(null);
   const screenUnavailable = screenShareUnavailable(captureContext);
-  const roomUrl = `${location.origin}/${webinarPath(event.id, activity?.id)}`;
+  const roomUrl = `${location.origin}/${delegated ? "#lecture" : webinarPath(event.id, activity?.id)}`;
   const endpoint = activity ? `activities/${activity.id}/webinar` : `events/${event.id}/webinar`;
-  const host = user.role === "organizer" && event.owner_id === user.userId;
+  const host = status?.host ?? (user.role === "organizer" && event.owner_id === user.userId);
   function update() {
     if (alive.current) setTick((value) => value + 1);
   }
@@ -150,6 +163,7 @@ export default function Webinar({
       const next = (await send(endpoint, "GET")) as Status;
       if (!alive.current || sequence !== statusSequence.current) return;
       setStatus(next);
+      setAccessDenied(false);
       if (roomRef.current && (!next.active || session.current !== next.session))
         await leave();
     } catch (cause) {
@@ -157,6 +171,7 @@ export default function Webinar({
         setError((cause as Error).message);
         const code = (cause as Error & { status?: number }).status;
         if (code === 401 || code === 403 || code === 404) {
+          setAccessDenied(true);
           setStatus(null);
           await leave();
         }
@@ -269,7 +284,7 @@ export default function Webinar({
       setAudioBlocked(!room.canPlaybackAudio);
       setStatus({
         configured: true,
-        host,
+        host: access.host,
         active: true,
         session: access.session,
         ended: false,
@@ -397,7 +412,7 @@ export default function Webinar({
           ...current,
           {
             id: crypto.randomUUID(),
-            author: user.displayName,
+            author: webinarChatAuthor(user.email, user.displayName),
             text,
             own: true,
           },
@@ -413,7 +428,9 @@ export default function Webinar({
   const room = roomRef.current;
   const presenter = host
     ? room?.localParticipant
-    : room?.remoteParticipants.get(event.owner_id);
+    : [...(room?.remoteParticipants.values() ?? [])].find((person) => person.permissions?.canPublish && (person.isScreenShareEnabled || person.isCameraEnabled || person.isMicrophoneEnabled))
+      ?? room?.remoteParticipants.get(event.owner_id)
+      ?? [...(room?.remoteParticipants.values() ?? [])].find((person) => person.permissions?.canPublish);
   const screen = presenter?.getTrackPublication(
     Track.Source.ScreenShare,
   )?.track;
@@ -439,6 +456,7 @@ export default function Webinar({
     return () => { current = false; room.off(RoomEvent.MediaDevicesChanged, load); };
   }, [room, host, microphoneEnabled]);
   void tick;
+  if (status?.transport === "https") return <Suspense fallback={<p role="status">Открываем трансляцию…</p>}><HttpWebinar event={event} activity={activity} initialStatus={status} accessKey={broadcastAccessKey} studio={studio}/></Suspense>;
   return (
     <section
       id={`webinar-${activity?.id ?? event.id}`}
@@ -475,9 +493,11 @@ export default function Webinar({
         <div className="webinar-lobby">
           <Video size={35} />
           <h3>
-            {!status
-              ? error ? "Не удалось проверить эфир" : "Проверяем эфир…"
-              : !status.configured ? "Видеосервер не настроен"
+            {accessDenied
+              ? "Доступ к эфиру закрыт"
+              : !status
+                ? error ? "Не удалось проверить эфир" : "Проверяем эфир…"
+                : !status.configured ? "Видеосервер не настроен"
               : status.ended || (status.finished && !host)
                 ? "Эфир завершён"
                 : host
@@ -487,14 +507,18 @@ export default function Webinar({
                     : "Ожидаем начало эфира"}
           </h3>
           <p>
-            {!status
-              ? error ? "Повторите проверку соединения." : "Подождите несколько секунд."
+            {accessDenied
+              ? "Разрешение больше недействительно. Обратитесь к организатору."
+              : !status
+                ? error ? "Повторите проверку соединения." : "Подождите несколько секунд."
               : !status.configured
                 ? status.configuration_error || "Сервис трансляций ещё не подключён. Организатор сможет начать эфир после его подключения."
                 : !status.published
                   ? "Сначала опубликуйте событие, затем начните эфир."
                   : status.ended
                     ? "Событие завершилось."
+                    : status.scheduled
+                      ? `Начало ${dateLabel(Date.parse(status.starts_at!))} в ${timeLabel(Date.parse(status.starts_at!))} МСК. Запуск станет доступен в назначенное время.`
                     : status.finished
                       ? host
                         ? "Предыдущий эфир завершён. Вы можете начать новую трансляцию."
@@ -512,6 +536,7 @@ export default function Webinar({
               !status?.configured ||
               !status?.published ||
               status?.ended ||
+              (host && (status?.scheduled || status?.can_start === false)) ||
               (!host && !status?.active)
             }
             onClick={() => void connect()}

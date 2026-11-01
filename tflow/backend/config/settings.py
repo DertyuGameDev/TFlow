@@ -222,3 +222,8 @@ if os.environ.get("TFLOW_LOG_FILE"):
     LOGGING["root"]["handlers"].append("file")
     for logger_config in LOGGING["loggers"].values():
         logger_config["handlers"].append("file")
+
+HTTP_BROADCAST_ENABLED = os.environ.get("TFLOW_HTTP_BROADCAST", "0") == "1" and not IS_VERCEL
+HTTP_BROADCAST_ROOT = Path(os.environ.get("TFLOW_HTTP_BROADCAST_ROOT", str(DATA_DIR / "broadcasts")))
+HTTP_BROADCAST_MAX_STREAMS = 2
+HTTP_BROADCAST_FFMPEG = os.environ.get("TFLOW_FFMPEG", "ffmpeg")

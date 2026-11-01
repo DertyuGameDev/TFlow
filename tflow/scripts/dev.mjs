@@ -21,7 +21,7 @@ let videoBinary=process.env.LIVEKIT_SERVER_BINARY || [resolve('backend/data/tool
 async function videoReady(){
   try{return (await fetch('http://127.0.0.1:7880/', {signal:AbortSignal.timeout(1000)})).ok;}catch{return false;}
 }
-if(!process.env.LIVEKIT_URL && !await videoReady()){
+if(process.env.TFLOW_HTTP_BROADCAST!=='1' && !process.env.LIVEKIT_URL && !await videoReady()){
   if(!videoBinary){
     console.log('Подготавливаем локальный сервер вебинаров…');
     const installed=spawnSync(process.execPath,['scripts/setup-video.mjs'],{stdio:'inherit'});
@@ -50,6 +50,11 @@ for(let attempt=0;attempt<100;attempt++){
 }
 if(!ready){console.error('Django did not become ready on 127.0.0.1:8000.');stop(1);}
 else{
+  if(process.env.TFLOW_HTTP_BROADCAST==='1'){
+    const broadcast=spawn(python,['manage.py','run_broadcast_worker'],{cwd:resolve('backend'),stdio:'inherit'});
+    children.push(broadcast);
+    broadcast.on('exit',code=>{if(!exiting&&code)console.error('Broadcast worker stopped; check TFLOW_FFMPEG and restart npm run dev.');});
+  }
   const frontend=spawn(process.execPath,['node_modules/vite/bin/vite.js'],{stdio:'inherit'});
   children.push(frontend);frontend.on('exit',code=>stop(code??1));
   const emailEnabled=process.env.NOTIFICATION_EMAIL_ENABLED ?? (process.env.EMAIL_HOST_USER&&process.env.EMAIL_HOST_PASSWORD?'1':'0');

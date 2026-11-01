@@ -131,3 +131,5 @@
     font-size: 16px;
   }
 }
+
+.program-graph-online-name { display: grid; gap: 4px; font-size: 12px; color: var(--flow-muted); }

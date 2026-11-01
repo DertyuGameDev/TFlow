@@ -1,5 +1,9 @@
 import type { FlowEvent } from "./types";
 
+export function webinarChatAuthor(email: string, fallback = "Участник") {
+  return email.trim().split("@", 1)[0] || fallback.trim() || "Участник";
+}
+
 export const webinarPath = (eventId: string, activityId?: string) =>
   `#webinar/${encodeURIComponent(eventId)}${activityId ? `/${encodeURIComponent(activityId)}` : ""}`;
 

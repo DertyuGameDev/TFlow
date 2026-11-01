@@ -80,6 +80,7 @@ import { ProfileUpcomingEvents } from "./ui/profile-upcoming-events";
 import { EventFlows } from "./ui/event-flows";
 import { EventPage } from "./ui/event-page";
 import { WebinarChannels } from "./ui/webinar-channels";
+import { PresenterAccess } from "./ui/presenter-access";
 import { ThemeToggle } from "./ui/theme-toggle";
 const Webinar = lazy(() => import("./ui/webinar"));
 import {
@@ -142,6 +143,9 @@ const routeFromHash = (organizer: boolean): Route => {
     "scan",
     "event",
     "webinar",
+    "studio",
+    "lecture",
+    "presenter",
     "pass",
     "notifications",
     "communities",
@@ -756,7 +760,7 @@ export function TFlow({ user }: { user: UserIdentity | null }) {
   const refresh = useCallback(async () => {
     await load();
     const r = latest.current;
-    if (r.id && ["event", "webinar", "manage", "scan"].includes(r.view))
+    if (r.id && ["event", "webinar", "studio", "manage", "scan"].includes(r.view))
       await loadDetail(r.id, attendanceScope(r.view, organizer));
   }, [load, loadDetail, organizer]);
   const refreshInterval =
@@ -788,7 +792,7 @@ export function TFlow({ user }: { user: UserIdentity | null }) {
     setDetail(null);
     setRows([]);
     setDetailError("");
-    if (route.id && ["event", "webinar", "manage", "scan"].includes(route.view))
+    if (route.id && ["event", "webinar", "studio", "manage", "scan"].includes(route.view))
       void loadDetail(route.id, attendanceScope(route.view, organizer));
   }, [route, organizer, loadDetail]);
   useEffect(() => {
@@ -1060,7 +1064,7 @@ export function TFlow({ user }: { user: UserIdentity | null }) {
 
   return (
     <div
-      className={`flow-app ${organizerArea ? "organizer-app" : "participant-app"}`}
+      className={`flow-app ${["studio", "presenter"].includes(route.view) ? "studio-mode" : ""} ${organizerArea ? "organizer-app" : "participant-app"}`}
     >
       <a className="skip-link" href="#main-content">
         К содержимому
@@ -1917,7 +1921,8 @@ export function TFlow({ user }: { user: UserIdentity | null }) {
                 )}
               </>
             )}
-            {route.view === "webinar" && (
+            {["lecture", "presenter"].includes(route.view) && <PresenterAccess user={user} send={send} invitation={route.id} studio={route.view === "presenter"} />}
+            {["webinar", "studio"].includes(route.view) && (
               <section className="webinar-room-page">
                 <button
                   className="back-link"
@@ -2005,11 +2010,11 @@ export function TFlow({ user }: { user: UserIdentity | null }) {
                           <ArrowRight size={18} />
                         </button>
                       </Empty>
-                    ) : webinarActivity && !organizer && !webinarActivity.registered ? (
+                    ) : webinarActivity && webinarActivity.registration_required !== false && !organizer && !webinarActivity.registered ? (
                       <Empty icon={Video} title="Запишитесь на этот флоу" text="Для входа в отдельный вебинар нужна запись на его онлайн-активность.">
                         <ActivityProgram activities={[webinarActivity]} {...programActions} />
                       </Empty>
-                    ) : !route.mode && detail.activities.some((activity) => activity.room_is_online) ? (
+                    ) : !route.mode && (organizer || detail.activities.some((activity) => activity.room_is_online)) ? (
                       <WebinarChannels event={detail.event}
                         activities={detail.activities.filter((activity) => activity.room_is_online)} {...programActions} />
                     ) : (
@@ -2025,6 +2030,7 @@ export function TFlow({ user }: { user: UserIdentity | null }) {
                           event={detail.event}
                           activity={webinarActivity}
                           user={user}
+                          studio={route.view === "studio"}
                           send={send}
                         />
                       </Suspense>

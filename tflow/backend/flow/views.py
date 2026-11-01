@@ -432,6 +432,23 @@ def dispatch_api(request, path):
             raise FlowError(
                 "VALIDATION", "Поля формы должны содержать простые значения", 400
             )
+    if resource == "events" and item_id and action == "lecturer-links" and method == "POST":
+        from .access_keys import lecturer_links
+        return JsonResponse(lecturer_links(user, item_id, activity_id=body.get("activity_id"), operation=body.get("operation", "ensure")))
+    if resource == "access-keys" and not action and method == "POST":
+        from .access_keys import resolve_key, record_use
+        secret = body.get("key")
+        key = resolve_key(user, secret, purpose="webinar")
+        if item_id == "resolve":
+            record_use(key, user)
+            event = visible_events(user).get(pk=key.event_id)
+            activity = activities_for(user).get(pk=key.activity_id)
+            return JsonResponse({"purpose": key.purpose, "expires_at": milliseconds(key.expires_at), "event": event_json(event), "activity": activity_json(activity)})
+        if item_id == "webinar":
+            from .webinars import operate, status
+            operation = body.get("operation")
+            return JsonResponse(status(user, key.event_id, activity_id=key.activity_id, access_key=secret) if operation == "status" else operate(user, key.event_id, operation, session=body.get("session"), activity_id=key.activity_id, access_key=secret))
+        raise FlowError("NOT_FOUND", "Действие с ключом не найдено", 404)
     if path == "profile/become-organizer" and method == "POST":
         raise FlowError(
             "ROLE_FIXED",

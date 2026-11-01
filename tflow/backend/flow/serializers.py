@@ -208,6 +208,7 @@ def activity_json(activity, schedule=False):
         updated_at=milliseconds(activity.updated_at),
         room_name=activity.room.name,
         room_is_online=activity.room.is_online,
+        registration_required=activity.registration_required,
         taken=activity.taken,
         registered=int(activity.registered),
         waiting_count=activity.waiting_count,
