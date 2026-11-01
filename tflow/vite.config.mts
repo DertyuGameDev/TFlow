@@ -14,6 +14,8 @@ const backend = process.env.TFLOW_BACKEND_URL ?? "http://127.0.0.1:8000";
 export default defineConfig({
   base: process.env.VITE_ASSET_BASE ?? "/",
   define: { __TFLOW_BUILD_ID__: JSON.stringify(buildId) },
+  // Only the app entry participates; local QA HTML files are not app pages.
+  optimizeDeps: { entries: ["index.html"] },
   plugins: [react(), {name:"tflow-release", generateBundle() {
     this.emitFile({type:"asset", fileName:"version.json", source:JSON.stringify({id:buildId})});
   }}],
