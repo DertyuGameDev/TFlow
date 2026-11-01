@@ -11,4 +11,7 @@
 .program-webinar-entry{margin-top:12px}
 .webinar-channels>h2{font-size:22px;margin-bottom:10px}
 .webinar-channels>p{color:var(--muted);line-height:1.7;font-size:14px;max-width:760px}
+.webinar-channels>.program-no-results{margin-top:16px}
+.webinar-channels>.button{display:flex;width:fit-content;max-width:100%;margin-top:14px}
+@media(max-width:600px){.webinar-channels>.button{width:100%;text-align:center}}
 @media(max-width:600px){.event-flows-heading{flex-direction:column;gap:12px}.event-flows-heading h2{font-size:20px}.event-flows-empty{align-items:flex-start;padding:18px}}
