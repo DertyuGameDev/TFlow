@@ -140,6 +140,8 @@ class WebinarTests(Scenario, TestCase):
             client=self.participant,
         )
         host_claims, viewer_claims = self.decode(host), self.decode(viewer)
+        self.assertEqual(host_claims["name"], "owner")
+        self.assertEqual(viewer_claims["name"], "person")
         self.assertTrue(host_claims["video"]["canPublish"])
         self.assertFalse(viewer_claims["video"]["canPublish"])
         self.assertTrue(viewer_claims["video"]["canSubscribe"])

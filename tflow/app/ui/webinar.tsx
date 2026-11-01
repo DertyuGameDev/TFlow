@@ -4,6 +4,7 @@ import {
   Copy,
   ExternalLink,
   Maximize,
+  Minimize,
   Mic,
   MicOff,
   MonitorUp,
@@ -26,7 +27,7 @@ import {
 } from "livekit-client";
 import type { Activity, FlowEvent, UserIdentity } from "../../lib/types";
 import { dateLabel, timeLabel } from "../../lib/time";
-import { webinarPath } from "../../lib/webinars";
+import { webinarChatAuthor, webinarPath } from "../../lib/webinars";
 import { publishScreenShare, screenShareContext, screenShareError, screenShareUnavailable } from "../../lib/screen-share";
 import { microphoneError, microphoneSignal } from "../../lib/audio-level";
 import { webinarConnectionIssue } from "../../lib/webinars";
@@ -102,6 +103,23 @@ export default function Webinar({
     statusSequence = useRef(0),
     connecting = useRef(false);
   const stage = useRef<HTMLDivElement>(null);
+  const [fullscreen, setFullscreen] = useState(false);
+  useEffect(() => {
+    const update = () => setFullscreen(!!stage.current && document.fullscreenElement === stage.current);
+    document.addEventListener("fullscreenchange", update);
+    return () => document.removeEventListener("fullscreenchange", update);
+  }, []);
+  async function toggleFullscreen() {
+    const target = stage.current;
+    if (!target) return;
+    try {
+      if (document.fullscreenElement === target) await document.exitFullscreen();
+      else if (typeof target.requestFullscreen === "function") await target.requestFullscreen();
+      else throw new Error("Fullscreen unavailable");
+    } catch {
+      setError("Полноэкранный режим недоступен в этом браузере. Откройте вебинар в обычной вкладке браузера.");
+    }
+  }
   const [status, setStatus] = useState<Status | null>(null),
     [connected, setConnected] = useState(false),
     [busy, setBusy] = useState(false),
@@ -124,7 +142,7 @@ export default function Webinar({
   const [microphoneId, setMicrophoneId] = useState("default");
   const screenOperation = useRef<symbol | null>(null);
   const screenUnavailable = screenShareUnavailable(captureContext);
-  const roomUrl = `${location.origin}/${delegated ? "#access" : webinarPath(event.id, activity?.id)}`;
+  const roomUrl = `${location.origin}/${delegated ? "#lecture" : webinarPath(event.id, activity?.id)}`;
   const endpoint = activity ? `activities/${activity.id}/webinar` : `events/${event.id}/webinar`;
   const host = status?.host ?? (user.role === "organizer" && event.owner_id === user.userId);
   function update() {
@@ -412,7 +430,7 @@ export default function Webinar({
           ...current,
           {
             id: crypto.randomUUID(),
-            author: user.displayName,
+            author: webinarChatAuthor(user.email, user.displayName),
             text,
             own: true,
           },
@@ -598,19 +616,13 @@ export default function Webinar({
                 </span>
               </div>
               <button
+                type="button"
                 className="webinar-fullscreen"
-                aria-label="На весь экран"
-                onClick={() =>
-                  void stage.current
-                    ?.requestFullscreen()
-                    .catch(() =>
-                      setError(
-                        "Полноэкранный режим недоступен в этом браузере.",
-                      ),
-                    )
-                }
+                aria-label={fullscreen ? "Выйти из полноэкранного режима" : "На весь экран"}
+                aria-pressed={fullscreen}
+                onClick={() => void toggleFullscreen()}
               >
-                <Maximize size={18} />
+                {fullscreen ? <Minimize size={18} /> : <Maximize size={18} />}
               </button>
             </div>
             {audioBlocked && (

@@ -6,7 +6,7 @@ import { event } from "../fixtures";
 
 async function describeEvent(user: ReturnType<typeof userEvent.setup>) {
   await user.type(screen.getByLabelText("Название события"), "Новая встреча");
-  await user.selectOptions(screen.getByLabelText("Категория"), "Разработка");
+  await user.type(screen.getByRole("combobox", { name: "Категория" }), "Разработка{Enter}");
   await user.click(screen.getByRole("button", { name: /Далее: время и место/ }));
 }
 
@@ -18,7 +18,7 @@ describe("создание и перенос события", () => {
     expect(title).not.toHaveAttribute("minlength");
     expect(title).not.toHaveAttribute("maxlength");
     await user.type(title, "А");
-    await user.selectOptions(screen.getByLabelText("Категория"), "Разработка");
+    await user.type(screen.getByRole("combobox", { name: "Категория" }), "Разработка{Enter}");
     await user.type(screen.getByRole("textbox", { name: /Коротко о событии/ }), "О");
     await user.click(screen.getByRole("button", { name: /Далее: время и место/ }));
     await user.click(screen.getByRole("radio", { name: "Онлайн" }));

@@ -223,6 +223,21 @@ describe("флоу на странице мероприятия", () => {
       within(section).getByText(/Активности пока не добавлены/),
     ).toBeVisible();
     expect(within(section).queryByRole("textbox")).not.toBeInTheDocument();
+    const chart = within(section).getByRole("region", { name: "Временная карта флоу" });
+    expect(within(chart).getByText("10:00", { selector: "time" })).toBeVisible();
+    expect(within(chart).getByText("12:00", { selector: "time" })).toBeVisible();
+  });
+
+  it("сохраняет границы мероприятия при поиске, даже если ни одна активность не подходит", async () => {
+    mount(null, [{ ...lecture, starts_at: event.starts_at + 30 * 60_000 }]);
+    const section = await screen.findByRole("region", { name: /Флоу\s*1/ });
+    const chart = within(section).getByRole("region", { name: "Временная карта флоу" });
+    expect(within(chart).getByText("10:00", { selector: "time" })).toBeVisible();
+    expect(within(chart).getByText("12:00", { selector: "time" })).toBeVisible();
+    await userEvent.type(within(section).getByRole("textbox", { name: "Найти активность" }), "нет такой активности");
+    expect(within(section).getByText("По этим фильтрам активностей нет")).toBeVisible();
+    expect(within(chart).getByText("10:00", { selector: "time" })).toBeVisible();
+    expect(within(chart).getByText("12:00", { selector: "time" })).toBeVisible();
   });
 });
 

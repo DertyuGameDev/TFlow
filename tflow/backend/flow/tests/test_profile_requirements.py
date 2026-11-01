@@ -16,6 +16,14 @@ class ProfileRequirementsTests(Scenario, TestCase):
     def require(self, fields):
         self.request(self.requirements, "patch", {"required_profile_fields": fields})
 
+    def test_optional_profile_name_does_not_bypass_event_requirements(self):
+        self.require(["phone"])
+        self.request("profile", "patch", {"first_name": "", "last_name": "", "phone": ""}, client=self.participant)
+        result = self.request(self.path, "post", {}, client=self.participant, status=409, code="PROFILE_INCOMPLETE")
+        self.assertEqual(result["missing_fields"], ["phone"])
+        self.request(self.path, "post", {"phone": "+7 999 111-22-33"}, client=self.participant)
+        self.assertTrue(EventRegistration.objects.filter(user=self.person, event=self.event).exists())
+
     def test_owner_can_choose_and_clear_required_fields(self):
         self.require(["phone", "organization", "birth_date"])
         self.event.refresh_from_db()

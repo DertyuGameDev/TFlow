@@ -423,7 +423,8 @@ def save_activity(user, data, *, event_id=None, activity_id=None):
         from .schedule_feedback import snapshot, change_message
         before = snapshot(activity) if activity_id else None
         changed = any(getattr(activity, key) != value for key, value in data.items())
-        if activity_id and changed and Webinar.objects.filter(activity=activity, active=True).exists():
+        from .models import HttpBroadcast
+        if activity_id and changed and (Webinar.objects.filter(activity=activity, active=True).exists() or HttpBroadcast.objects.filter(activity=activity, active=True).exists()):
             raise FlowError("WEBINAR_ACTIVE", "Завершите эфир перед изменением этой активности")
         for key, value in data.items():
             setattr(activity, key, value)
@@ -451,6 +452,8 @@ def save_activity(user, data, *, event_id=None, activity_id=None):
         if activity_id:
             for participant in User.objects.filter(registrations__activity=activity):
                 retry_user_waitlists_locked(participant)
+        from .access_keys import sync_key_expiry
+        sync_key_expiry(activity.event)
         return activity
 
 
@@ -780,6 +783,8 @@ def move_event(user, event_id, data):
     with schedule_write():
         event = owned_event(event_id, user)
         if all(getattr(event, key) == value for key, value in data.items()):
+            from .access_keys import sync_key_expiry
+            sync_key_expiry(event)
             return
         from .schedule_feedback import event_snapshot, event_change_message
         before_event = event_snapshot(event)

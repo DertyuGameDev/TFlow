@@ -1,4 +1,4 @@
-import { act, render, screen } from "@testing-library/react";
+import { act, fireEvent, render, screen, within } from "@testing-library/react";
 import { afterEach, describe, expect, it, vi } from "vitest";
 import userEvent from "@testing-library/user-event";
 import { FlowSchedule, useFlowClock } from "../../app/ui/flow-schedule";
@@ -26,6 +26,188 @@ function ClockFlow({ activities }: { activities: Activity[] }) {
 afterEach(() => vi.useRealTimers());
 
 describe("общая вертикальная линия флоу", () => {
+  it("показывает полный интервал и длительность мероприятия над картой, включая переход на следующий день", () => {
+    const props = { activities: [item], now: 0, renderActivity: () => null };
+    const view = render(<FlowSchedule {...props} event={event} />);
+    const range = () => screen.getByRole("group", { name: "Время и длительность мероприятия" });
+    expect(within(range()).getByText("10:00–12:00")).toBeVisible();
+    expect(within(range()).getByText("2 ч")).toBeVisible();
+    view.rerender(<FlowSchedule {...props} event={{ starts_at: Date.parse("2026-11-12T23:30:00+03:00"), ends_at: Date.parse("2026-11-13T01:00:00+03:00") }} />);
+    expect(range()).toHaveTextContent("12 ноября 23:30–13 ноября 01:00");
+    expect(within(range()).getByText("1 ч 30 мин")).toBeVisible();
+  });
+
+  it("предлагает прокрутить скрытые параллельные флоу и отключает стрелки на границах", async () => {
+    vi.spyOn(HTMLElement.prototype, "clientWidth", "get").mockReturnValue(320);
+    const scrollTo = vi.spyOn(Element.prototype, "scrollTo");
+    const activities = [item, { ...item, id: "two" }, { ...item, id: "three" }];
+    const props = { event, now: 0, renderActivity: () => null };
+    const view = render(<FlowSchedule {...props} activities={activities} />);
+    const right = screen.getByRole("button", { name: "Показать флоу справа" });
+    const left = screen.getByRole("button", { name: "Показать флоу слева" });
+    expect(left).toBeDisabled();
+    expect(right).toBeEnabled();
+    await userEvent.setup().click(right);
+    expect(scrollTo).toHaveBeenCalledWith({ left: 224, behavior: "smooth" });
+    fireEvent.scroll(screen.getByRole("region", { name: "Временная карта флоу" }), { target: { scrollLeft: 224 } });
+    expect(right).toBeDisabled();
+    expect(left).toBeEnabled();
+    await userEvent.setup().click(left);
+    expect(scrollTo).toHaveBeenLastCalledWith({ left: 0, behavior: "smooth" });
+    view.rerender(<FlowSchedule {...props} activities={activities.slice(0, 2)} />);
+    expect(screen.queryByRole("group", { name: "Прокрутка параллельных флоу" })).not.toBeInTheDocument();
+  });
+
+  it("сохраняет начало и конец мероприятия при пустом флоу и показывает текущее время до первой активности", () => {
+    const props = { event, now: event.starts_at + 10 * 60_000, renderActivity: () => null };
+    const middle = { ...item, starts_at: event.starts_at + 30 * 60_000, ends_at: event.starts_at + 60 * 60_000 };
+    const { container, rerender } = render(<FlowSchedule activities={[middle]} {...props} />);
+    const range = () => Array.from(container.querySelectorAll<HTMLTimeElement>(".flow-time-tick time"), node => node.dateTime);
+    expect(range()[0]).toBe(new Date(event.starts_at).toISOString());
+    expect(range().at(-1)).toBe(new Date(event.ends_at).toISOString());
+    expect(screen.getByLabelText("Сейчас 10:10, МСК")).toBeVisible();
+    expect(screen.getByRole("button", { name: "Сейчас" })).toBeEnabled();
+    rerender(<FlowSchedule activities={[]} {...props} />);
+    expect(range()[0]).toBe(new Date(event.starts_at).toISOString());
+    expect(range().at(-1)).toBe(new Date(event.ends_at).toISOString());
+    expect(screen.getByLabelText("Сейчас 10:10, МСК")).toBeVisible();
+    expect(screen.getByRole("group", { name: "Масштаб флоу" })).toBeVisible();
+  });
+
+  it("сохраняет разные цвета активностей одного зала при начале эфира и фильтрации", () => {
+    const activities = Array.from({ length: 3 }, (_, index) => ({
+      ...item,
+      id: `activity-${index}`,
+      title: `Встреча ${index}`,
+    }));
+    const renderFlow = (visible: Activity[], now: number) => (
+      <FlowSchedule activities={visible} now={now} renderActivity={() => null} />
+    );
+    const { container, rerender } = render(renderFlow(activities, item.starts_at - 1));
+    const colors = () => new Map(Array.from(container.querySelectorAll<HTMLElement>(".flow-event"), node => [
+      node.dataset.activityId, node.style.getPropertyValue("--flow-color"),
+    ]));
+    const original = colors();
+    expect(new Set(original.values()).size).toBe(3);
+
+    rerender(renderFlow([...activities].reverse(), item.starts_at));
+    expect(colors()).toEqual(original);
+    const current = screen.getByRole("list", { name: "Текущие активности" });
+    for (const activity of activities) {
+      expect(within(current).getByRole("button", { name: `Открыть активность ${activity.title}` })).toHaveStyle({
+        "--flow-color": original.get(activity.id),
+      });
+    }
+
+    rerender(renderFlow([activities[1]], item.ends_at));
+    expect(colors().get(activities[1].id)).toBe(original.get(activities[1].id));
+  });
+
+  it("показывает время на линии по МСК и обновляет цифры без перезагрузки", async () => {
+    vi.useFakeTimers();
+    vi.setSystemTime(item.starts_at + 59_000);
+    const { container } = render(<ClockFlow activities={[item]} />);
+    const time = screen.getByLabelText("Сейчас 10:00, МСК");
+    expect(time).toBeVisible();
+    expect(time).toHaveTextContent("10:00");
+    expect(time).toHaveAttribute("datetime", new Date(item.starts_at + 59_000).toISOString());
+    expect(container.querySelector(".flow-time-tick.is-near-now")).toBeInTheDocument();
+
+    await act(async () => vi.advanceTimersByTime(1_020));
+    expect(screen.getByLabelText("Сейчас 10:01, МСК")).toHaveTextContent("10:01");
+  });
+
+  it("показывает в списке только текущие параллельные активности и открывает их действия", async () => {
+    const user = userEvent.setup();
+    render(
+      <FlowSchedule
+        activities={[
+          item,
+          { ...item, id: "parallel", title: "Эфир", room_name: "Онлайн" },
+          { ...item, id: "past", title: "Прошедшее", ends_at: item.starts_at },
+          {
+            ...item,
+            id: "future",
+            title: "Будущее",
+            starts_at: item.ends_at,
+            ends_at: item.ends_at + 60000,
+          },
+        ]}
+        now={item.starts_at}
+        renderActivity={(a) => <button>Записаться на {a.title}</button>}
+      />,
+    );
+    const list = screen.getByRole("list", { name: "Текущие активности" });
+    expect(within(list).getAllByRole("button")).toHaveLength(2);
+    expect(within(list).queryByText("Прошедшее")).not.toBeInTheDocument();
+    expect(within(list).queryByText("Будущее")).not.toBeInTheDocument();
+    const link = within(list).getByRole("button", {
+      name: "Открыть активность Эфир",
+    });
+    link.focus();
+    await user.keyboard("{Enter}");
+    expect(link).toHaveAttribute("aria-expanded", "true");
+    expect(
+      within(
+        screen.getByRole("region", { name: "Сведения об активности" }),
+      ).getByRole("button", { name: "Записаться на Эфир" }),
+    ).toBeVisible();
+    expect(
+      screen.getByRole("region", { name: "Сведения об активности" }),
+    ).toHaveFocus();
+    await user.keyboard("{Escape}");
+    expect(link).toHaveFocus();
+    expect(
+      screen.queryByRole("region", { name: "Сведения об активности" }),
+    ).not.toBeInTheDocument();
+  });
+
+  it("показывает понятное пустое состояние до начала и после завершения программы", () => {
+    const { rerender } = render(
+      <FlowSchedule
+        activities={[item]}
+        now={item.starts_at - 1}
+        renderActivity={() => null}
+      />,
+    );
+    expect(screen.getByText("Сейчас активностей нет")).toBeVisible();
+    expect(screen.getByText(/Следующая —/)).toBeVisible();
+    rerender(
+      <FlowSchedule
+        activities={[item]}
+        now={item.ends_at}
+        renderActivity={() => null}
+      />,
+    );
+    expect(screen.getByText("Сейчас активностей нет")).toBeVisible();
+    expect(screen.queryByText(/Следующая —/)).not.toBeInTheDocument();
+  });
+  it("не закрывает подробности при начале свайпа за пределами плашки, но закрывает при отдельном нажатии", async () => {
+    const user = userEvent.setup();
+    render(
+      <FlowSchedule
+        activities={[item]}
+        now={0}
+        renderActivity={(a) => <h4>{a.title}</h4>}
+      />,
+    );
+    await user.click(screen.getByRole("button", { name: "Доклад 30 мин" }));
+    fireEvent.pointerDown(document.body, {
+      pointerType: "touch",
+      clientY: 400,
+    });
+    fireEvent.pointerMove(document.body, {
+      pointerType: "touch",
+      clientY: 200,
+    });
+    expect(
+      screen.getByRole("region", { name: "Сведения об активности" }),
+    ).toBeVisible();
+    fireEvent.click(document.body);
+    expect(
+      screen.queryByRole("region", { name: "Сведения об активности" }),
+    ).not.toBeInTheDocument();
+  });
   it("открывает минутную активность по заметной плашке и возвращает на неё фокус", async () => {
     const user = userEvent.setup();
     render(
@@ -116,11 +298,27 @@ describe("общая вертикальная линия флоу", () => {
       ends_at: event.ends_at,
     };
     const { container } = render(<ClockFlow activities={[second, item]} />);
+    expect(
+      within(
+        screen.getByRole("list", { name: "Текущие активности" }),
+      ).getByRole("button", { name: "Открыть активность Доклад" }),
+    ).toBeVisible();
     expect(container.querySelector('[aria-current="step"]')).toHaveAttribute(
       "data-activity-id",
       "one",
     );
     await act(async () => vi.advanceTimersByTime(1020));
+    const current = screen.getByRole("list", { name: "Текущие активности" });
+    expect(
+      within(current).queryByRole("button", {
+        name: "Открыть активность Доклад",
+      }),
+    ).not.toBeInTheDocument();
+    expect(
+      within(current).getByRole("button", {
+        name: "Открыть активность Практика",
+      }),
+    ).toBeVisible();
     expect(container.querySelector('[aria-current="step"]')).toHaveAttribute(
       "data-activity-id",
       "two",

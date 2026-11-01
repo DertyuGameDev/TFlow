@@ -36,6 +36,13 @@ class HttpBroadcastTests(Scenario, TransactionTestCase):
     def begin(self):
         return self.request(self.endpoint, "post", {"operation": "start", "mime": "video/webm"})
 
+    def assert_h264_aac(self, segment):
+        # Decode the actual segment, not only its container metadata.
+        result = subprocess.run(["ffmpeg", "-hide_banner", "-i", str(segment), "-f", "null", "-"],
+                                check=True, capture_output=True, text=True, timeout=15)
+        self.assertIn("Video: h264", result.stderr)
+        self.assertIn("Audio: aac", result.stderr)
+
     def upload(self, lease, seq=0, data=b"\x1aE\xdf\xa3test", client=None, publisher=None):
         return (client or self.client).post(f"/api/broadcasts/{lease['session']}/chunks/{seq}",
             data=data, content_type="application/octet-stream", HTTP_X_TFLOW_PUBLISHER=publisher if publisher is not None else lease["publisher"])
@@ -140,12 +147,23 @@ class HttpBroadcastTests(Scenario, TransactionTestCase):
         lease = self.begin()
         path = f"broadcasts/{lease['session']}/chat"
         result = self.request(path, "post", {"text": "Вопрос", "author": "Подмена"}, client=self.participant)
-        self.assertEqual(result["messages"][0]["author"], self.person.name)
+        self.assertEqual(result["messages"][0]["author"], self.person.email.split("@", 1)[0])
         self.request(path, "post", {"text": "Ещё"}, client=self.participant, status=429)
         self.request(path, client=self.stranger, status=403)
         self.request(path, "post", {"text": "x" * 1001}, status=400)
         self.request(self.endpoint, "post", {"operation": "end", "session": lease["session"]})
         self.request(path, client=self.participant, status=409)
+
+    def test_blank_profile_name_does_not_hide_chat_author_or_expose_domain(self):
+        self.person.name = ""
+        self.person.email = "anna.petrova@example.test"
+        self.person.save(update_fields=["name", "email"])
+        lease = self.begin()
+        path = f"broadcasts/{lease['session']}/chat"
+        result = self.request(path, "post", {"text": "Вопрос", "author": "Чужое имя"}, client=self.participant)
+        self.assertEqual(result["messages"][0]["author"], "anna.petrova")
+        self.assertNotIn("@", result["messages"][0]["author"])
+        self.assertEqual(self.request(path)["messages"][0]["author"], "anna.petrova")
 
     def test_csrf_still_required_for_commands_and_binary_upload(self):
         client = Client(enforce_csrf_checks=True); client.force_login(self.owner)
@@ -196,8 +214,7 @@ class HttpBroadcastTests(Scenario, TransactionTestCase):
             playlist = (stream_dir(lease["session"]) / "index.m3u8").read_text()
             self.assertIn("#EXTM3U", playlist)
             segment = next(stream_dir(lease["session"]).glob("segment-*.ts"))
-            result = subprocess.run(["ffprobe", "-v", "error", "-show_entries", "stream=codec_name", "-of", "json", str(segment)], check=True, capture_output=True, text=True)
-            self.assertEqual({item["codec_name"] for item in json.loads(result.stdout)["streams"]}, {"h264", "aac"})
+            self.assert_h264_aac(segment)
         finally:
             encoder.close()
 
@@ -219,8 +236,7 @@ class HttpBroadcastTests(Scenario, TransactionTestCase):
                 deadline=time.monotonic()+10
                 while time.monotonic()<deadline and not (directory/"index.m3u8").exists():encoder.feed(broadcast);time.sleep(.02)
                 segment=next(directory.glob("segment-*.ts"))
-                result=subprocess.run(["ffprobe","-v","error","-show_entries","stream=codec_name","-of","json",str(segment)],check=True,capture_output=True,text=True)
-                self.assertEqual({x["codec_name"] for x in json.loads(result.stdout)["streams"]},{"h264","aac"})
+                self.assert_h264_aac(segment)
                 self.assertEqual(str(broadcast.session),lease["session"])
                 self.assertEqual(broadcast.media_epoch,generation)
             finally:encoder.close()

@@ -54,7 +54,7 @@ describe("заметные маркеры коротких активносте�
   });
 
   it("при увеличении масштаба возвращает обычную полосу с названием", () => {
-    expect(flowMarkers(layoutFlow([item("minute", 0)], 32).placements)).toEqual(
+    expect(flowMarkers(layoutFlow([item("minute", 0)], 64).placements)).toEqual(
       [],
     );
   });

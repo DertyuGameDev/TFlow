@@ -6,6 +6,7 @@ import {
   type KeyboardEvent,
 } from "react";
 import {
+  ArrowLeft,
   ArrowRight,
   CalendarDays,
   CalendarRange,
@@ -115,16 +116,18 @@ function CalendarItem({
   entry,
   onClick,
   date,
+  mobileHidden = false,
 }: {
   entry: CalendarEntry;
   onClick: () => void;
   date: string;
+  mobileHidden?: boolean;
 }) {
   const continuation = entry.starts_at < dayStart(date);
   return (
     <button
       type="button"
-      className={`cal-month-event cal-color-${entry.source} ${entry.draft ? "cal-draft" : ""}`}
+      className={`cal-month-event cal-color-${entry.source} ${entry.draft ? "cal-draft" : ""} ${mobileHidden ? "cal-month-extra" : ""}`}
       onClick={onClick}
       title={`${entry.title} · ${timeLabel(entry.starts_at)}–${timeLabel(entry.ends_at)}`}
       aria-label={`${entry.title}, ${longDate(calendarDate(entry.starts_at))}, ${timeLabel(entry.starts_at)}–${timeLabel(entry.ends_at)}${entry.draft ? ", черновик" : ""}`}
@@ -318,13 +321,19 @@ export function Calendar({
 
   return (
     <section className="calendar-page" aria-label="Личный календарь">
-      <header className="calendar-page-heading">
+      <header
+        className={`calendar-page-heading ${!canCreate ? "calendar-participant-heading" : ""}`}
+      >
         <div>
           <span className="calendar-kicker">
             <CalendarRange size={17} /> Всё по плану
           </span>
           <h1>Календарь</h1>
-          <p>Больше встреч. Меньше «когда это было?»</p>
+          <p>
+            {canCreate
+              ? "Больше встреч. Меньше «когда это было?»"
+              : "События и активности, на которые вы записались."}
+          </p>
         </div>
         {canCreate ? (
           <button
@@ -336,8 +345,8 @@ export function Calendar({
           </button>
         ) : (
           <button className="button secondary" onClick={onBrowse}>
-            <Plus size={18} />
-            Найти событие
+            В каталог событий
+            <ArrowRight size={18} />
           </button>
         )}
       </header>
@@ -399,6 +408,21 @@ export function Calendar({
           </span>
         </aside>
         <div className="calendar-main">
+          {view === "day" && (
+            <div className="cal-day-return">
+              <button
+                type="button"
+                className="cal-back-month"
+                onClick={() => {
+                  focusDate.current = true;
+                  navigate(date, "month");
+                }}
+              >
+                <ArrowLeft size={17} />
+                К месяцу
+              </button>
+            </div>
+          )}
           <div className="cal-toolbar">
             <div className="cal-period-controls">
               <button className="cal-today" onClick={goToday}>
@@ -541,32 +565,28 @@ export function Calendar({
                               )}
                             </span>
                             <div className="cal-month-events">
-                              {items.slice(0, 3).map(({ entry }) => (
+                              {items.slice(0, 3).map(({ entry }, index) => (
                                 <CalendarItem
                                   key={entry.id}
                                   entry={entry}
                                   date={day}
+                                  mobileHidden={index >= 2}
                                   onClick={() => openEntry(entry)}
                                 />
                               ))}
-                              {items.length > 3 && (
+                              {items.length > 2 && (
                                 <button
-                                  className="cal-more"
+                                  className={`cal-more ${items.length === 3 ? "cal-more-mobile-only" : ""}`}
+                                  aria-label={`Все планы на ${dateLabel(dayStart(day))}: ${dayCount(items.length)}`}
                                   onClick={() => navigate(day, "day")}
                                 >
-                                  Ещё {items.length - 3}
+                                  <span className="cal-more-wide">
+                                    Ещё {items.length - 3}
+                                  </span>
+                                  <span className="cal-more-narrow">
+                                    Ещё {items.length - 2}
+                                  </span>
                                 </button>
-                              )}
-                            </div>
-                            <div className="cal-month-dots" aria-hidden="true">
-                              {items.slice(0, 3).map(({ entry }) => (
-                                <span
-                                  className={`cal-dot-${entry.source}`}
-                                  key={entry.id}
-                                />
-                              ))}
-                              {items.length > 3 && (
-                                <small>+{items.length - 3}</small>
                               )}
                             </div>
                           </td>

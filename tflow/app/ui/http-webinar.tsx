@@ -220,7 +220,13 @@ export default function HttpWebinar({ event, activity, initialStatus, accessKey,
       <div className="webinar-messages" role="log" aria-label="Сообщения эфира" aria-live="polite">
         {messages.length ? messages.map(message => <div className={`webinar-message ${message.own ? "own" : ""}`} key={message.id}><strong>{message.author}</strong><p>{message.text}</p></div>) : <p className="webinar-chat-empty">Вопросы ведущему и сообщения участников появятся здесь.</p>}
       </div>
-      <form onSubmit={event => void chat(event)}><label><span className="sr-only">Сообщение в чат</span><textarea rows={2} maxLength={1000} value={draft} disabled={!status.active} onChange={event => setDraft(event.target.value)} placeholder="Ваш вопрос или сообщение"/></label>
+      <form onSubmit={event => void chat(event)}><label><span className="sr-only">Сообщение в чат</span><textarea rows={2} maxLength={1000} value={draft} disabled={!status.active} onChange={event => setDraft(event.target.value)}
+        onKeyDown={event => {
+          if (event.key === "Enter" && !event.shiftKey && !event.nativeEvent.isComposing && event.nativeEvent.keyCode !== 229) {
+            event.preventDefault();
+            if (!event.repeat) event.currentTarget.form?.requestSubmit();
+          }
+        }} placeholder="Ваш вопрос или сообщение"/></label>
         <button className="button primary" disabled={!status.active || chatBusy || !draft.trim()}><SendIcon size={16}/>Отправить</button></form>
     </aside></div>
     {confirmEnd && <Modal title="Завершить эфир для всех?" dismissible={!busy} onClose={() => setConfirmEnd(false)}>

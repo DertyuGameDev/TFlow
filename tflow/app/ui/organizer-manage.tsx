@@ -34,6 +34,7 @@ import { Modal } from "./dialog";
 import { ParticipantDetails, RegistrationSettings } from "./profile-data";
 import { LecturerLinks } from "./lecturer-links";
 import { AccessKeyManager } from "./access-keys";
+import { ParticipantAvatar } from "./participant-avatar";
 import type { Send } from "./forms";
 import { ProgramTimeline } from "./program-timeline";
 import { ProgramGraphEditor } from "./program-graph-editor";
@@ -41,7 +42,7 @@ import { OrganizerFlow } from "./organizer-flow";
 import { OrganizerProgramList } from "./organizer-program-list";
 import { ProgramSwap } from "./program-swap";
 import type { MontageResult } from "../../lib/program-montage";
-import type { ProgramRange } from "../../lib/program-editing";
+import { NEW_ONLINE_ROOM, type ProgramRange } from "../../lib/program-editing";
 import { OrganizerTutorial } from "./organizer-tutorial";
 import "../event-management.css";
 
@@ -149,7 +150,7 @@ export function OrganizerManage({
           graphRoom?.id ??
           "",
         room_name:
-          graphRoom?.name ??
+          graphDraft.range.room_id === NEW_ONLINE_ROOM ? "Новый онлайн-поток" : graphRoom?.name ??
           (e.format === "Онлайн" ? "Онлайн" : "Основная площадка"),
       }
     : undefined;
@@ -489,9 +490,7 @@ export function OrganizerManage({
             {visible.map((person) => (
               <details className="attendee-record" key={person.id}>
                 <summary className="attendee-row">
-                  <span className="small-person-avatar">
-                    {person.name.slice(0, 1)}
-                  </span>
+                  <ParticipantAvatar name={person.name} />
                   <div>
                     <h3>{person.name}</h3>
                     <p>{person.email}</p>
@@ -731,7 +730,7 @@ export function OrganizerManage({
       </section>
       <section role="tabpanel" id={`${id}-panel-flow`} aria-labelledby={`${id}-tab-flow`}
         hidden={section !== "flow"} className="management-panel">
-        {section === "flow" && <OrganizerFlow activities={detail.activities} editor={programEditor}
+        {section === "flow" && <OrganizerFlow activities={detail.activities} event={e} editor={programEditor}
           onEdit={activity => openProgramItem(activity)} onSwap={activity => {
             setGraphDraft(null); setSwapping(activity);
           }}/>}

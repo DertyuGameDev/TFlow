@@ -81,7 +81,7 @@ describe("обучение организатора", () => {
     await user.click(screen.getByRole("button", { name: "Начать обучение" }));
     expect(screen.getByRole("button", { name: "Назад" })).toBeDisabled();
     for (let step = 1; step < ORGANIZER_LESSONS.length; step++)
-      await user.click(screen.getByRole("button", { name: "Далее" }));
+      await user.click(screen.getByRole("button", { name: "Пропустить" }));
     await user.click(
       screen.getByRole("button", { name: "Завершить обучение" }),
     );
@@ -147,7 +147,7 @@ describe("обучение организатора", () => {
       <OrganizerTutorial userId={userId} events={[]} onAction={vi.fn()} />,
     );
     await user.click(screen.getByRole("button", { name: "Начать обучение" }));
-    await user.click(screen.getByRole("button", { name: "Далее" }));
+    await user.click(screen.getByRole("button", { name: "Пропустить" }));
     expect(
       screen.getByRole("heading", { name: ORGANIZER_LESSONS[1].title }),
     ).toBeVisible();

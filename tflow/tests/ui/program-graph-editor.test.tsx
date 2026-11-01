@@ -5,6 +5,20 @@ import { ProgramGraphEditor } from "../../app/ui/program-graph-editor";
 import { event } from "../fixtures";
 
 describe("поля непосредственно на графике", () => {
+  it("добавляет онлайн-поток рядом с единственной очной аудиторией", async () => {
+    const user = userEvent.setup(), send = vi.fn().mockResolvedValue({ id: "online" });
+    render(<ProgramGraphEditor event={{ ...event, format: "Гибрид" }}
+      rooms={[{ id: "hall", event_id: event.id, name: "Зал", capacity: 100, is_online: false }]}
+      range={{ starts_at: event.starts_at, ends_at: event.starts_at + 30 * 60000 }}
+      send={send} refresh={vi.fn()} onPreview={vi.fn()} onDone={vi.fn()} onCancel={vi.fn()} />);
+    await user.selectOptions(screen.getByRole("combobox", { name: "Аудитория пункта на графике" }), "@new-online");
+    await user.clear(screen.getByRole("textbox", { name: "Название онлайн-потока" }));
+    await user.type(screen.getByRole("textbox", { name: "Название онлайн-потока" }), "Общий эфир");
+    await user.type(screen.getByRole("textbox", { name: "Название пункта на графике" }), "Трансляция{Enter}");
+    await waitFor(() => expect(send).toHaveBeenCalledWith(`events/${event.id}/activities`, "POST",
+      expect.objectContaining({ room_id: "", new_room_name: "Общий эфир", online_room: true })));
+  });
+
   it("сохраняет введённое при конфликте и даёт повторить отправку", async () => {
     const user = userEvent.setup(),
       send = vi

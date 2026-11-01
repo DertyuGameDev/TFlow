@@ -96,7 +96,7 @@ export function KeyAccessPage({ user, send, invitation, studio = false, invitati
     if (scope?.purpose === "scan" && path === "access-keys/check-in" && method === "POST")
       return send(path, method, { ...(body as object), key: credential });
     if (scope?.purpose === "webinar" && scope.activity && path === `activities/${scope.activity.id}/webinar`)
-      return send("access-keys/webinar", "POST", { key: credential, operation: method === "GET" ? "status" : (body as { operation: string }).operation });
+      return send("access-keys/webinar", "POST", { key: credential, operation: method === "GET" ? "status" : (body as { operation: string }).operation, ...((body as { session?: string } | undefined)?.session ? { session: (body as { session: string }).session } : {}) });
     return Promise.reject(new Error("Действие недоступно по этому ключу"));
   }, [send, scope, credential]);
   return <section className="key-access-page" aria-label="Доступ по ключу">

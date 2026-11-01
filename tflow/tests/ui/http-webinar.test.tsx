@@ -66,3 +66,26 @@ it("prefers the HLS.js player when native HLS also advertises support and cleans
   view.unmount();
   expect(mse.players[0].destroy).toHaveBeenCalled();
 });
+
+it("sends with Enter, keeps Shift+Enter for a newline, and displays the server's email prefix", async () => {
+  const user = userEvent.setup();
+  const live = { ...waiting, active: true, session: "session", ready: false };
+  const fetcher = vi.fn(async (url: string, options?: RequestInit) => ({
+    ok: true,
+    json: async () => url.endsWith("/chat") ? {
+      messages: options?.method === "POST" ? [{ id: "one", author: "anna.petrova", text: JSON.parse(String(options.body)).text, own: true }] : [],
+    } : live,
+  }));
+  vi.stubGlobal("fetch", fetcher);
+  render(<HttpWebinar studio event={event} initialStatus={live} />);
+  const input = screen.getByRole("textbox", { name: "Сообщение в чат" });
+  await user.type(input, "Первая строка");
+  await user.keyboard("{Shift>}{Enter}{/Shift}");
+  expect(input).toHaveValue("Первая строка\n");
+  expect(fetcher.mock.calls.some(([, options]) => options?.method === "POST")).toBe(false);
+  await user.type(input, "Вопрос");
+  await user.keyboard("{Enter}");
+  expect(await screen.findByText("anna.petrova")).toBeVisible();
+  expect(input).toHaveValue("");
+  expect(fetcher.mock.calls.filter(([, options]) => options?.method === "POST")).toHaveLength(1);
+});

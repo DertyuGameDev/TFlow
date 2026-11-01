@@ -4,6 +4,13 @@
 .event-page-heading {
   margin-bottom: 26px;
 }
+.event-page-heading .event-page-category {
+  font-size: 16px;
+  font-weight: 500;
+  line-height: 1.6;
+  color: var(--theme-text, #303641);
+  overflow-wrap: anywhere;
+}
 .event-page .management-tabs {
   grid-template-columns: repeat(auto-fit, minmax(0, 1fr));
 }

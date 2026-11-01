@@ -21,6 +21,7 @@ from .contracts import FlowError
 from .models import BroadcastMessage, HttpBroadcast, CheckIn, ActivityAttendance
 from .services import schedule_write
 from .webinars import event_for_webinar, start_schedule, ensure_started, start_time
+from .webinar_names import chat_author
 
 MAX_CHUNK = 2 * 1024 * 1024
 MAX_QUEUED_CHUNKS = 12
@@ -276,6 +277,6 @@ def chat(request, session):
     elif request.method != "GET":
         raise FlowError("METHOD_NOT_ALLOWED", "Действие недоступно", 405)
     messages = list(broadcast.messages.filter(session=session).select_related("author").order_by("-id")[:100])
-    return JsonResponse({"messages": [{"id": str(message.pk), "author": message.author.name,
+    return JsonResponse({"messages": [{"id": str(message.pk), "author": chat_author(message.author),
                                        "text": message.text, "own": message.author_id == request.user.pk}
                                       for message in reversed(messages)]})

@@ -1,12 +1,21 @@
 import { useEffect, useId, useRef, type ComponentProps } from "react";
 import { ArrowRight, ListOrdered } from "lucide-react";
 import { ActivityProgram } from "./activity-program";
+import { FlowSchedule, useFlowClock } from "./flow-schedule";
+import type { FlowRange } from "../../lib/flow-layout";
 import "../event-flows.css";
 
 type Props = Omit<ComponentProps<typeof ActivityProgram>, "personal"> & {
   onManage?: () => void;
   focusActivityId?: string;
 };
+
+function EmptyEventTimeline({ event }: { event: FlowRange }) {
+  const now = useFlowClock([]);
+  return (
+    <FlowSchedule event={event} activities={[]} now={now} renderActivity={() => null} />
+  );
+}
 
 export function EventFlows({ onManage, focusActivityId, ...program }: Props) {
   const headingId = useId();
@@ -42,13 +51,16 @@ export function EventFlows({ onManage, focusActivityId, ...program }: Props) {
           <ActivityProgram {...program} focusActivityId={focusActivityId} vertical />
         </>
       ) : (
-        <div className="event-flows-empty">
-          <ListOrdered size={24} aria-hidden="true" />
-          <p>
-            Активности пока не добавлены. Здесь появятся флоу с временем,
-            аудиторией и спикером.
-          </p>
-        </div>
+        <>
+          <div className="event-flows-empty">
+            <ListOrdered size={24} aria-hidden="true" />
+            <p>
+              Активности пока не добавлены. Здесь появятся флоу с временем,
+              аудиторией и спикером.
+            </p>
+          </div>
+          {program.event && <EmptyEventTimeline event={program.event} />}
+        </>
       )}
     </section>
   );

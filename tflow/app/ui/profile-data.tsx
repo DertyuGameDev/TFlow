@@ -150,16 +150,24 @@ export function ExpandedProfileForm({
       aria-busy={busy}
     >
       <p className="muted small">
-        Заполняйте в удобном темпе. При записи данные получит организатор, а
-        повторно вводить их не придётся.
+        Обязательна только электронная почта. Остальные поля можно оставить
+        пустыми и заполнить позже. При записи данные получит организатор.
       </p>
       <fieldset className="profile-field-group">
         <legend>Контакты</legend>
         <div className="profile-form-grid">
+          <div className="form-field profile-field-wide">
+            <label htmlFor="profile-email">
+              Электронная почта <span className="profile-required-mark" aria-hidden="true">*</span>
+              <span className="sr-only"> (обязательно)</span>
+            </label>
+            <input id="profile-email" name="email" type="email" value={profile.email} required readOnly autoComplete="email" aria-describedby="profile-email-help" />
+            <small className="profile-email-note" id="profile-email-help">Почта аккаунта используется для входа.</small>
+          </div>
           {(
             [
               ["first_name", "Имя", "given-name"],
-              ["last_name", "Фамилия (необязательно)", "family-name"],
+              ["last_name", "Фамилия", "family-name"],
             ] as const
           ).map(([key, label, autocomplete]) => (
             <div className="form-field" key={key}>
@@ -167,7 +175,6 @@ export function ExpandedProfileForm({
               <input
                 id={`profile-${key}`}
                 name={key}
-                required={key === "first_name"}
                 autoComplete={autocomplete}
                 value={values[key]}
                 onChange={(e) =>
@@ -238,7 +245,6 @@ export function ExpandedProfileForm({
         prefix="profile"
       />
       <InterestPicker value={profile.interests} disabled={busy} />
-      <p className="profile-email-note">Почта аккаунта: {profile.email}</p>
       <FormError error={error} />
       <div className="form-footer">
         <Submit busy={busy} label="Сохранить профиль" />

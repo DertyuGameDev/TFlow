@@ -18,25 +18,66 @@ describe("фильтр активных событий", () => {
       {...event,id:"ticket",title:"Просто билет",enrolled:1,starts_at:now-7200000,ends_at:now-1}];
     vi.stubGlobal("fetch",vi.fn(async()=>new Response(JSON.stringify({events,tickets:[],schedule:[],waitlist:[],communities:[],notifications:[],unread_notification_count:0,profile}),{status:200})));
     const user=userEvent.setup();
-    const {container}=render(<TFlow user={{userId:profile.id,role:"participant",displayName:profile.name,email:profile.email,fullName:profile.name}}/>);
+    const view=render(<TFlow user={{userId:profile.id,role:"participant",displayName:profile.name,email:profile.email,fullName:profile.name}}/>);
+    const {container}=view;
     await screen.findByText("Будущее");
-    expect(screen.queryByRole("button",{name:"Где был"})).not.toBeInTheDocument();
-    const cards=within(container.querySelector<HTMLElement>(".discovery-grid")!).getAllByRole("article");
-    const visited=cards.find(card=>within(card).queryByRole("heading",{name:"Подтверждено"}))!;
-    expect(visited).toHaveClass("is-past","is-visited");
-    expect(within(visited).getByText("Вы посетили")).toHaveClass("event-visited-tag");
-    const ticket=cards.find(card=>within(card).queryByRole("heading",{name:"Просто билет"}))!;
-    expect(ticket).not.toHaveClass("is-visited");
-    expect(within(ticket).getByText("Вы были записаны")).toBeVisible();
-    const current=cards.find(card=>within(card).queryByRole("heading",{name:"Участник уже вошёл"}))!;
-    expect(current).not.toHaveClass("is-visited");
-    expect(within(current).getByText("Вы вошли")).toBeVisible();
-    await user.click(screen.getByRole("button",{name:"Завершённые"}));
-    expect(screen.getByText("Вы посетили")).toBeVisible();
-    expect(screen.queryByText("Будущее")).not.toBeInTheDocument();
-    await user.click(screen.getByRole("button",{name:"Прямо сейчас"}));
+    expect(within(screen.getByRole("group", { name: "Состояние мероприятий" })).getAllByRole("button").map(button => button.textContent)).toEqual(["Все", "Активные", "Завершённые"]);
+    expect(screen.queryByText("Где был")).not.toBeInTheDocument();
+    await user.click(screen.getByRole("button", { name: "Фильтры событий" }));
+    await user.click(screen.getByRole("checkbox", { name: "Идут сейчас" }));
+    await user.click(screen.getByRole("button", { name: "Показать события" }));
     expect(screen.getByText(event.title)).toBeVisible();
-    expect(screen.queryByText("Вы посетили")).not.toBeInTheDocument();
+    expect(screen.queryByText("Будущее")).not.toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "Фильтры событий" })).toHaveTextContent("1");
+    await user.click(screen.getByRole("button", { name: "Фильтры событий" }));
+    await user.click(screen.getByRole("checkbox", { name: "Идут сейчас" }));
+    await user.click(screen.getByRole("checkbox", { name: "С подтверждённым посещением" }));
+    await user.click(screen.getByRole("button", { name: "Показать события" }));
+    expect(screen.getByText("Подтверждено")).toBeVisible();
+    expect(screen.queryByText("Просто билет")).not.toBeInTheDocument();
+    const visited = screen.getByRole("button", { name: "Открыть Подтверждено" }).closest("article")!;
+    expect(within(visited).getByText("Посещение подтверждено")).toHaveClass("attendance-confirmed-tag");
+    expect(visited.querySelector(".discovery-cover .attendance-confirmed-tag")).not.toBeNull();
+    view.unmount();
+    render(<TFlow user={null}/>);
+    await screen.findByText("Будущее");
+    await user.click(screen.getByRole("button", { name: "Фильтры событий" }));
+    await user.click(screen.getByRole("checkbox", { name: "С подтверждённым посещением" }));
+    await user.click(screen.getByRole("button", { name: "Показать события" }));
+    expect(screen.getByRole("heading",{name:"Ваша история посещений"})).toBeVisible();
+    expect(screen.queryByText("Подтверждено")).not.toBeInTheDocument();
+  });
+  it("сочетает посещение с завершёнными и позволяет снять отдельный фильтр", async () => {
+    const now = event.starts_at;
+    vi.spyOn(Date, "now").mockReturnValue(now);
+    vi.spyOn(window, "scrollTo").mockImplementation(() => {});
+    history.replaceState({}, "", "/#events");
+    const events = [
+      { ...event, id: "visited-past", title: "Посещённая встреча", checked_in: 1, ends_at: now - 1 },
+      { ...event, id: "ticket-past", title: "Только регистрация", enrolled: 1, ends_at: now - 1 },
+      { ...event, id: "visited-now", title: "Сейчас на встрече", checked_in: 1, enrolled: 1 },
+    ];
+    vi.stubGlobal("fetch", vi.fn(async () => new Response(JSON.stringify({
+      events, tickets: [], schedule: [], waitlist: [], communities: [], notifications: [], unread_notification_count: 0, profile,
+    }))));
+    const user = userEvent.setup();
+    render(<TFlow user={{userId:profile.id,role:"participant",displayName:profile.name,email:profile.email,fullName:profile.name}} />);
+    await screen.findByText("Посещённая встреча");
+    const registered = screen.getByRole("button", { name: "Открыть Только регистрация" }).closest("article")!;
+    expect(registered.querySelector(".attendance-confirmed-tag")).toBeNull();
+    const current = screen.getByRole("button", { name: "Открыть Сейчас на встрече" }).closest("article")!;
+    expect(current.querySelector(".attendance-confirmed-tag")).toBeNull();
+    await user.click(screen.getByRole("button", { name: "Завершённые" }));
+    await user.click(screen.getByRole("button", { name: "Фильтры событий" }));
+    await user.click(screen.getByRole("checkbox", { name: "С подтверждённым посещением" }));
+    await user.click(screen.getByRole("button", { name: "Показать события" }));
+    expect(screen.getByText("Посещённая встреча")).toBeVisible();
+    expect(screen.queryByText("Только регистрация")).not.toBeInTheDocument();
+    expect(screen.queryByText("Сейчас на встрече")).not.toBeInTheDocument();
+    await user.click(screen.getByRole("button", { name: "Убрать фильтр подтверждённых посещений" }));
+    expect(screen.getByText("Только регистрация")).toBeVisible();
+    expect(screen.queryByText("Сейчас на встрече")).not.toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "Завершённые" })).toHaveAttribute("aria-pressed", "true");
   });
   it("во «Всех» ставит завершённые в конец, сохраняя порядок внутри групп и доступ к карточке", async () => {
     const now = event.starts_at;

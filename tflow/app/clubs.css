@@ -1,4 +1,4 @@
-.clubs-page{margin-bottom:40px}.clubs-filters{display:grid;grid-template-columns:minmax(0,1fr) minmax(220px,320px);align-items:end;gap:18px;margin:25px 0 20px}.clubs-search{display:flex;align-items:center;gap:10px;border:1px solid #dfe3e9;border-radius:12px;padding:0 14px;min-height:48px;background:#fff;color:#7c8795}.clubs-search input{border:0;background:none;outline:none;min-width:0;width:100%;font:inherit;font-size:15px;padding:12px 0}.clubs-filters .category-select{display:grid;gap:7px;font-size:14px;color:#626d7d}.clubs-filters select{border:1px solid #dfe3e9;border-radius:12px;min-height:48px;padding:10px;font:inherit;background:#fff;color:#303640;width:100%}.clubs-tabs{display:flex;gap:8px;flex-wrap:wrap;margin-bottom:24px}.clubs-tabs button{display:flex;align-items:center;gap:6px;background:#f4f5f7;border:1px solid transparent;border-radius:11px;padding:10px 14px;min-height:44px;color:#667284;font:inherit;font-size:14px}.clubs-tabs button[aria-pressed=true]{background:#fff5c8;border-color:#e5ce6a;color:#5c4e1b}.clubs-grid{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:20px}.clubs-card{border:1px solid #e4e7ec;border-radius:20px;padding:24px;display:flex;flex-direction:column;min-width:0}.clubs-card-heading{display:flex;gap:12px;align-items:center;margin-bottom:18px}.clubs-symbol{display:grid;place-items:center;flex-shrink:0;width:48px;height:48px;border-radius:14px;background:#fff2b4;color:#7c6922}.clubs-topic{font-size:13px;line-height:1.5;color:#7c6c33;overflow-wrap:anywhere}.clubs-card h2{font-size:22px;line-height:1.3;margin:0 0 12px}.clubs-card h2 button{padding:0;border:0;background:none;text-align:left;font:inherit;color:inherit;overflow-wrap:anywhere}.clubs-card>p{font-size:15px;line-height:1.7;color:#657183;margin:0 0 20px;white-space:pre-line;overflow-wrap:anywhere;display:-webkit-box;-webkit-line-clamp:3;-webkit-box-orient:vertical;overflow:hidden}.clubs-counts{font-size:13px;line-height:1.6;color:#788494}.clubs-match{display:flex;align-items:center;gap:5px;font-size:12px;color:#548567;margin-top:12px}.clubs-card-actions{display:flex;align-items:stretch;flex-wrap:wrap;gap:10px;margin-top:auto;padding-top:22px}.clubs-card-actions .button{font-size:14px;min-height:44px;white-space:normal}.clubs-empty{border:1px dashed #e1e5eb;border-radius:18px;padding:40px 20px;text-align:center;color:#8793a2}.clubs-empty h2,.clubs-empty h1{color:#303640;font-size:23px;margin:15px 0 10px;line-height:1.4}.clubs-empty p{font-size:15px;line-height:1.7;max-width:480px;margin:0 auto 15px}.clubs-empty .button{margin:15px auto 0}.clubs-tip{font-size:14px;line-height:1.7;color:#748091;margin-bottom:20px}.clubs-tip a{color:#1769e8;text-decoration:underline}.clubs-hero{padding:32px;background:linear-gradient(120deg,#fff9dc,#fffdf5);border:1px solid #eae0b4;border-radius:22px;margin-bottom:32px}.clubs-hero>.clubs-symbol{margin-bottom:18px}.clubs-hero h1{font-size:36px;line-height:1.2;margin:12px 0 18px;overflow-wrap:anywhere}.clubs-hero>p{font-size:16px;line-height:1.8;max-width:800px;white-space:pre-line;overflow-wrap:anywhere;color:#626d7d}.clubs-hero-actions{display:flex;gap:12px;flex-wrap:wrap;margin-top:24px}.clubs-events-heading{display:flex;align-items:center;justify-content:space-between;gap:16px;flex-wrap:wrap;margin-bottom:22px}.clubs-events-heading h2{font-size:23px;margin:0}.clubs-events-heading label{display:flex;align-items:center;gap:8px;min-height:44px;font-size:13px;color:#748091}.clubs-event-list{display:grid;gap:12px}.clubs-event{display:flex;align-items:center;gap:16px;width:100%;text-align:left;background:#fff;border:1px solid #e4e7ec;border-radius:15px;padding:22px;color:#738298}.clubs-event>span{flex:1;min-width:0}.clubs-event strong{display:block;font-size:18px;line-height:1.5;color:#303640;overflow-wrap:anywhere}.clubs-event small{display:block;font-size:14px;line-height:1.7;margin-top:6px}.event-club-link{display:inline-flex;align-items:center;gap:8px;min-height:44px;color:#776323;background:#fff8df;border:1px solid #eddfa5;border-radius:10px;padding:10px 12px;margin:20px 0 0;font-size:14px}.event-club-picker{display:grid;gap:7px}.event-club-picker>small{font-size:12px;line-height:1.6;color:#818b98;font-weight:400}
+.clubs-page{margin-bottom:40px}.clubs-filters{display:grid;grid-template-columns:minmax(0,1fr) minmax(220px,320px);align-items:end;gap:18px;margin:25px 0 20px}.clubs-search{display:flex;align-items:center;gap:10px;border:1px solid #dfe3e9;border-radius:12px;padding:0 14px;min-height:48px;background:#fff;color:#7c8795}.clubs-search input{border:0;background:none;outline:none;min-width:0;width:100%;font:inherit;font-size:15px;padding:12px 0}.clubs-filters .category-select{display:grid;gap:7px;font-size:14px;color:#626d7d}.clubs-filters select{border:1px solid #dfe3e9;border-radius:12px;min-height:48px;padding:10px;font:inherit;background:#fff;color:#303640;width:100%}.clubs-tabs{display:flex;gap:8px;flex-wrap:wrap;margin-bottom:24px}.clubs-tabs button{display:flex;align-items:center;gap:6px;background:#f4f5f7;border:1px solid transparent;border-radius:11px;padding:10px 14px;min-height:44px;color:#667284;font:inherit;font-size:14px}.clubs-tabs button[aria-pressed=true]{background:#fff5c8;border-color:#e5ce6a;color:#5c4e1b}.clubs-grid{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:20px}.clubs-card{border:1px solid #e4e7ec;border-radius:20px;padding:24px;display:flex;flex-direction:column;min-width:0}.clubs-card-heading{display:flex;gap:12px;align-items:center;margin-bottom:18px}.clubs-symbol{display:grid;place-items:center;flex-shrink:0;width:48px;height:48px;border-radius:14px;background:#fff2b4;color:#7c6922}.clubs-topic{font-size:13px;line-height:1.5;color:#7c6c33;overflow-wrap:anywhere}.clubs-card h2{font-size:22px;line-height:1.3;margin:0 0 12px}.clubs-card h2 button{padding:0;border:0;background:none;text-align:left;font:inherit;color:inherit;overflow-wrap:anywhere}.clubs-card>p{font-size:15px;line-height:1.7;color:#657183;margin:0 0 20px;white-space:pre-line;overflow-wrap:anywhere;display:-webkit-box;-webkit-line-clamp:3;-webkit-box-orient:vertical;overflow:hidden}.clubs-counts{font-size:13px;line-height:1.6;color:#788494}.clubs-match{display:flex;align-items:center;gap:5px;font-size:12px;color:#548567;margin-top:12px}.clubs-card-actions{display:flex;align-items:stretch;flex-wrap:wrap;gap:10px;margin-top:auto;padding-top:22px}.clubs-card-actions .button{font-size:14px;min-height:44px;white-space:normal}.clubs-empty{border:1px dashed #e1e5eb;border-radius:18px;padding:40px 20px;text-align:center;color:#8793a2}.clubs-empty h2,.clubs-empty h1{color:#303640;font-size:23px;margin:15px 0 10px;line-height:1.4}.clubs-empty p{font-size:15px;line-height:1.7;max-width:480px;margin:0 auto 15px}.clubs-empty .button{margin:15px auto 0}.clubs-tip{font-size:14px;line-height:1.7;color:#748091;margin-bottom:20px}.clubs-tip a{color:#1769e8;text-decoration:underline}.clubs-hero{padding:32px;background:linear-gradient(120deg,#fff9dc,#fffdf5);border:1px solid #eae0b4;border-radius:22px;margin-bottom:32px}.clubs-hero>.clubs-symbol{margin-bottom:18px}.clubs-hero h1{font-size:36px;line-height:1.2;margin:12px 0 18px;overflow-wrap:anywhere}.clubs-hero>p{font-size:16px;line-height:1.8;max-width:800px;white-space:pre-line;overflow-wrap:anywhere;color:#626d7d}.clubs-hero-actions{display:flex;gap:12px;flex-wrap:wrap;margin-top:24px}.clubs-events-heading{display:flex;align-items:center;justify-content:space-between;gap:16px;flex-wrap:wrap;margin-bottom:22px}.clubs-events-heading h2{font-size:23px;margin:0}.clubs-event-list{display:grid;gap:12px}.clubs-event{display:flex;align-items:center;gap:16px;width:100%;text-align:left;background:#fff;border:1px solid #e4e7ec;border-radius:15px;padding:22px;color:#738298}.clubs-event>span{flex:1;min-width:0}.clubs-event strong{display:block;font-size:18px;line-height:1.5;color:#303640;overflow-wrap:anywhere}.clubs-event small{display:block;font-size:14px;line-height:1.7;margin-top:6px}.event-club-link{display:inline-flex;align-items:center;gap:8px;min-height:44px;color:#776323;background:#fff8df;border:1px solid #eddfa5;border-radius:10px;padding:10px 12px;margin:20px 0 0;font-size:14px}.event-club-picker{display:grid;gap:7px}.event-club-picker>small{font-size:12px;line-height:1.6;color:#818b98;font-weight:400}
 @media(max-width:760px){.clubs-filters{grid-template-columns:1fr;gap:14px}.clubs-grid{grid-template-columns:1fr;gap:16px}.clubs-card{padding:20px}.clubs-card h2{font-size:21px}.clubs-card-actions{flex-direction:column}.clubs-card-actions .button{justify-content:space-between}.clubs-hero{padding:24px 20px}.clubs-hero h1{font-size:29px}.clubs-hero-actions{flex-direction:column}.clubs-event{padding:18px 14px;gap:12px}.clubs-event strong{font-size:17px}.clubs-event small{font-size:13px}.clubs-page .flow-heading{flex-wrap:wrap}}
 .clubs-search:focus-within{border-color:#a78a20;box-shadow:0 0 0 3px #ffdd2d24}
 .clubs-search input:focus-visible{outline:none}
@@ -15,8 +15,9 @@
 .clubs-card h2 button{display:flex;align-items:center;gap:10px;justify-content:space-between;width:100%;min-height:32px;text-align:left}
 .clubs-card h2 button>span{display:-webkit-box;-webkit-box-orient:vertical;-webkit-line-clamp:2;overflow:hidden;overflow-wrap:anywhere}
 .clubs-card h2 button>svg{flex-shrink:0;color:var(--flow-muted)}
-.clubs-card-description{font-size:14px;line-height:1.6;color:var(--flow-muted);margin:9px 0;overflow-wrap:anywhere;display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical;overflow:hidden}
-.clubs-card .clubs-counts{display:block;font-size:12px}
+.clubs-card .clubs-topic{font-size:15px}
+.clubs-card-description{font-size:16px;line-height:1.6;color:var(--flow-muted);margin:9px 0;overflow-wrap:anywhere;display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical;overflow:hidden}
+.clubs-card .clubs-counts{display:block;font-size:15px}
 .clubs-member{display:flex;align-items:center;gap:5px;margin-top:7px;font-size:12px;color:var(--theme-green-text,#548567)}
 .clubs-card .clubs-match{margin-top:7px;color:var(--theme-green-text,#548567)}
 .club-photo-heading{display:flex;flex-direction:column;align-items:flex-start;gap:12px;margin-bottom:20px}
@@ -25,3 +26,50 @@
 .club-avatar-edit{position:relative}
 .club-avatar-camera{position:absolute;right:0;bottom:0;display:grid;place-items:center;width:31px;height:31px;border:3px solid var(--theme-warm,#fff9dc);border-radius:50%;background:#ffdd2d;color:#272514}
 @media(max-width:760px){.profile-avatar.club-avatar{width:80px;height:80px;font-size:31px}.profile-avatar.club-avatar-large{width:96px;height:96px;font-size:36px}}
+.clubs-event-periods {
+  display: inline-flex;
+  gap: 4px;
+  padding: 4px;
+  border: 1px solid var(--flow-border, #dfe3e9);
+  border-radius: 12px;
+  background: var(--theme-raised, #f4f5f7);
+}
+.clubs-event-periods button {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+  min-height: 44px;
+  padding: 8px 12px;
+  border: 1px solid transparent;
+  border-radius: 8px;
+  background: transparent;
+  color: var(--theme-text, #303640);
+  font: inherit;
+  font-size: 14px;
+  font-weight: 600;
+  cursor: pointer;
+}
+.clubs-event-periods button:hover {
+  border-color: var(--flow-border, #dfe3e9);
+}
+.clubs-event-periods button[aria-pressed="true"] {
+  background: #ffdd2d;
+  color: #272514;
+}
+.clubs-event-periods button:focus-visible {
+  outline: 2px solid var(--theme-text, #303640);
+  outline-offset: -2px;
+}
+.clubs-event-periods button span {
+  min-width: 20px;
+  padding: 2px 5px;
+  border-radius: 5px;
+  background: color-mix(in srgb, currentColor 10%, transparent);
+  font-size: 12px;
+  font-variant-numeric: tabular-nums;
+}
+@media (max-width: 760px) {
+  .clubs-event-periods { width: 100%; }
+  .clubs-event-periods button { flex: 1; padding-inline: 6px; }
+}

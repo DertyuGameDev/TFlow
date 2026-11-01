@@ -64,6 +64,56 @@ async function enter() {
 beforeEach(() => { media.rooms.length = 0; });
 afterEach(() => { vi.useRealTimers(); });
 
+describe("полноэкранный режим вебинара", () => {
+  afterEach(() => {
+    Reflect.deleteProperty(document, "fullscreenElement");
+    Reflect.deleteProperty(document, "exitFullscreen");
+  });
+
+  it("переключает вход и выход одной кнопкой, учитывает Esc и сохраняет соединение", async () => {
+    const { user, room, send } = await enter();
+    const stage = screen.getByRole("button", { name: "На весь экран" }).parentElement!;
+    let current: Element | null = null;
+    Object.defineProperty(document, "fullscreenElement", { configurable: true, get: () => current });
+    const changed = () => document.dispatchEvent(new Event("fullscreenchange"));
+    const request = vi.fn(async () => { current = stage; changed(); });
+    const exit = vi.fn(async () => { current = null; changed(); });
+    Object.defineProperty(stage, "requestFullscreen", { configurable: true, value: request });
+    Object.defineProperty(document, "exitFullscreen", { configurable: true, value: exit });
+    const callsBefore = send.mock.calls.length;
+    await user.click(screen.getByRole("button", { name: "На весь экран" }));
+    expect(screen.getByRole("button", { name: "Выйти из полноэкранного режима" })).toHaveAttribute("aria-pressed", "true");
+    await user.click(screen.getByRole("button", { name: "Выйти из полноэкранного режима" }));
+    expect(exit).toHaveBeenCalledOnce();
+    expect(screen.getByRole("button", { name: "На весь экран" })).toHaveAttribute("aria-pressed", "false");
+    await user.click(screen.getByRole("button", { name: "На весь экран" }));
+    // Esc and the browser's own fullscreen control emit this same event.
+    act(() => { current = null; changed(); });
+    expect(screen.getByRole("button", { name: "На весь экран" })).toHaveAttribute("aria-pressed", "false");
+    expect(request).toHaveBeenCalledTimes(2);
+    expect(room.disconnect).not.toHaveBeenCalled();
+    expect(room.connect).toHaveBeenCalledOnce();
+    expect(send).toHaveBeenCalledTimes(callsBefore);
+  });
+
+  it("обрабатывает отказ браузера и отсутствие API без отключения эфира", async () => {
+    const { user, room } = await enter();
+    const button = screen.getByRole("button", { name: "На весь экран" });
+    const stage = button.parentElement!;
+    Object.defineProperty(stage, "requestFullscreen", {
+      configurable: true, value: vi.fn().mockRejectedValue(new DOMException("Blocked", "NotAllowedError")),
+    });
+    await user.click(button);
+    expect(await screen.findByRole("alert")).toHaveTextContent("Полноэкранный режим недоступен");
+    expect(button).toHaveAttribute("aria-pressed", "false");
+    Object.defineProperty(stage, "requestFullscreen", { configurable: true, value: undefined });
+    await user.click(button);
+    expect(screen.getByRole("alert")).toHaveTextContent("Откройте вебинар в обычной вкладке");
+    expect(room.disconnect).not.toHaveBeenCalled();
+    expect(room.connect).toHaveBeenCalledOnce();
+  });
+});
+
 describe("комната вебинара", () => {
   it("подтверждает посещение только после соединения, а ошибка учёта не отключает зрителя", async () => {
     const user=userEvent.setup(), pending=deferred<void>();

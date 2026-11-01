@@ -511,7 +511,7 @@ def dispatch_api(request, path):
             key = resolve_key(user, secret, purpose="webinar")
             operation = body.get("operation")
             result = status(user, key.event_id, activity_id=key.activity_id, access_key=secret) if operation == "status" else operate(
-                user, key.event_id, operation, activity_id=key.activity_id, access_key=secret,
+                user, key.event_id, operation, session=body.get("session"), activity_id=key.activity_id, access_key=secret,
             )
             return JsonResponse(result)
         raise FlowError("NOT_FOUND", "Действие с ключом не найдено", 404)

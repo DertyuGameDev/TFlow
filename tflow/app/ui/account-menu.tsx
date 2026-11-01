@@ -55,7 +55,7 @@ export function AccountMenu({ profile }: { profile: Pick<Profile, "name" | "avat
     </button>
     {open && <div id={id} role="menu" aria-label="Аккаунт" className="account-dropdown" ref={menu}
       onKeyDown={keyboard}>
-      <p className="account-dropdown-name">{profile.name}</p>
+      {profile.name.trim() && <p className="account-dropdown-name">{profile.name}</p>}
       <a role="menuitem" href="#profile" onClick={() => setOpen(false)}><UserRound size={18} />Профиль</a>
       <a role="menuitem" href="#access" onClick={() => setOpen(false)}><KeyRound size={18} />Доступ по ключу</a>
       <form method="post" action="/logout/" role="none">

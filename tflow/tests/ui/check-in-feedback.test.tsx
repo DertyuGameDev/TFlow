@@ -59,7 +59,7 @@ describe("подтверждение входа участнику после с
   it("не показывает участническое подтверждение в профиле организатора", async () => {
     mount(true, { ...participant, userId: event.owner_id, role: "organizer" });
     await screen.findByRole("heading", { name: "Ваш профиль" });
-    await waitFor(() => expect(screen.getByText("Аккаунт организатора · роль изменить нельзя")).toBeVisible());
+    await waitFor(() => expect(screen.getByText("Аккаунт организатора")).toBeVisible());
     expect(screen.queryByText("Вы вошли в мероприятие")).not.toBeInTheDocument();
   });
 

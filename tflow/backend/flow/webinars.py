@@ -10,6 +10,7 @@ from django.conf import settings
 from django.utils import timezone
 from .contracts import FlowError
 from .models import Activity, CheckIn, Event, Webinar
+from .webinar_names import chat_author
 
 
 class NoMediaRedirects(HTTPRedirectHandler):
@@ -308,7 +309,7 @@ def operate(user, event_id, operation, session=None, *, activity_id=None, access
             record_use(resolve_key(user, access_key, purpose="webinar", event_id=event.pk, activity_id=activity_id), user)
         return {
             "url": settings.LIVEKIT_URL.replace("https://", "wss://", 1).replace("http://", "ws://", 1),
-            "token": signed_token(str(user.pk), user.name, grants),
+            "token": signed_token(str(user.pk), chat_author(user), grants),
             "host": owner,
             "session": str(webinar.room),
         }

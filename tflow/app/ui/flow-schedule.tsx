@@ -8,13 +8,26 @@ import {
   type CSSProperties,
   type ReactNode,
 } from "react";
-import { ArrowLeft, Check, Clock3, Minus, Pencil, Plus, X } from "lucide-react";
-import { flowMarkers } from "../../lib/flow-markers";
 import {
-  FLOW_DAY_HEADING,
-  flowDuration,
-  layoutFlow,
-} from "../../lib/flow-layout";
+  ArrowLeft,
+  ArrowRight,
+  Check,
+  ChevronRight,
+  Clock3,
+  Minus,
+  Pencil,
+  Plus,
+  X,
+} from "lucide-react";
+import { flowMarkers } from "../../lib/flow-markers";
+import { readableFlow } from "../../lib/readable-flow";
+import {
+  FLOW_PAGE_SCROLL_QUERY,
+  flowOffsetAtTime,
+  flowTimeAtOffset,
+} from "../../lib/flow-navigation";
+import { flowDuration, layoutFlow, type FlowRange } from "../../lib/flow-layout";
+import { PROGRAM_COLORS } from "../../lib/program-timeline";
 import type { Activity } from "../../lib/types";
 import { dateKey, dateLabel, timeLabel } from "../../lib/time";
 import "../flow-schedule.css";
@@ -32,9 +45,10 @@ export function useFlowClock(activities: Activity[]) {
   );
   useEffect(() => {
     const update = () => setNow(Date.now());
+    const nextMinute = (Math.floor(now / 60_000) + 1) * 60_000;
     const timer = window.setTimeout(
       update,
-      Math.max(20, Math.min(60_000, next - Date.now() + 20)),
+      Math.max(20, Math.min(next, nextMinute) - Date.now() + 20),
     );
     window.addEventListener("focus", update);
     document.addEventListener("visibilitychange", update);
@@ -47,17 +61,17 @@ export function useFlowClock(activities: Activity[]) {
   return now;
 }
 
-const COLORS = ["#6ab49d", "#79a9e5", "#ad91d0", "#d7a36b", "#7dabb8"];
-function colorFor(room: string) {
+function colorFor(activityId: string) {
   let hash = 0;
-  for (const char of room) hash = (hash * 31 + char.charCodeAt(0)) >>> 0;
-  return COLORS[hash % COLORS.length];
+  for (const char of activityId) hash = (hash * 31 + char.charCodeAt(0)) >>> 0;
+  return PROGRAM_COLORS[hash % PROGRAM_COLORS.length];
 }
-const SCALES = [3, 5, 8, 12, 20, 32];
+const SCALES = [3, 5, 8, 12, 20, 32, 64];
 
 export function FlowSchedule({
   activities,
   initialActivityId,
+  event,
   now,
   renderActivity,
   selectedId,
@@ -66,6 +80,7 @@ export function FlowSchedule({
 }: {
   activities: Activity[];
   initialActivityId?: string;
+  event?: FlowRange;
   now: number;
   renderActivity: (activity: Activity) => ReactNode;
   selectedId?: string;
@@ -77,22 +92,40 @@ export function FlowSchedule({
   useEffect(() => { if (initialActivityId) setOpened(initialActivityId); }, [initialActivityId]);
   const [viewportWidth, setViewportWidth] = useState(0),
     [scrollX, setScrollX] = useState(0),
-    [detailsHeight, setDetailsHeight] = useState(0);
+    [detailsHeight, setDetailsHeight] = useState(0),
+    [headerBottom, setHeaderBottom] = useState(68),
+    [toolsHeight, setToolsHeight] = useState(60),
+    [panelHeight, setPanelHeight] = useState(480);
   const id = useId(),
+    tools = useRef<HTMLDivElement>(null),
     viewport = useRef<HTMLDivElement>(null),
     details = useRef<HTMLDivElement>(null),
-    zoomAnchor = useRef<number | null>(null);
-  const layout = useMemo(
-    () => layoutFlow(activities, SCALES[zoom]),
-    [activities, zoom],
-  );
-  const markers = useMemo(() => flowMarkers(layout.placements), [layout]);
+    currentTrigger = useRef<HTMLButtonElement | null>(null),
+    focusCurrentDetails = useRef(false),
+    zoomAnchor = useRef<{
+      time: number;
+      page: boolean;
+      offset: number;
+      pageScroll: number;
+    } | null>(null);
+  const { layout, markers } = useMemo(() => {
+    const base = layoutFlow(activities, SCALES[zoom], event);
+    return readableFlow(base, flowMarkers(base.placements));
+  }, [activities, zoom, event?.starts_at, event?.ends_at]);
   const markerByActivity = new Map(
     markers.flatMap((marker) =>
       marker.items.map((item) => [item.activity.id, marker] as const),
     ),
   );
   const openId = selectedId || opened;
+  const currentActivities = activities
+    .filter((activity) => activity.starts_at <= now && now < activity.ends_at)
+    .sort(
+      (a, b) => a.ends_at - b.ends_at || a.title.localeCompare(b.title, "ru"),
+    );
+  const nextActivity = activities
+    .filter((activity) => activity.starts_at > now)
+    .sort((a, b) => a.starts_at - b.starts_at)[0];
   const openItem = layout.placements.find(
     (item) => item.activity.id === openId,
   );
@@ -100,13 +133,15 @@ export function FlowSchedule({
   const detailsAnchor =
     openItem ?? (openMarker && { ...openMarker.items[0], top: openMarker.top });
   const nowDay = layout.days.find((day) => day.start <= now && now < day.end);
-  const nowY = nowDay
-    ? nowDay.top +
-      FLOW_DAY_HEADING +
-      ((now - nowDay.start) / 60000) * SCALES[zoom]
-    : null;
+  const nowY = nowDay ? flowOffsetAtTime(layout.days, now, SCALES[zoom]) : null;
   const minimumWidth =
     layout.maximumLanes > 2 ? 64 + layout.maximumLanes * 160 : undefined;
+  const maximumScroll = Math.max(0, (minimumWidth ?? 0) - viewportWidth);
+  const horizontalOverflow = viewportWidth > 0 && maximumScroll > 1;
+  const canScrollRight = horizontalOverflow && scrollX < maximumScroll - 1;
+  const eventRange = event && event.ends_at > event.starts_at ? event : undefined;
+  const rangeCrossesDays =
+    eventRange && dateKey(eventRange.starts_at) !== dateKey(eventRange.ends_at);
   const height = Math.max(
     layout.height,
     detailsAnchor ? detailsAnchor.top + detailsHeight + 8 : 0,
@@ -124,21 +159,51 @@ export function FlowSchedule({
   useEffect(() => {
     const element = viewport.current;
     if (!element) return;
-    const measure = () => setViewportWidth(element.clientWidth);
+    const header = document.querySelector<HTMLElement>(".flow-topbar");
+    const navigation =
+      document.querySelector<HTMLElement>(".mobile-bottom-nav");
+    const measure = () => {
+      setViewportWidth(element.clientWidth);
+      const top = header?.getBoundingClientRect().bottom ?? 68;
+      setToolsHeight(tools.current?.offsetHeight ?? 60);
+      setHeaderBottom(top);
+      setPanelHeight(
+        Math.max(
+          140,
+          (window.visualViewport?.height ?? window.innerHeight) -
+            top -
+            (tools.current?.offsetHeight ?? 60) -
+            (navigation?.offsetHeight ?? 0) -
+            24,
+        ),
+      );
+    };
     measure();
-    if (typeof ResizeObserver === "undefined") {
-      window.addEventListener("resize", measure);
-      return () => window.removeEventListener("resize", measure);
-    }
-    const observer = new ResizeObserver(measure);
-    observer.observe(element);
-    return () => observer.disconnect();
-  }, []);
+    const observer =
+      typeof ResizeObserver !== "undefined"
+        ? new ResizeObserver(measure)
+        : null;
+    observer?.observe(element);
+    if (header) observer?.observe(header);
+    if (navigation) observer?.observe(navigation);
+    if (tools.current) observer?.observe(tools.current);
+    window.addEventListener("resize", measure);
+    window.visualViewport?.addEventListener("resize", measure);
+    return () => {
+      observer?.disconnect();
+      window.removeEventListener("resize", measure);
+      window.visualViewport?.removeEventListener("resize", measure);
+    };
+  }, [layout.days.length > 0]);
   useEffect(() => {
-    if (openId)
-      viewport.current
-        ?.querySelector<HTMLElement>(".flow-details")
-        ?.scrollIntoView({ block: "nearest", inline: "nearest" });
+    if (openId) {
+      const panel = details.current;
+      panel?.scrollIntoView({ block: "nearest", inline: "nearest" });
+      if (focusCurrentDetails.current) {
+        panel?.focus({ preventScroll: true });
+        focusCurrentDetails.current = false;
+      }
+    }
   }, [openId]);
   useEffect(() => {
     if (openMarker)
@@ -152,16 +217,22 @@ export function FlowSchedule({
       const target = event.target as Element;
       if (
         !target.closest?.(
-          ".flow-event.is-open, .flow-short-marker, .flow-details",
+          ".flow-event.is-open, .flow-short-marker, .flow-details, .flow-current",
         )
       )
         setOpened("");
     }
-    document.addEventListener("pointerdown", outside);
-    return () => document.removeEventListener("pointerdown", outside);
+    // A swipe must not dismiss details and change the chart height mid-scroll.
+    document.addEventListener("click", outside, true);
+    return () => document.removeEventListener("click", outside, true);
   }, [opened, selectedId]);
   function close() {
     setOpened("");
+    if (currentTrigger.current?.dataset.currentId === openId) {
+      currentTrigger.current.focus({ preventScroll: true });
+      currentTrigger.current = null;
+      return;
+    }
     const buttons =
       viewport.current?.querySelectorAll<HTMLButtonElement>(".flow-select");
     const focusId = markerByActivity.get(openId)?.id ?? openId;
@@ -172,54 +243,121 @@ export function FlowSchedule({
   function changeZoom(next: number) {
     const scroller = viewport.current;
     if (scroller) {
-      const day =
-        layout.days.find(
-          (day) =>
-            day.top + FLOW_DAY_HEADING + day.height >= scroller.scrollTop,
-        ) ?? layout.days.at(-1);
-      if (day)
-        zoomAnchor.current =
-          day.start +
-          ((scroller.scrollTop - day.top - FLOW_DAY_HEADING) / SCALES[zoom]) *
-            60000;
+      const page = window.matchMedia?.(FLOW_PAGE_SCROLL_QUERY).matches ?? false;
+      const offset = page
+        ? Math.max(
+            0,
+            (tools.current?.getBoundingClientRect().bottom ?? 0) +
+              8 -
+              scroller.getBoundingClientRect().top,
+          )
+        : scroller.scrollTop;
+      const time = flowTimeAtOffset(layout.days, offset, SCALES[zoom]);
+      if (time !== null)
+        zoomAnchor.current = { time, page, offset, pageScroll: window.scrollY };
     }
     setZoom(next);
   }
   useLayoutEffect(() => {
     if (zoomAnchor.current === null || !viewport.current) return;
-    const time = zoomAnchor.current;
-    const day =
-      layout.days.find((day) => day.end >= time) ?? layout.days.at(-1);
-    if (day)
-      viewport.current.scrollTop =
-        day.top +
-        FLOW_DAY_HEADING +
-        ((time - day.start) / 60000) * SCALES[zoom];
+    const anchor = zoomAnchor.current;
+    const offset = Math.max(
+      0,
+      flowOffsetAtTime(layout.days, anchor.time, SCALES[zoom]),
+    );
+    if (anchor.page)
+      window.scrollTo({
+        top: anchor.pageScroll + offset - anchor.offset,
+        behavior: "instant",
+      });
+    else viewport.current.scrollTop = offset;
     zoomAnchor.current = null;
   }, [layout, zoom]);
 
+  function jumpToNow() {
+    const scroller = viewport.current;
+    if (!scroller || nowY === null) return;
+    const behavior = window.matchMedia?.("(prefers-reduced-motion: reduce)")
+      .matches
+      ? "auto"
+      : "smooth";
+    if (window.matchMedia?.(FLOW_PAGE_SCROLL_QUERY).matches) {
+      const safeTop =
+        (tools.current?.getBoundingClientRect().bottom ?? 80) + 48;
+      window.scrollTo({
+        top: Math.max(
+          0,
+          window.scrollY +
+            scroller.getBoundingClientRect().top +
+            nowY -
+            safeTop,
+        ),
+        behavior,
+      });
+    } else scroller.scrollTo({ top: Math.max(0, nowY - 90), behavior });
+  }
+  function scrollHorizontally(direction: number) {
+    viewport.current?.scrollTo({
+      left: Math.max(
+        0,
+        Math.min(maximumScroll, scrollX + direction * Math.max(160, viewportWidth - 64)),
+      ),
+      behavior: window.matchMedia?.("(prefers-reduced-motion: reduce)").matches
+        ? "auto"
+        : "smooth",
+    });
+  }
+
   return (
-    <div className="flow-time-map">
-      {activities.length > 0 && (
-        <div className="flow-map-tools">
-          <p>
-            Время по МСК <span>Высота полосы — длительность</span>
-          </p>
+    <div
+      className={`flow-time-map ${activities.length ? "has-current-list" : ""}`}
+      onKeyDown={(event) => {
+        if (event.key === "Escape" && opened && !selectedId) {
+          event.preventDefault();
+          close();
+        }
+      }}
+      style={
+        {
+          "--flow-header-bottom": `${headerBottom}px`,
+          "--flow-tools-height": `${toolsHeight}px`,
+          "--flow-panel-height": `${panelHeight}px`,
+        } as CSSProperties
+      }
+    >
+      {layout.days.length > 0 && (
+        <div className="flow-map-tools" ref={tools}>
+          <div className="flow-map-overview">
+            {eventRange && (
+              <div
+                className="flow-map-range"
+                role="group"
+                aria-label="Время и длительность мероприятия"
+              >
+                <Clock3 size={16} aria-hidden="true" />
+                <span>
+                  {rangeCrossesDays && `${dateLabel(eventRange.starts_at)} `}
+                  {timeLabel(eventRange.starts_at)}–
+                  {rangeCrossesDays && `${dateLabel(eventRange.ends_at)} `}
+                  {timeLabel(eventRange.ends_at)}
+                </span>
+                <strong>
+                  {flowDuration(eventRange.ends_at - eventRange.starts_at)}
+                </strong>
+              </div>
+            )}
+            <p>
+              Время по МСК{" "}
+              <span>
+                {markers.length
+                  ? "Короткие пункты показаны крупнее"
+                  : "Высота полосы — длительность"}
+              </span>
+            </p>
+          </div>
           <div className="flow-map-controls">
             {nowY !== null && (
-              <button
-                className="text-button flow-jump-now"
-                onClick={() =>
-                  viewport.current?.scrollTo({
-                    top: Math.max(0, nowY - 90),
-                    behavior: window.matchMedia?.(
-                      "(prefers-reduced-motion: reduce)",
-                    ).matches
-                      ? "auto"
-                      : "smooth",
-                  })
-                }
-              >
+              <button className="text-button flow-jump-now" onClick={jumpToNow}>
                 Сейчас
               </button>
             )}
@@ -245,6 +383,31 @@ export function FlowSchedule({
               </button>
             </div>
           </div>
+          {horizontalOverflow && (
+            <div
+              className="flow-horizontal-nav"
+              role="group"
+              aria-label="Прокрутка параллельных флоу"
+            >
+              <span>Флоу можно листать вбок</span>
+              <button
+                type="button"
+                aria-label="Показать флоу слева"
+                disabled={scrollX <= 1}
+                onClick={() => scrollHorizontally(-1)}
+              >
+                <ArrowLeft size={18} aria-hidden="true" />
+              </button>
+              <button
+                type="button"
+                aria-label="Показать флоу справа"
+                disabled={!canScrollRight}
+                onClick={() => scrollHorizontally(1)}
+              >
+                <ArrowRight size={18} aria-hidden="true" />
+              </button>
+            </div>
+          )}
         </div>
       )}
       <div
@@ -253,14 +416,8 @@ export function FlowSchedule({
         tabIndex={0}
         role="region"
         aria-label="Временная карта флоу"
-        aria-describedby={`${id}-hint`}
+        aria-describedby={layout.days.length ? `${id}-hint` : undefined}
         onScroll={(event) => setScrollX(event.currentTarget.scrollLeft)}
-        onKeyDown={(event) => {
-          if (event.key === "Escape" && opened && !selectedId) {
-            event.preventDefault();
-            close();
-          }
-        }}
       >
         <div
           className="flow-map-canvas"
@@ -271,6 +428,7 @@ export function FlowSchedule({
               "--flow-viewport-width": viewportWidth
                 ? `${viewportWidth}px`
                 : undefined,
+              "--flow-scroll-x": `${scrollX}px`,
             } as CSSProperties
           }
         >
@@ -283,7 +441,7 @@ export function FlowSchedule({
               </h3>
               {day.ticks.map((tick) => (
                 <div
-                  className="flow-time-tick"
+                  className={`flow-time-tick ${nowY !== null && Math.abs(tick.top - nowY) < 32 ? "is-near-now" : ""}`}
                   key={tick.time}
                   style={{ top: tick.top }}
                 >
@@ -298,24 +456,16 @@ export function FlowSchedule({
                   </time>
                 </div>
               ))}
-              {day.gaps.map((gap) => (
-                <div
-                  key={gap.start}
-                  className="flow-time-gap"
-                  style={{ top: gap.top, height: gap.height }}
-                >
-                  <span>Перерыв {flowDuration(gap.end - gap.start)}</span>
-                </div>
-              ))}
             </div>
           ))}
           {nowY !== null && (
             <div
               className="flow-now-line"
               style={{ top: nowY }}
-              aria-hidden="true"
             >
-              <span>{timeLabel(now)}</span>
+              <time dateTime={new Date(now).toISOString()} aria-label={`Сейчас ${timeLabel(now)}, МСК`}>
+                {timeLabel(now)}
+              </time>
             </div>
           )}
           <ol className="vertical-flow" aria-label={label} style={{ height }}>
@@ -325,21 +475,22 @@ export function FlowSchedule({
                 past = a.ends_at <= now,
                 open = a.id === openId;
               const marked = markerByActivity.has(a.id);
-              const color = live ? "#e0bb27" : colorFor(a.room_id),
+              const color = colorFor(a.id),
                 duration = flowDuration(a.ends_at - a.starts_at);
-              const progress = live
-                ? Math.max(
-                    0,
-                    Math.min(
-                      100,
-                      ((now - a.starts_at) / (a.ends_at - a.starts_at)) * 100,
-                    ),
-                  )
-                : 0;
+              const progress =
+                live && nowY !== null
+                  ? Math.max(
+                      0,
+                      Math.min(
+                        100,
+                        ((nowY - placement.top) / placement.height) * 100,
+                      ),
+                    )
+                  : 0;
               return (
                 <li
                   key={a.id}
-                  className={`flow-event ${live ? "is-live" : ""} ${past ? "is-past" : ""} ${open ? "is-open" : ""} ${marked ? "has-short-marker" : ""} ${placement.height < 68 ? "is-brief" : placement.height < 112 ? "is-medium" : ""} ${placement.lanes > 1 ? "is-parallel" : ""} ${onEdit ? "is-editable" : ""} ${a.registered || a.waitlisted ? "has-status" : ""}`}
+                  className={`flow-event ${live ? "is-live" : ""} ${past ? "is-past" : ""} ${open ? "is-open" : ""} ${marked ? "has-short-marker" : ""} ${placement.height < 88 ? "is-brief" : placement.height < 176 ? "is-medium" : ""} ${placement.lanes > 1 ? "is-parallel" : ""} ${onEdit ? "is-editable" : ""} ${a.registered || a.waitlisted ? "has-status" : ""}`}
                   aria-current={live && !marked ? "step" : undefined}
                   aria-hidden={marked || undefined}
                   data-activity-id={a.id}
@@ -358,6 +509,7 @@ export function FlowSchedule({
                 >
                   <div className="flow-ribbon">
                     <div className="flow-ribbon-summary" aria-hidden={open}>
+                      <h3 id={`${id}-${a.id}-title`}>{a.title}</h3>
                       <div className="flow-ribbon-meta">
                         <span className="flow-ribbon-time">
                           {timeLabel(a.starts_at)}–{timeLabel(a.ends_at)}
@@ -369,23 +521,8 @@ export function FlowSchedule({
                           {duration}
                         </span>
                       </div>
-                      <h3 id={`${id}-${a.id}-title`}>{a.title}</h3>
                       <span className="flow-ribbon-room">{a.room_name}</span>
                       {live && <span className="flow-ribbon-live">Сейчас</span>}
-                      {!!a.registered && (
-                        <Check
-                          className="flow-ribbon-registered"
-                          size={16}
-                          aria-label="Вы записаны"
-                        />
-                      )}
-                      {!!a.waitlisted && (
-                        <Clock3
-                          className="flow-ribbon-registered"
-                          size={16}
-                          aria-label="Вы в очереди"
-                        />
-                      )}
                     </div>
                     <button
                       type="button"
@@ -397,14 +534,37 @@ export function FlowSchedule({
                       title={`${a.title}: ${timeLabel(a.starts_at)}–${timeLabel(a.ends_at)}, ${a.room_name}. Нажмите для действий.`}
                       onClick={() => setOpened(open ? "" : a.id)}
                     />
-                    {onEdit && !open && (
-                      <button
-                        className="flow-quick-edit"
-                        aria-label={`Изменить пункт программы ${a.title}`}
-                        onClick={() => onEdit(a)}
+                    {((onEdit && !open) ||
+                      !!a.registered ||
+                      !!a.waitlisted) && (
+                      <div
+                        className="flow-ribbon-actions"
+                        aria-hidden={open || undefined}
                       >
-                        <Pencil size={15} />
-                      </button>
+                        {onEdit && !open && (
+                          <button
+                            className="flow-quick-edit"
+                            aria-label={`Изменить пункт программы ${a.title}`}
+                            onClick={() => onEdit(a)}
+                          >
+                            <Pencil size={15} />
+                          </button>
+                        )}
+                        {!!a.registered && (
+                          <Check
+                            className="flow-ribbon-registered"
+                            size={16}
+                            aria-label="Вы записаны"
+                          />
+                        )}
+                        {!!a.waitlisted && (
+                          <Clock3
+                            className="flow-ribbon-registered"
+                            size={16}
+                            aria-label="Вы в очереди"
+                          />
+                        )}
+                      </div>
                     )}
                   </div>
                 </li>
@@ -419,9 +579,7 @@ export function FlowSchedule({
               const open =
                 marker.id === openId ||
                 marker.items.some(({ activity }) => activity.id === openId);
-              const color = live
-                ? "#e0bb27"
-                : colorFor(marker.items[0].activity.room_id);
+              const color = colorFor(marker.items[0].activity.id);
               const name = single ? single.title : "Короткие активности";
               const duration = single
                 ? flowDuration(single.ends_at - single.starts_at)
@@ -434,6 +592,7 @@ export function FlowSchedule({
                   style={
                     {
                       top: marker.top,
+                      height: marker.height,
                       left: `calc(var(--flow-gutter) + (100% - var(--flow-gutter)) * ${marker.left} + 4px)`,
                       width: `calc((100% - var(--flow-gutter)) * ${marker.right - marker.left} - 8px)`,
                       "--flow-color": color,
@@ -477,6 +636,7 @@ export function FlowSchedule({
               ref={details}
               className="flow-details"
               role="region"
+              tabIndex={-1}
               aria-label={
                 selectedId
                   ? "Редактирование активности"
@@ -488,7 +648,7 @@ export function FlowSchedule({
                   top: detailsAnchor.top,
                   left: `clamp(calc(var(--flow-gutter) + 4px), calc(var(--flow-gutter) + (100% - var(--flow-gutter)) * ${detailsAnchor.lane / detailsAnchor.lanes} - ${scrollX}px + 4px), calc(var(--flow-viewport-width, 100%) - var(--flow-details-width) - 4px))`,
                   transform: `translateX(${scrollX}px)`,
-                  "--flow-color": colorFor(detailsAnchor.activity.room_id),
+                  "--flow-color": colorFor(detailsAnchor.activity.id),
                 } as CSSProperties
               }
             >
@@ -550,11 +710,81 @@ export function FlowSchedule({
           )}
         </div>
       </div>
-      {!!activities.length && (
+      {!!layout.days.length && (
         <p className="flow-map-hint" id={`${id}-hint`}>
-          Нажмите на активность, чтобы открыть подробности. Параллельные
-          активности расположены рядом.
+          {activities.length ? (
+            <>Нажмите на активность, чтобы открыть подробности. Параллельные
+            активности расположены рядом.</>
+          ) : "Показан весь интервал мероприятия. Активностей в этом диапазоне пока нет."}
         </p>
+      )}
+      {!!activities.length && (
+        <aside className="flow-current" aria-labelledby={`${id}-current-title`}>
+          <div className="flow-current-heading">
+            <h3 id={`${id}-current-title`}>Сейчас идут</h3>
+            <span
+              aria-label={`Активностей сейчас: ${currentActivities.length}`}
+            >
+              {currentActivities.length}
+            </span>
+          </div>
+          {currentActivities.length ? (
+            <ul className="flow-current-list" aria-label="Текущие активности">
+              {currentActivities.map((activity) => (
+                <li key={activity.id}>
+                  <button
+                    type="button"
+                    className="flow-current-item"
+                    data-current-id={activity.id}
+                    aria-label={`Открыть активность ${activity.title}`}
+                    aria-expanded={openId === activity.id}
+                    aria-controls={
+                      openId === activity.id
+                        ? `${id}-details-${activity.id}`
+                        : undefined
+                    }
+                    disabled={!!selectedId && selectedId !== activity.id}
+                    onClick={(event) => {
+                      currentTrigger.current = event.currentTarget;
+                      if (openId === activity.id) {
+                        details.current?.focus({ preventScroll: true });
+                      } else {
+                        focusCurrentDetails.current = true;
+                        setOpened(activity.id);
+                      }
+                    }}
+                    style={
+                      {
+                        "--flow-color": colorFor(activity.id),
+                      } as CSSProperties
+                    }
+                  >
+                    <span className="flow-current-time">
+                      {timeLabel(activity.starts_at)}–
+                      {timeLabel(activity.ends_at)}
+                    </span>
+                    <strong>{activity.title}</strong>
+                    <span className="flow-current-room">
+                      {activity.room_name}
+                    </span>
+                    <ChevronRight size={18} aria-hidden="true" />
+                  </button>
+                </li>
+              ))}
+            </ul>
+          ) : (
+            <div className="flow-current-empty">
+              <p>Сейчас активностей нет</p>
+              {nextActivity && (
+                <p>
+                  Следующая —{" "}
+                  {dateLabel(nextActivity.starts_at, { month: "short" })} в{" "}
+                  {timeLabel(nextActivity.starts_at)}
+                </p>
+              )}
+            </div>
+          )}
+        </aside>
       )}
     </div>
   );

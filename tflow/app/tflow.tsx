@@ -18,6 +18,7 @@ import {
   Copy,
   Heart,
   LayoutDashboard,
+  LockKeyhole,
   MapPin,
   Pencil,
   Plus,
@@ -71,7 +72,7 @@ import { EventRegistrationAction, EventWaitlists } from "./ui/event-waitlist";
 import { Clubs } from "./ui/clubs";
 import { OrganizerManage } from "./ui/organizer-manage";
 import { AccountMenu } from "./ui/account-menu";
-import { EventTimeFilterControl } from "./ui/event-time-filter";
+import { EventTimeFilterControl, type EventStatusFilter } from "./ui/event-time-filter";
 import { splitOrganizerEvents } from "../lib/organizer-events";
 import type { ProgramRange } from "../lib/program-editing";
 import { isAttendedPastEvent, matchesEventTime, type EventTimeFilter } from "../lib/event-filters";
@@ -148,6 +149,9 @@ const routeFromHash = (organizer: boolean): Route => {
     "studio",
     "event",
     "webinar",
+    "studio",
+    "lecture",
+    "presenter",
     "pass",
     "notifications",
     "communities",
@@ -193,7 +197,7 @@ function Heading({
   children,
 }: {
   title: string;
-  text?: string;
+  text?: React.ReactNode;
   children?: React.ReactNode;
 }) {
   return (
@@ -206,14 +210,15 @@ function Heading({
     </div>
   );
 }
+type CatalogFilterValues = { city: string; date: string; format: string; happeningNow: boolean; visited: boolean };
 function CatalogFilters({
   cities,
   initial,
   onApply,
 }: {
   cities: string[];
-  initial: { city: string; date: string; format: string };
-  onApply: (values: { city: string; date: string; format: string }) => void;
+  initial: CatalogFilterValues;
+  onApply: (values: CatalogFilterValues) => void;
 }) {
   const [values, setValues] = useState(initial);
   return (
@@ -224,6 +229,17 @@ function CatalogFilters({
         onApply(values);
       }}
     >
+      <fieldset className="catalog-extra-filters">
+        <legend>Время и посещение</legend>
+        <label className="catalog-quick-filter">
+          <input type="checkbox" aria-labelledby="filter-now-label" aria-describedby="filter-now-hint" checked={values.happeningNow} onChange={(e) => setValues({ ...values, happeningNow: e.target.checked })} />
+          <span><strong id="filter-now-label">Идут сейчас</strong><small id="filter-now-hint">Уже начались и ещё не завершились</small></span>
+        </label>
+        <label className="catalog-quick-filter">
+          <input type="checkbox" aria-labelledby="filter-visited-label" aria-describedby="filter-visited-hint" checked={values.visited} onChange={(e) => setValues({ ...values, visited: e.target.checked })} />
+          <span><strong id="filter-visited-label">С подтверждённым посещением</strong><small id="filter-visited-hint">Только события с отметкой о вашем участии</small></span>
+        </label>
+      </fieldset>
       <CityPicker
         value={values.city}
         onChange={(city) => setValues({ ...values, city })}
@@ -256,7 +272,7 @@ function CatalogFilters({
         <button
           className="text-button"
           type="button"
-          onClick={() => setValues({ city: "", date: "", format: "" })}
+          onClick={() => setValues({ city: "", date: "", format: "", happeningNow: false, visited: false })}
         >
           Сбросить
         </button>
@@ -302,10 +318,7 @@ function DiscoveryCard({
           aria-label={`Открыть ${event.title}`}
           onClick={() => go("event", event.id)}
         >
-          <EventArt
-            cover={event.cover}
-            title={event.topic === "Искусственный интеллект" ? "AI" : undefined}
-          />
+          <EventArt cover={event.cover} />
         </button>
         <span className="event-kind">{event.kind}</span>
         <button
@@ -320,11 +333,11 @@ function DiscoveryCard({
         >
           <Heart size={20} fill={event.saved ? "currentColor" : "none"} />
         </button>
-        {(event.enrolled > 0 || (!!userId && !!event.checked_in)) && (
-          <span className={`registered-tag${visited ? " event-visited-tag" : ""}`}>
-            <Check size={12} />
+        {(visited || event.enrolled > 0) && (
+          <span className={`registered-tag${visited ? " attendance-confirmed-tag" : ""}`}>
+            <Check size={visited ? 15 : 12} aria-hidden="true" />
             {ended
-              ? visited ? "Вы посетили" : "Вы были записаны"
+              ? visited ? "Посещение подтверждено" : "Вы были записаны"
               : event.checked_in ? "Вы вошли" : "Вы идёте"}
           </span>
         )}
@@ -391,9 +404,13 @@ function ProfileView({
       <Heading
         title="Ваш профиль"
         text={
-          organizer
-            ? "Аккаунт организатора · роль изменить нельзя"
-            : "Аккаунт участника · роль изменить нельзя"
+          <span className="profile-account-summary">
+            {organizer && <span>Аккаунт организатора</span>}
+            <strong className="profile-role-note">
+              <LockKeyhole size={15} aria-hidden="true" />
+              Роль изменить нельзя
+            </strong>
+          </span>
         }
       />
       <div
@@ -592,17 +609,17 @@ function OrganizerEvent({
         </button>
         <button className="button secondary" onClick={onMove}>
           <CalendarDays size={17} />
-          Перенести
+          <span>Перенести</span>
         </button>
         <button className="button danger-outline" onClick={onDelete}>
           <Trash2 size={17} />
-          Удалить мероприятие
+          <span>Удалить мероприятие</span>
         </button>
         <button
           className="text-button"
           onClick={() => go(published ? "manage" : "event", event.id)}
         >
-          {published ? "Участники и настройки" : "Предпросмотр"}
+          <span>{published ? "Участники и настройки" : "Предпросмотр"}</span>
           <ArrowRight size={16} />
         </button>
       </div>
@@ -629,16 +646,18 @@ export function TFlow({ user }: { user: UserIdentity | null }) {
     [clubFilter, setClubFilter] = useState(""),
     [format, setFormat] = useState(""),
     [date, setDate] = useState("");
-  const [eventTime, setEventTime] = useState<EventTimeFilter>("all");
+  const [eventTime, setEventTime] = useState<EventStatusFilter>("all");
+  const [happeningNow, setHappeningNow] = useState(false);
+  const [visited, setVisited] = useState(false);
   const [feedNow, setFeedNow] = useState(Date.now);
   useEffect(() => {
-    if (eventTime !== "now") return;
+    if (!happeningNow) return;
     const tick = () => setFeedNow(Date.now());
     tick();
     const timer = setInterval(tick, 1000);
     window.addEventListener("focus", tick);
     return () => { clearInterval(timer); window.removeEventListener("focus", tick); };
-  }, [eventTime]);
+  }, [happeningNow]);
   const [ownEventSection, setOwnEventSection] = useState<
     "upcoming" | "archive"
   >("upcoming");
@@ -925,11 +944,13 @@ export function TFlow({ user }: { user: UserIdentity | null }) {
   const own = data.events.filter((e) => e.owner_id === user?.userId);
   const ownSections = splitOrganizerEvents(own);
   const visibleOwn = ownSections[ownEventSection];
-  const catalogNow = eventTime === "now" ? feedNow : Date.now();
+  const catalogNow = happeningNow ? feedNow : Date.now();
   const visible = data.events.filter(
     (e) =>
       e.status === "published" &&
       matchesEventTime(e, eventTime, catalogNow) &&
+      (!happeningNow || matchesEventTime(e, "now", catalogNow)) &&
+      (!visited || (!!user && isAttendedPastEvent(e, catalogNow))) &&
       (route.view !== "saved" || e.saved) &&
       (!query ||
         `${e.title} ${e.city} ${e.venue} ${e.topic}`
@@ -949,7 +970,7 @@ export function TFlow({ user }: { user: UserIdentity | null }) {
           date),
   ).sort((a, b) => eventTime === "all"
     ? Number(a.ends_at <= catalogNow) - Number(b.ends_at <= catalogNow)
-    : 0);
+    : visited ? b.starts_at - a.starts_at : 0);
   const hasFilters = !!(
     query.trim() ||
     city ||
@@ -957,7 +978,7 @@ export function TFlow({ user }: { user: UserIdentity | null }) {
     date ||
     topic ||
     clubFilter ||
-    eventTime !== "all"
+    eventTime !== "all" || happeningNow || visited
   );
   const resetFilters = () => {
     setQuery("");
@@ -967,6 +988,8 @@ export function TFlow({ user }: { user: UserIdentity | null }) {
     setTopic("");
     setClubFilter("");
     setEventTime("all");
+    setHappeningNow(false);
+    setVisited(false);
   };
   const clubsNav = { id: "clubs", name: "Клубы", icon: Heart };
   const calendarNav = { id: "calendar", name: "Календарь", icon: CalendarDays };
@@ -1052,7 +1075,7 @@ export function TFlow({ user }: { user: UserIdentity | null }) {
 
   return (
     <div
-      className={`flow-app ${["studio","presenter"].includes(route.view) ? "studio-mode" : ""} ${organizerArea ? "organizer-app" : "participant-app"}`}
+      className={`flow-app ${["studio", "presenter"].includes(route.view) ? "studio-mode" : ""} ${organizerArea ? "organizer-app" : "participant-app"}`}
     >
       <a className="skip-link" href="#main-content">
         К содержимому
@@ -1202,20 +1225,23 @@ export function TFlow({ user }: { user: UserIdentity | null }) {
                     />
                   </label>
                   <button
-                    className={`filter-button ${city || format || date ? "has-filters" : ""}`}
+                    className={`filter-button ${city || format || date || happeningNow || visited ? "has-filters" : ""}`}
                     aria-label="Фильтры событий"
                     onClick={() => setDialog({ type: "filters" })}
                   >
                     <SlidersHorizontal size={20} />
                     <span>Фильтры</span>
-                    {[city, format, date].filter(Boolean).length > 0 && (
-                      <b>{[city, format, date].filter(Boolean).length}</b>
+                    {[city, format, date, happeningNow, visited].filter(Boolean).length > 0 && (
+                      <b>{[city, format, date, happeningNow, visited].filter(Boolean).length}</b>
                     )}
                   </button>
                 </div>
                 <EventTimeFilterControl
                   value={eventTime}
-                  onChange={setEventTime}
+                  onChange={(value) => {
+                    setEventTime(value);
+                    if (value === "past") setHappeningNow(false);
+                  }}
                 />
                 <div className="catalog-category-filter">
                   <CategorySelect value={topic} onChange={setTopic} allowAll />
@@ -1252,11 +1278,17 @@ export function TFlow({ user }: { user: UserIdentity | null }) {
                     </button>
                   )}
                 </div>
-                {(city || format || date) && (
+                {(city || format || date || happeningNow || visited) && (
                   <div
                     className="active-filters"
                     aria-label="Выбранные фильтры"
                   >
+                    {happeningNow && <button onClick={() => setHappeningNow(false)} aria-label="Убрать фильтр идущих сейчас событий">
+                      <Clock3 size={14} aria-hidden="true" />Идут сейчас<X size={14} aria-hidden="true" />
+                    </button>}
+                    {visited && <button onClick={() => setVisited(false)} aria-label="Убрать фильтр подтверждённых посещений">
+                      <Check size={14} aria-hidden="true" />Посещение подтверждено<X size={14} aria-hidden="true" />
+                    </button>}
                     {city && (
                       <button
                         onClick={() => setCity("")}
@@ -1290,7 +1322,11 @@ export function TFlow({ user }: { user: UserIdentity | null }) {
                     )}
                   </div>
                 )}
-                {visible.length ? (
+                {visited && !user ? (
+                  <Empty icon={CalendarDays} title="Ваша история посещений" text="Войдите, чтобы увидеть мероприятия с подтверждённым посещением.">
+                    <a className="button primary" href="/login/?next=%2F%23events">Войти</a>
+                  </Empty>
+                ) : visible.length ? (
                   <div className="discovery-grid">
                     {visible.map((e) => (
                       <DiscoveryCard
@@ -1301,7 +1337,9 @@ export function TFlow({ user }: { user: UserIdentity | null }) {
                       />
                     ))}
                   </div>
-                ) : eventTime === "now" ? (
+                ) : visited ? (
+                  <Empty icon={CalendarDays} title="Пока нет подтверждённых посещений" text="После проверки QR на входе мероприятие появится здесь." />
+                ) : happeningNow ? (
                   <Empty icon={CalendarDays} title="Сейчас мероприятий нет" text="Здесь появятся события, когда наступит время их начала по расписанию." />
                 ) : hasFilters ? (
                   <Empty
@@ -1703,6 +1741,7 @@ export function TFlow({ user }: { user: UserIdentity | null }) {
                         <EventFlows
                           focusActivityId={detail.activities.some(a => a.id === route.mode) ? route.mode : undefined}
                           key={detail.event.id}
+                          event={detail.event}
                           activities={detail.activities}
                           {...programActions}
                           onManage={
@@ -1714,6 +1753,7 @@ export function TFlow({ user }: { user: UserIdentity | null }) {
                       }
                       personal={
                         <ActivityProgram
+                          event={detail.event}
                           activities={detail.activities.filter(
                             activity => activity.registered || activity.waitlisted,
                           )}
@@ -2381,11 +2421,14 @@ export function TFlow({ user }: { user: UserIdentity | null }) {
         <Modal title="Фильтры" onClose={() => setDialog(null)}>
           <CatalogFilters
             cities={Array.from(new Set(data.events.map((e) => e.city)))}
-            initial={{ city, date, format }}
+            initial={{ city, date, format, happeningNow, visited }}
             onApply={(values) => {
               setCity(values.city);
               setDate(values.date);
               setFormat(values.format);
+              setHappeningNow(values.happeningNow);
+              setVisited(values.visited);
+              if (values.happeningNow && eventTime === "past") setEventTime("active");
               setDialog(null);
             }}
           />
