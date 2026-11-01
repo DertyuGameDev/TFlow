@@ -27,7 +27,7 @@ function mountCatalog(user: UserIdentity | null = participant) {
     const payload = path === "/api/bootstrap" ? {
       events: [event, otherEvent], activities, tickets: [], schedule: [], waitlist: [],
       communities: [], notifications: [], unread_notification_count: 0, profile,
-    } : path === `/api/events/${event.id}` ? { event, rooms: [], activities: [lecture] } : undefined;
+    } : path === "/api/notifications/summary" ? { latest: null, unread_count: 0 } : path === `/api/events/${event.id}` ? { event, rooms: [], activities: [lecture] } : undefined;
     if (payload === undefined) throw new Error(`Unexpected request: ${path}`);
     return new Response(JSON.stringify(payload));
   });
@@ -48,7 +48,7 @@ describe("карточки каталога без дублирования пр
     expect(within(card).queryByRole("region", { name: "Расписание активностей" })).not.toBeInTheDocument();
     expect(within(card).queryByText(lecture.title)).not.toBeInTheDocument();
     expect(screen.queryByText("Другая активность")).not.toBeInTheDocument();
-    expect(fetch.mock.calls.map(([path]) => path)).toEqual(["/api/bootstrap"]);
+    expect(fetch.mock.calls.map(([path]) => path).filter(path => path !== "/api/notifications/summary")).toEqual(["/api/bootstrap"]);
   });
 
   it("сохраняет доступ к флоу через страницу мероприятия", async () => {

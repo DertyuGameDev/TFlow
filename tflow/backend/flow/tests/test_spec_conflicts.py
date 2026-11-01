@@ -104,12 +104,13 @@ class SpecConflictTests(Scenario, TestCase):
     def test_move_to_busy_room_rolls_back_fields_and_registrations(self):
         self.publish()
         self.request(f"activities/{self.b.pk}/registration", "post", client=self.participant)
+        baseline = list(Notification.objects.values())
         before = Activity.objects.values().get(pk=self.b.pk)
         self.request(f"activities/{self.b.pk}", "patch", self.activity_body(self.b, room_id=self.r1.pk, title="Изменённая лекция"),
                      status=409, code="ROOM_CONFLICT")
         self.assertEqual(Activity.objects.values().get(pk=self.b.pk), before)
         self.assertTrue(Registration.objects.filter(user=self.person, activity=self.b).exists())
-        self.assertFalse(Notification.objects.exists())
+        self.assertEqual(list(Notification.objects.values()), baseline)
 
     def test_move_checks_every_registered_person_including_other_events(self):
         self.publish()
@@ -117,13 +118,14 @@ class SpecConflictTests(Scenario, TestCase):
         for client in [self.participant, self.stranger]:
             self.request(f"activities/{self.c.pk}/registration", "post", client=client)
         self.request(f"activities/{external.pk}/registration", "post", client=self.stranger)
+        baseline = list(Notification.objects.values())
         before = Activity.objects.values().get(pk=self.c.pk)
         self.request(f"activities/{self.c.pk}", "patch", self.activity_body(self.c,
                      starts_at=milliseconds(external.starts_at), ends_at=milliseconds(external.ends_at)),
                      status=409, code="ENROLLED_CONFLICT")
         self.assertEqual(Activity.objects.values().get(pk=self.c.pk), before)
         self.assertEqual(self.c.registrations.count(), 2)
-        self.assertFalse(Notification.objects.exists())
+        self.assertEqual(list(Notification.objects.values()), baseline)
 
     def test_activity_end_at_event_end_is_allowed_and_exceeding_it_is_rejected(self):
         end = self.event.ends_at
@@ -141,7 +143,7 @@ class SpecConflictTests(Scenario, TestCase):
         self.assertEqual(schedule["room_name"], self.r2.name)
         self.assertEqual(schedule["starts_at"], milliseconds(self.start+timedelta(hours=6)))
         self.assertEqual((schedule["taken"], schedule["capacity"]), (1,3))
-        self.assertEqual(Notification.objects.filter(user=self.person).count(), 1)
+        self.assertEqual(Notification.objects.filter(user=self.person, kind="info").count(), 1)
         self.request(f"activities/{self.a.pk}/registration", "delete", client=self.participant)
         self.assertEqual(self.request("bootstrap", client=self.participant)["schedule"], [])
         self.assertEqual(self.request(f"events/{self.event.pk}")["activities"][-1]["taken"], 0)

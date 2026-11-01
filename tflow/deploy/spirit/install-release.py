@@ -13,6 +13,7 @@ import time
 import urllib.request
 from runtime_check import verify_runtime
 from broadcast_service import prepare_service, enabled_environment, ensure_no_live_broadcast
+import notification_service
 
 if os.geteuid() != 0 or len(sys.argv) != 3:
     raise SystemExit("Usage: sudo python3 install-release.py <manifest.json> <tflow-release.tar.gz>")
@@ -76,13 +77,15 @@ as_app(python, app / "manage.py", "collectstatic", "--noinput")
 # Prepare dependencies before changing the running release. Failure here leaves
 # the existing application and all its services running.
 prepare_service()
+as_app(python, app / "manage.py", "setup_web_push", "--private", "/var/lib/tflow/webpush/private.pem", "--public", "/var/lib/tflow/webpush/public.key")
+notification_service.prepare_service()
 env_path = Path("/etc/tflow/app.env")
 env_before = env_path.read_text()
 env_backup = Path("/var/backups/tflow") / f"{stamp}-{sha[:8]}-app.env"
 descriptor = os.open(env_backup, os.O_WRONLY | os.O_CREAT | os.O_EXCL, 0o600)
 with os.fdopen(descriptor, "w") as stream:
     stream.write(env_before)
-env_path.write_text(enabled_environment(env_before)); env_path.chmod(0o600)
+env_path.write_text(notification_service.enabled_environment(enabled_environment(env_before))); env_path.chmod(0o600)
 environment["TFLOW_HTTP_BROADCAST"] = "1"
 run("chown", "-hR", "root:root", str(release))
 run("chmod", "-R", "go-w", str(release))
@@ -97,6 +100,7 @@ healthy = False
 try:
     run("systemctl", "restart", "tflow-broadcast")
     run("systemctl", "restart", "tflow")
+    run("systemctl", "restart", "tflow-notifications")
     host = environment["DJANGO_ALLOWED_HOSTS"].split(",")[0]
     for attempt in range(30):
         try:
@@ -107,6 +111,10 @@ try:
                     heartbeat = Path("/var/lib/tflow/broadcasts/worker")
                     if not heartbeat.exists() or time.time() - heartbeat.stat().st_mtime > 10:
                         raise RuntimeError("HTTPS encoder worker is not ready")
+                    request = urllib.request.Request("http://127.0.0.1:8000/api/notification-health", headers={"Host":host,"X-Forwarded-Proto":"https"})
+                    with urllib.request.urlopen(request, timeout=2) as reply:
+                        if json.load(reply) != {"enabled":True,"ready":True}:
+                            raise RuntimeError("Notification worker is not enabled and ready")
                     (root / "deployed.json").write_text(json.dumps(manifest, indent=2) + "\n")
                     print(f"Release {sha} is healthy at https://{host}")
                     healthy = True
@@ -116,11 +124,16 @@ try:
 finally:
     if not healthy:
         if previous:
+            subprocess.run(["systemctl", "stop", "tflow-notifications"], check=False)
             subprocess.run(["systemctl", "stop", "tflow-broadcast"], check=False)
             env_path.write_text(env_before); env_path.chmod(0o600)
             candidate.symlink_to(previous, target_is_directory=True)
             candidate.replace(current)
             run("systemctl", "restart", "tflow")
+            if (previous / "tflow/backend/flow/management/commands/run_notification_worker.py").exists():
+                run("systemctl", "restart", "tflow-notifications")
+            else:
+                subprocess.run(["systemctl", "disable", "tflow-notifications"], check=False)
             if (previous / "tflow/backend/flow/management/commands/run_broadcast_worker.py").exists():
                 run("systemctl", "restart", "tflow-broadcast")
             else:

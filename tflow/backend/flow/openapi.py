@@ -221,8 +221,10 @@ def build_schema():
                     "activity_id": {"type": "string", "nullable": True},
                     "kind": {
                         "type": "string",
-                        "enum": ["info", "event_cancelled", "club_event", "event_waitlist", "activity_reminder"],
+                        "enum": ["info", "event_cancelled", "club_event", "event_waitlist", "activity_reminder", "event_reminder", "registration", "attendance", "webinar"],
                     },
+                    "title": text,
+                    "data": {"type": "object", "additionalProperties": True},
                     "message": text,
                     "created_at": number,
                     "read": number,
@@ -707,6 +709,13 @@ def build_schema():
         ),
     )
     add("/notifications", "patch", "Прочитать все уведомления", "Уведомления")
+    add("/notifications/summary", "get", "Последнее уведомление и число непрочитанных", "Уведомления")
+    add("/notifications/{notification_id}", "get", "Своё уведомление для браузерного push", "Уведомления", result=ref("Notice"))
+    add("/push/config", "get", "Доступность push и состояние текущего устройства", "Уведомления")
+    schemas["PushSubscriptionInput"] = object_schema({"endpoint": text, "keys": object_schema({"p256dh": text, "auth": text}, ["p256dh", "auth"])}, ["endpoint", "keys"])
+    add("/push/subscriptions", "post", "Подключить Web Push текущего браузера", "Уведомления", body="PushSubscriptionInput")
+    add("/push/unsubscribe", "post", "Отключить push только текущего устройства", "Уведомления")
+    add("/push/test", "post", "Поставить тестовый push в очередь, не чаще раза в минуту", "Уведомления")
     add(
         "/notifications/{notification_id}",
         "patch",

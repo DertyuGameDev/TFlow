@@ -6,24 +6,39 @@ from .models import Activity, Registration, Room
 MSK = ZoneInfo("Europe/Moscow")
 
 def stamp(value):
-    return value.astimezone(MSK).strftime("%d.%m %H:%M")
+    return value.astimezone(MSK).strftime("%d.%m.%Y %H:%M")
+
+
+def interval(start, end):
+    return f"{stamp(start)}–{stamp(end)}"
+
+
+def short(value, limit=220):
+    value = " ".join(str(value or "").split())
+    return value[:limit] + ("…" if len(value) > limit else "") or "не указано"
 
 
 def snapshot(activity):
     return {"starts_at": activity.starts_at, "ends_at": activity.ends_at,
-            "room_name": activity.room.name, "capacity": activity.capacity, "title": activity.title}
+            "room_name": activity.room.name, "capacity": activity.capacity, "title": activity.title,
+            "speaker": activity.speaker, "description": activity.description, "registration_required": activity.registration_required}
 
 
 def change_message(activity, before):
     changes = []
     if (before['starts_at'], before['ends_at']) != (activity.starts_at, activity.ends_at):
-        changes.append(f"Время: {stamp(before['starts_at'])}–{before['ends_at'].astimezone(MSK):%H:%M} → {stamp(activity.starts_at)}–{activity.ends_at.astimezone(MSK):%H:%M} МСК")
+        changes.append(f"Время: {interval(before['starts_at'], before['ends_at'])} → {interval(activity.starts_at, activity.ends_at)} МСК")
     if before['room_name'] != activity.room.name:
         changes.append(f"Аудитория: {before['room_name']} → {activity.room.name}")
     if before['capacity'] != activity.capacity:
         changes.append(f"Лимит мест: {before['capacity']} → {activity.capacity}")
     if before['title'] != activity.title:
         changes.append(f"Название: {before['title']} → {activity.title}")
+    for key, label in [("speaker", "Спикер"), ("description", "Описание")]:
+        if before[key] != getattr(activity, key):
+            changes.append(f"{label}: {short(before[key])} → {short(getattr(activity, key))}")
+    if before["registration_required"] != activity.registration_required:
+        changes.append("Запись: " + ("теперь нужна отдельная регистрация" if activity.registration_required else "доступно всем участникам события без отдельной записи"))
     return f"Обновлена активность «{activity.title}». " + (". ".join(changes) if changes else "Обновлены сведения об активности.")
 
 
@@ -61,14 +76,20 @@ def conflict_error(activity, code, message):
 
 
 def event_snapshot(event):
-    return {key: getattr(event, key) for key in ['starts_at','ends_at','venue','address','city']}
+    return {key: getattr(event, key) for key in ['starts_at','ends_at','venue','address','city','title','description','format','capacity','required_profile_fields']}
 
 
 def event_change_message(event, before, moved=False):
     changes = []
     if before['starts_at'] != event.starts_at or before['ends_at'] != event.ends_at:
-        changes.append(f"Время: {stamp(before['starts_at'])}–{before['ends_at'].astimezone(MSK):%H:%M} → {stamp(event.starts_at)}–{event.ends_at.astimezone(MSK):%H:%M} МСК")
+        changes.append(f"Время: {interval(before['starts_at'], before['ends_at'])} → {interval(event.starts_at, event.ends_at)} МСК")
     old_place = ', '.join(filter(None, [before['city'],before['venue'],before['address']]))
     new_place = ', '.join(filter(None, [event.city,event.venue,event.address]))
     if old_place != new_place: changes.append(f"Место: {old_place} → {new_place}")
+    for key, label in [("title", "Название"), ("description", "Описание"), ("format", "Формат"), ("capacity", "Лимит мест")]:
+        if before[key] != getattr(event, key):
+            changes.append(f"{label}: {short(before[key])} → {short(getattr(event, key))}")
+    if before["required_profile_fields"] != event.required_profile_fields:
+        from .profile_data import PROFILE_LABELS
+        changes.append("Данные при записи: " + (", ".join(PROFILE_LABELS[k] for k in event.required_profile_fields) or "только имя и почта"))
     return (f"Мероприятие «{event.title}» перенесено. " if moved else f"Обновлено мероприятие «{event.title}». ") + ('. '.join(changes) if changes else 'Обновлены сведения о мероприятии.')

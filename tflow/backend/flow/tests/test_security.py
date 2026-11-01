@@ -281,6 +281,7 @@ class SecurityTests(Scenario, TestCase):
 @override_settings(PASSWORD_HASHERS=FAST_HASHER)
 class FunctionalRegressionTests(Scenario, TestCase):
     def test_edit_event_notifies_ticket_holders_and_activity_users_once(self):
+        self.publish()
         EventRegistration.objects.create(user=self.person, event=self.event)
         EventRegistration.objects.create(user=self.other, event=self.event)
         Registration.objects.create(user=self.other, activity=self.a)

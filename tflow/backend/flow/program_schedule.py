@@ -4,7 +4,7 @@ from django.db import transaction
 from django.utils import timezone
 
 from .contracts import FlowError
-from .notifications import create_notifications
+from .notifications import create_notifications, event_recipients
 from .models import Activity, Event, Notification, User
 from .schedule_feedback import snapshot, change_message
 from .serializers import milliseconds
@@ -84,13 +84,15 @@ def swap_activities(user, activity_id, other_id, expected_event_updated_at=None,
             for activity in activities:
                 users = set(activity.registrations.values_list("user_id", flat=True))
                 affected_users |= users
-                recipients = users | set(activity.waitlist.values_list("user_id", flat=True))
-                create_notifications([
-                    Notification(user_id=uid, event_id=event.pk, activity=activity,
-                                 message=change_message(activity, previous[activity.pk]))
-                    for uid in recipients
-                ])
                 promote_waitlist_locked(activity)
+            if event.status == "published":
+                own_activity = {}
+                for activity in activities:
+                    for uid in activity.registrations.values_list("user_id", flat=True):
+                        own_activity.setdefault(uid, activity.pk)
+                message = "Изменён порядок программы:\n" + "\n".join(change_message(a, previous[a.pk]) for a in activities)
+                create_notifications([Notification(user_id=uid, event=event, activity_id=own_activity.get(uid),
+                    title="Пункты программы поменяли местами", message=message) for uid in event_recipients(event)])
             for participant in User.objects.filter(pk__in=affected_users):
                 retry_user_waitlists_locked(participant)
         return {"ok": True, "preview": False, "changes": changes}

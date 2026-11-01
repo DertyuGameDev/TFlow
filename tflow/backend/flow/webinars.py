@@ -239,7 +239,11 @@ def operate(user, event_id, operation, session=None, *, activity_id=None, access
                 503,
             )
         if operation == "end":
+            was_active = Webinar.objects.filter(event=event, activity=activity, active=True).exists()
             stop_webinar(event, activity_id=activity_id)
+            if was_active:
+                from .notifications import broadcast_notice
+                broadcast_notice(event, activity, ended=True)
             return {"active": False}
         ends_at = min(event.ends_at, activity.ends_at if activity else event.ends_at)
         if event.status != "published" or ends_at <= timezone.now():
@@ -273,6 +277,8 @@ def operate(user, event_id, operation, session=None, *, activity_id=None, access
                 None,
             )
             webinar.save()
+            from .notifications import broadcast_notice
+            broadcast_notice(event, activity)
         if not webinar.active:
             raise FlowError("WEBINAR_NOT_STARTED", "Организатор ещё не начал эфир", 409)
         if operation == "confirm":
@@ -283,10 +289,9 @@ def operate(user, event_id, operation, session=None, *, activity_id=None, access
             participant = room_api("GetParticipant", room_name(webinar), identity=str(user.pk))
             if participant.get("identity") != str(user.pk) or participant.get("state") not in {"JOINED", "ACTIVE", 1, 2}:
                 raise FlowError("ATTENDANCE_UNCONFIRMED", "Сервер ещё не подтвердил подключение к эфиру", 409)
-            entry, _ = CheckIn.objects.get_or_create(user=user, event=event, defaults={"source": "webinar", "checked_by": None})
-            if activity is not None:
-                from .models import ActivityAttendance
-                ActivityAttendance.objects.get_or_create(user=user, activity=activity, defaults={"source": "webinar", "checked_by": None})
+            from .notifications import online_attendance
+            online_attendance(user, event, activity)
+            entry = CheckIn.objects.get(user=user, event=event)
             return {"ok": True, "confirmed": True, "checked_in_at": round(entry.created_at.timestamp() * 1000)}
         grants = {
             "roomJoin": True,

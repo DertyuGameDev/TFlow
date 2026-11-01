@@ -40,7 +40,7 @@ class WaitlistTests(Scenario, TestCase):
         self.assertEqual(self.a.registrations.count(), 1)
         self.assertTrue(self.a.registrations.filter(user=self.other).exists())
         self.assertFalse(WaitlistEntry.objects.exists())
-        self.assertEqual(Notification.objects.filter(user=self.other).count(), 1)
+        self.assertEqual(Notification.objects.filter(user=self.other, title="Вы записаны из листа ожидания").count(), 1)
         self.assertEqual(self.request("bootstrap", client=self.stranger)["schedule"][0]["id"], self.a.pk)
 
     def test_fifo_and_capacity_increase(self):
@@ -64,7 +64,7 @@ class WaitlistTests(Scenario, TestCase):
         self.assertTrue(self.a.registrations.filter(user=third).exists())
         self.assertTrue(self.a.waitlist.filter(user=self.other).exists())
         self.assertFalse(self.a.registrations.filter(user=self.other).exists())
-        self.assertFalse(Notification.objects.filter(user=self.other).exists())
+        self.assertFalse(Notification.objects.filter(user=self.other, title="Вы записаны из листа ожидания").exists())
 
     def test_cancelling_conflict_retries_a_free_queued_seat(self):
         self.fill_and_wait()
@@ -222,4 +222,4 @@ class WaitlistConcurrencyTests(Scenario, TransactionTestCase):
         self.assertEqual(self.a.registrations.count(), 1)
         self.assertTrue(self.a.registrations.filter(user=first).exists())
         self.assertEqual(self.a.waitlist.count(), 20)
-        self.assertEqual(Notification.objects.filter(user=first).count(), 1)
+        self.assertEqual(Notification.objects.filter(user=first, title="Вы записаны из листа ожидания").count(), 1)

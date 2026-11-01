@@ -65,6 +65,7 @@ import { OrganizerIntro } from "./ui/organizer-intro";
 import { Calendar } from "./ui/calendar";
 import { EventRemovalDialog } from "./ui/event-removal-dialog";
 import { NotificationCenter } from "./ui/notification-center";
+import { useNotificationUpdates } from "./ui/use-notification-updates";
 import { CheckInStatus } from "./ui/check-in-status";
 import { EventRegistrationAction, EventWaitlists } from "./ui/event-waitlist";
 import { Clubs } from "./ui/clubs";
@@ -676,6 +677,7 @@ export function TFlow({ user }: { user: UserIdentity | null }) {
     },
     [],
   );
+  useNotificationUpdates(user?.userId, send, setData);
   const load = useCallback(async () => {
     const n = ++loadSequence.current;
     try {

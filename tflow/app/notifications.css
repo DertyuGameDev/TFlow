@@ -46,3 +46,9 @@
   .notification-actions .button{justify-content:space-between;padding-inline:12px}
   .notification-actions .text-button{justify-content:center}
 }
+.push-settings{display:flex;gap:16px;padding:22px;margin:0 0 24px;border:1px solid var(--flow-border);border-radius:18px;background:var(--theme-panel,#f6f7f8);color:var(--theme-text,#24272d)}
+.push-settings>svg{flex:0 0 22px;margin-top:3px;color:var(--flow-muted)}
+.push-settings>div{min-width:0;flex:1}.push-settings h2{margin:0 0 8px;font-size:18px;line-height:1.4}.push-settings p{font-size:14px;line-height:1.6;margin:0 0 12px;color:var(--flow-muted);overflow-wrap:anywhere}.push-actions{display:flex;gap:16px;flex-wrap:wrap;align-items:center}.push-actions button{min-height:44px}
+@media(max-width:480px){.push-settings{padding:18px 14px;gap:12px}.push-actions{align-items:stretch;flex-direction:column}.push-actions button{width:100%}}
+:root[data-theme="dark"] .notification-center .button.secondary{background:var(--theme-raised);color:var(--theme-text)}
+:root[data-theme="dark"] .notification-center .button.secondary:hover:not(:disabled){background:#3a3c41}

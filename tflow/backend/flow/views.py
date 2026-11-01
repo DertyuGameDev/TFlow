@@ -145,8 +145,12 @@ def register_view(request):
 def logout_view(request):
     if request.method != "POST":
         return HttpResponseNotAllowed(["POST"])
+    from .push import detach, COOKIE
+    detach(request)
     logout(request)
-    return redirect("/")
+    response = redirect("/")
+    response.delete_cookie(COOKIE, samesite="Lax")
+    return response
 
 
 @never_cache
@@ -230,6 +234,29 @@ def dispatch_api(request, path):
     if path == "broadcast-health" and method == "GET":
         from .broadcasts import worker_ready
         return JsonResponse({"enabled": settings.HTTP_BROADCAST_ENABLED, "ready": worker_ready()})
+    if path == "notification-health" and method == "GET":
+        from .push import worker_ready, configured
+        return JsonResponse({"enabled": configured(), "ready": worker_ready()})
+    if resource == "push":
+        require_user(request)
+        from . import push
+        if path == "push/config" and method == "GET": return push.config(request)
+        if method == "POST":
+            try: value = json.loads(request.body or b"{}")
+            except (ValueError, UnicodeError): raise FlowError("VALIDATION", "Некорректные данные", 400) from None
+            if not isinstance(value, dict): raise FlowError("VALIDATION", "Ожидается объект", 400)
+            if path == "push/subscriptions": return push.subscribe(request, value)
+            if path == "push/unsubscribe": return push.unsubscribe(request)
+            if path == "push/test": return push.test_push(request)
+        raise FlowError("NOT_FOUND", "Действие не найдено", 404)
+    if path == "notifications/summary" and method == "GET":
+        from .push import summary
+        return JsonResponse(summary(require_user(request)))
+    if resource == "notifications" and item_id and not action and method == "GET":
+        from .serializers import notice_json
+        notice = require_user(request).notifications.filter(pk=item_id).first()
+        if not notice: raise FlowError("NOT_FOUND", "Уведомление не найдено", 404)
+        return JsonResponse(notice_json(notice))
     if path == "profile/qr" and method == "GET":
         from io import BytesIO
         import qrcode
@@ -627,3 +654,10 @@ def attendee_json(person, event_id):
             )
         ),
     }
+
+
+@never_cache
+def push_worker(request):
+    if request.method not in {"GET", "HEAD"}: return HttpResponseNotAllowed(["GET", "HEAD"])
+    path = settings.PROJECT_DIR / "public" / "push-sw.js"
+    return FileResponse(path.open("rb"), content_type="application/javascript", headers={"Service-Worker-Allowed": "/", "X-Content-Type-Options": "nosniff"})

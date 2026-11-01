@@ -17,4 +17,6 @@ def mark_activity_entry(user, event, person, activity_id, access_key=None):
     if not created:
         raise FlowError("ALREADY_CHECKED_IN", "Посещение этого флоу уже отмечено", 409)
     CheckIn.objects.get_or_create(user=person, event=event, defaults={"checked_by": user, "access_key": access_key})
+    from .notifications import personal_notice, activity_facts
+    personal_notice(person, event, "Посещение активности по QR подтверждено. " + activity_facts(activity), title="Вы вошли на активность", activity=activity, kind="attendance")
     return entry

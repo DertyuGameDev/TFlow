@@ -28,7 +28,7 @@ export type Activity = {
   event_title?: string; city?: string; venue?: string; event_cover?: string;
 };
 export type Community = { id: string; name: string; description: string; topic: string; color: string; member_count: number; joined: number; subscribed: boolean; owner_id: string | null; event_count: number; avatar_url: string | null };
-export type Notice = { activity_id?: string | null; id: string; event_id: string | null; kind: "info" | "event_cancelled" | "club_event" | "event_waitlist" | "activity_reminder"; message: string; created_at: number; read: number };
+export type Notice = { title?: string; data?: Record<string, unknown>; activity_id?: string | null; id: string; event_id: string | null; kind: "info" | "event_cancelled" | "club_event" | "event_waitlist" | "activity_reminder" | "event_reminder" | "registration" | "attendance" | "webinar"; message: string; created_at: number; read: number };
 export type NoticePage = { items: Notice[]; next_cursor: string | null };
 export type Bootstrap = { events: FlowEvent[]; activities?: Activity[]; tickets: FlowEvent[]; schedule: Activity[]; waitlist: Activity[]; communities: Community[]; notifications: Notice[]; unread_notification_count: number; profile: Profile | null };
 export type EventDetail = { event: FlowEvent; rooms: Room[]; activities: Activity[] };

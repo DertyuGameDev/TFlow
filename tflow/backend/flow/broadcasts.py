@@ -130,8 +130,12 @@ def control(request, resource, item_id):
         if operation == "end":
             if data.get("session") != str(broadcast.session):
                 raise FlowError("STALE_WEBINAR", "Эфир изменился. Обновите комнату", 409)
+            was_active = broadcast.active
             broadcast.active, broadcast.publisher_hash = False, ""
             broadcast.save(update_fields=["active", "publisher_hash"])
+            if was_active:
+                from .notifications import broadcast_notice
+                broadcast_notice(event, activity, ended=True)
             return JsonResponse({"active": False})
         ensure_open(event, activity)
         ensure_started(event, activity)
@@ -153,6 +157,8 @@ def control(request, resource, item_id):
         broadcast.save()
         directory = stream_dir(broadcast.session)
         directory.mkdir(mode=0o700, parents=True, exist_ok=False)
+        from .notifications import broadcast_notice
+        broadcast_notice(event, activity)
         return JsonResponse({"session": str(broadcast.session), "publisher": publisher, "host": True})
 
 
@@ -212,9 +218,8 @@ def media(request, session, filename):
         raise FlowError("NOT_FOUND", "Эфир подготавливается, подождите немного", 404)
     # Attendance requires delivery of real media, not merely status or playlist.
     if not owner and filename.endswith(".ts") and request.method == "GET":
-        CheckIn.objects.get_or_create(event=broadcast.event, user=request.user, defaults={"source": "webinar"})
-        if broadcast.activity_id:
-            ActivityAttendance.objects.get_or_create(activity=broadcast.activity, user=request.user, defaults={"source": "webinar"})
+        from .notifications import online_attendance
+        online_attendance(request.user, broadcast.event, broadcast.activity)
     try:
         stream = path.open("rb")
     except FileNotFoundError:

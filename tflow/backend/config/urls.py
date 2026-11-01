@@ -10,6 +10,7 @@ urlpatterns = [
     path("api/broadcasts/<uuid:session>/chunks/<int:sequence>", broadcasts.upload),
     path("api/broadcasts/<uuid:session>/media/<str:filename>", broadcasts.media),
     path("api/broadcasts/<uuid:session>/chat", broadcasts.chat),
+    path("push-sw.js", views.push_worker),
     path("internal/metrics", metrics_view),
     path("login/", views.login_view, name="login"),
     path("register/", views.register_view, name="register"),

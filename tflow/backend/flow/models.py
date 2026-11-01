@@ -389,6 +389,8 @@ class Membership(models.Model):
 
 
 class Notification(models.Model):
+    title = models.CharField(max_length=200, blank=True)
+    data = models.JSONField(default=dict, blank=True)
     activity = models.ForeignKey(Activity, on_delete=models.SET_NULL, null=True, blank=True)
     id = models.CharField(primary_key=True, max_length=100, default=new_id)
     user = models.ForeignKey(
@@ -403,10 +405,14 @@ class Notification(models.Model):
             ("club_event", "Новое событие клуба"),
             ("event_waitlist", "Место на мероприятии освободилось"),
             ("activity_reminder", "Напоминание об активности"),
+            ("event_reminder", "Напоминание о мероприятии"),
+            ("registration", "Регистрация и расписание"),
+            ("attendance", "Подтверждение посещения"),
+            ("webinar", "Трансляция"),
         ],
         default="info",
     )
-    message = models.TextField(max_length=1000)
+    message = models.TextField(max_length=6000)
     created_at = models.DateTimeField(default=timezone.now)
     read = models.BooleanField(default=False)
 
@@ -436,3 +442,42 @@ class ActivityReminder(models.Model):
 
     class Meta:
         constraints = [models.UniqueConstraint(fields=["user", "activity", "starts_at"], name="unique_activity_reminder")]
+
+
+class PushSubscription(models.Model):
+    id = models.CharField(primary_key=True, max_length=100, default=new_id, editable=False)
+    user = models.ForeignKey(User, on_delete=models.CASCADE, related_name="push_subscriptions")
+    endpoint = models.URLField(max_length=2048, unique=True)
+    keys = models.JSONField()
+    generation = models.UUIDField(default=uuid.uuid4)
+    enabled = models.BooleanField(default=True)
+    created_at = models.DateTimeField(default=timezone.now)
+    updated_at = models.DateTimeField(default=timezone.now)
+
+
+class PushDelivery(models.Model):
+    notification = models.ForeignKey(Notification, on_delete=models.CASCADE, related_name="push_deliveries")
+    subscription = models.ForeignKey(PushSubscription, on_delete=models.CASCADE, related_name="deliveries")
+    generation = models.UUIDField()
+    status = models.CharField(max_length=12, default="pending", choices=[("pending", "Ожидает"), ("sent", "Принято push-сервисом"), ("failed", "Не доставлено"), ("skipped", "Отменено")])
+    attempts = models.PositiveSmallIntegerField(default=0)
+    due_at = models.DateTimeField(default=timezone.now)
+    lease_until = models.DateTimeField(null=True)
+    accepted_at = models.DateTimeField(null=True)
+    last_error = models.CharField(max_length=40, blank=True)
+
+    class Meta:
+        constraints = [models.UniqueConstraint(fields=["notification", "subscription", "generation"], name="unique_push_delivery")]
+        indexes = [models.Index(fields=["status", "due_at"], name="push_delivery_due")]
+
+
+class ScheduledNotice(models.Model):
+    user = models.ForeignKey(User, on_delete=models.CASCADE)
+    event = models.ForeignKey(Event, on_delete=models.CASCADE)
+    activity = models.ForeignKey(Activity, on_delete=models.CASCADE, null=True)
+    scope = models.CharField(max_length=140)
+    starts_at = models.DateTimeField()
+    offset = models.PositiveSmallIntegerField()
+
+    class Meta:
+        constraints = [models.UniqueConstraint(fields=["user", "scope", "starts_at", "offset"], name="unique_scheduled_notice")]

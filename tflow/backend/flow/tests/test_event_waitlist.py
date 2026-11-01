@@ -166,7 +166,8 @@ class EventWaitlistTests(EventQueueScenario, TestCase):
         self.request(self.path, 'post', client=self.stranger)
         self.request(f'events/{self.event.pk}/registration', 'delete', client=self.participant)
         page = self.request('notifications', client=self.stranger)
-        self.assertEqual(len(page['items']), 1)
+        promotions = [item for item in page['items'] if item['kind'] == 'event_waitlist']
+        self.assertEqual(len(promotions), 1)
         self.assertEqual(page['items'][0]['kind'], 'event_waitlist')
         self.assertEqual(page['items'][0]['event_id'], self.event.pk)
 
