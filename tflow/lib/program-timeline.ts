@@ -171,7 +171,7 @@ export function projectProgramTracks(
   };
 }
 
-export function programTimeTicks(start: number, end: number) {
+export function programTimeTicks(start: number, end: number, width?: number) {
   const minute = 60000;
   const moscowOffset = 180 * minute;
   const span = (end - start) / minute;
@@ -194,7 +194,22 @@ export function programTimeTicks(start: number, end: number) {
       ticks.push(value);
   }
   ticks.push(end);
-  return ticks;
+  if (width === undefined) return ticks;
+  // Endpoint labels face inward; reserve their full width before adding centred labels.
+  const labelWidth = 48, gap = 12;
+  const visible = [start];
+  let previousRight = labelWidth;
+  for (const tick of ticks.slice(1, -1)) {
+    const position = ((tick - start) / (end - start)) * width;
+    const left = position - labelWidth / 2;
+    const right = position + labelWidth / 2;
+    if (left >= previousRight + gap && right + gap <= width - labelWidth) {
+      visible.push(tick);
+      previousRight = right;
+    }
+  }
+  visible.push(end);
+  return visible;
 }
 
 export function programDayRange(day: string, start: number, end: number) {

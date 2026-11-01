@@ -4,7 +4,7 @@
 .timeline-node-inline .timeline-event-line {
   top: 0;
 }
-.timeline-inline-move {
+.program-timeline .timeline-inline-move {
   position: absolute;
   left: 0;
   top: -14px;
@@ -129,6 +129,29 @@
   .program-graph-editor input,
   .program-graph-editor select {
     font-size: 16px;
+  }
+  .timeline-inline-content .program-graph-time {
+    grid-template-columns: minmax(0, 1fr) 40px 40px;
+    gap: 8px;
+  }
+  .timeline-inline-content .program-graph-time > input {
+    grid-column: 1 / -1;
+    min-height: 40px;
+  }
+  .timeline-inline-content .program-graph-time > span {
+    display: none;
+  }
+  .timeline-inline-content .program-graph-time > .icon-button {
+    min-width: 40px;
+    min-height: 40px;
+  }
+  .timeline-inline-content .program-graph-time > .program-graph-save {
+    grid-column: 2;
+    grid-row: 3;
+  }
+  .timeline-inline-content .program-graph-time > button:last-child {
+    grid-column: 3;
+    grid-row: 3;
   }
 }
 

@@ -164,7 +164,7 @@
   font-size: 13px;
   overflow-wrap: anywhere;
 }
-.timeline-create-track {
+.program-timeline .timeline-create-track {
   position: absolute;
   inset-inline: 0;
   width: 100%;
@@ -193,7 +193,7 @@
   pointer-events: none;
   z-index: 4;
 }
-.timeline-resize-handle {
+.program-timeline .timeline-resize-handle {
   position: absolute;
   top: -20px;
   width: 32px;
@@ -574,8 +574,8 @@
   .timeline-caption {
     font-size: 13px;
   }
-  .timeline-tick-interior:nth-child(even) {
-    display: none;
+  .program-timeline .timeline-resize-handle {
+    width: 44px;
   }
   .timeline-detail {
     flex-direction: column;
@@ -618,7 +618,7 @@
     font-size: 16px;
   }
 }
-.timeline-movable { cursor: grab; touch-action: pan-y; }
+.program-timeline .timeline-movable { cursor: grab; touch-action: pan-y; }
 .timeline-movable:active { cursor: grabbing; }
 .program-swap-preview { margin: 0; padding: 0; list-style: none; display: grid; gap: 12px; max-height: 40vh; overflow: auto; }
 .program-swap-preview li { display: grid; gap: 5px; padding: 12px 0; border-bottom: 1px solid var(--flow-border); overflow-wrap: anywhere; }

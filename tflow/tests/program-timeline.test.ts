@@ -133,6 +133,24 @@ describe("раскладка временной шкалы программы", 
       ),
     ).toEqual(["00:00", "06:00", "12:00", "18:00", "00:00"]);
   });
+  it("разносит подписи времени с учётом ширины, сохраняя точные границы мероприятия", () => {
+    const from = Date.parse("2026-11-12T12:47:00+03:00");
+    const to = Date.parse("2026-11-12T14:46:00+03:00");
+    for (const width of [220, 280, 319, 480, 720, 1440]) {
+      const ticks = programTimeTicks(from, to, width);
+      expect(ticks[0]).toBe(from);
+      expect(ticks.at(-1)).toBe(to);
+      const boxes = ticks.map((tick, index) => {
+        const x = ((tick - from) / (to - from)) * width;
+        const left = index === 0 ? 0 : index === ticks.length - 1 ? width - 48 : x - 24;
+        return { left, right: left + 48 };
+      });
+      for (let index = 1; index < boxes.length; index++) {
+        expect(boxes[index].left - boxes[index - 1].right).toBeGreaterThanOrEqual(12);
+      }
+    }
+    expect(programTimeTicks(from, to, 280)).not.toContain(Date.parse("2026-11-12T14:30:00+03:00"));
+  });
   it("сохраняет длительность и свободные промежутки, сортирует входные пункты", () => {
     const tracks = buildProgramTracks(
       [item("b", 40, 40), item("a", 0, 20)],

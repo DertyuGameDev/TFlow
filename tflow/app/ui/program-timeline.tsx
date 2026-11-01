@@ -117,7 +117,7 @@ export function ProgramTimeline({
     projectedGroups.set(node.roomKey, group);
   }
   const axisY = projection.aboveRows * 76 + 16;
-  const ticks = programTimeTicks(start, end);
+  const ticks = programTimeTicks(start, end, canvasWidth);
   const dense = projection.nodes.some((node) => node.segment.items.length > 1);
   const selectedItem =
     inlineEditor?.item ??
