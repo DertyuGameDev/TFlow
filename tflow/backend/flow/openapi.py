@@ -414,7 +414,7 @@ def build_schema():
         content_type="application/x-www-form-urlencoded",
         status="302",
         root=True,
-        description="Роль выбирается навсегда. В локальном режиме демонстрации разрешены простые пароли.",
+        description="Роль выбирается навсегда. Допускается любой непустой пароль.",
     )
     add("/logout/", "post", "Выйти", "Аккаунт", status="302", root=True)
     add("/profile", "patch", "Изменить свой профиль", "Аккаунт", body="ProfileInput")

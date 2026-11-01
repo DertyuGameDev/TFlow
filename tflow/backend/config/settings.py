@@ -90,16 +90,8 @@ AUTH_RATE_LIMIT_WINDOW = 300
 AUTH_LOGIN_IP_LIMIT = 50
 AUTH_LOGIN_ACCOUNT_IP_LIMIT = 10
 AUTH_REGISTER_IP_LIMIT = 10
-AUTH_PASSWORD_VALIDATORS = [
-    {
-        "NAME": "django.contrib.auth.password_validation.UserAttributeSimilarityValidator"
-    },
-    {"NAME": "django.contrib.auth.password_validation.MinimumLengthValidator"},
-    {"NAME": "django.contrib.auth.password_validation.CommonPasswordValidator"},
-    {"NAME": "django.contrib.auth.password_validation.NumericPasswordValidator"},
-]
-if DEMO_MODE:
-    AUTH_PASSWORD_VALIDATORS = []
+# Registration and Django password forms accept any nonempty password.
+AUTH_PASSWORD_VALIDATORS = []
 DATABASES = {
     "default": {
         "ENGINE": "django.db.backends.sqlite3",

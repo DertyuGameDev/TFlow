@@ -1,5 +1,4 @@
 from django import forms
-from django.conf import settings
 from django.contrib.auth.forms import AuthenticationForm, UserCreationForm
 from .models import User
 from .interests import INTEREST_CHOICES
@@ -91,7 +90,6 @@ class RegisterForm(UserCreationForm):
         strip=False,
         widget=forms.PasswordInput(attrs={
             "autocomplete": "new-password",
-            "minlength": 8,
             "aria-describedby": "id_password1_helptext",
         }),
     )
@@ -117,17 +115,10 @@ class RegisterForm(UserCreationForm):
 
     def __init__(self, *args, participant_only=False, **kwargs):
         super().__init__(*args, **kwargs)
-        self.demo_mode = settings.DEMO_MODE
-        if self.demo_mode:
-            self.fields["password1"].widget.attrs.pop("minlength", None)
         if participant_only:
             self.fields["role"].widget = forms.HiddenInput()
             self.fields["role"].disabled = True
             self.initial["role"] = "participant"
-
-    def validate_password_for_user(self, user, password_field_name="password1"):
-        # The compact form has one password field; keep Django's full policy.
-        super().validate_password_for_user(user, password_field_name)
 
     def save(self, commit=True):
         user = super().save(commit=False)

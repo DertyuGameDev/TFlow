@@ -42,7 +42,7 @@
           <legend class="visually-hidden">Почта и пароль</legend>
           {% include 'auth_field.html' with field=form.email %}
           {% include 'auth_field.html' with field=form.password1 %}
-          <p class="password-help" id="id_password1_helptext">{% if form.demo_mode %}Для демонстрации подойдёт любой непустой пароль.{% else %}Пароль — от 8 символов.{% endif %}</p>
+          <p class="password-help" id="id_password1_helptext">Подойдёт любой непустой пароль.</p>
           <button class="primary" type="submit" data-signup-next>Продолжить<span aria-hidden="true">→</span></button>
         </fieldset>
         <fieldset class="signup-step" data-signup-step="preferences" hidden>

@@ -145,12 +145,14 @@ print(json.dumps({
         self.assertNotEqual(result.returncode, 0)
         self.assertIn("Set DJANGO_SECRET_KEY", result.stderr)
 
-    def test_demo_mode_only_relaxes_passwords_in_local_debug(self):
-        production = self.read_config(TFLOW_DEMO_MODE="1")
-        self.assertEqual(production.returncode, 0, production.stderr)
-        values = json.loads(production.stdout)
-        self.assertFalse(values["demo_mode"])
-        self.assertGreater(values["password_validators"], 0)
+    def test_simple_passwords_are_allowed_in_production_without_demo_mode(self):
+        for demo_mode in ("0", "1"):
+            with self.subTest(demo_mode=demo_mode):
+                production = self.read_config(TFLOW_DEMO_MODE=demo_mode)
+                self.assertEqual(production.returncode, 0, production.stderr)
+                values = json.loads(production.stdout)
+                self.assertFalse(values["demo_mode"])
+                self.assertEqual(values["password_validators"], 0)
         local = self.read_config(DJANGO_DEBUG="1", TFLOW_DEMO_MODE="1")
         self.assertEqual(local.returncode, 0, local.stderr)
         values = json.loads(local.stdout)

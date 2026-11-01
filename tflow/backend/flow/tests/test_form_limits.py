@@ -43,7 +43,7 @@ class DemoRegistrationTests(TestCase):
         self.assertEqual(response.status_code, 302)
         self.assertGreater(len(User.objects.get().interests), 300)
         page = Client().get("/register/")
-        self.assertContains(page, "Для демонстрации подойдёт любой непустой пароль")
+        self.assertContains(page, "Подойдёт любой непустой пароль")
         for name in ["first_name", "last_name", "password1", "password2"]:
             field = str(page.context["form"][name])
             self.assertNotIn("maxlength=", field)

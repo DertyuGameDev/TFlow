@@ -509,10 +509,9 @@ class AuthenticationRegressionTests(TestCase):
         )
         self.assertIsNone(self.client.get("/api/auth/me").json()["user"])
 
-    def test_signup_rejects_duplicate_email_weak_password_and_invalid_role(self):
+    def test_signup_rejects_duplicate_email_mismatched_password_and_invalid_role(self):
         for changes in [
             {"email": "LOGIN@EXAMPLE.TEST"},
-            {"password1": "123", "password2": "123"},
             {"password2": "mismatch"},
             {"role": "admin"},
             {"email": "invalid"},
