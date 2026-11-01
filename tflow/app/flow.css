@@ -442,10 +442,10 @@ body{font-size:16px;color:#222329;background:#fff}
   .host-event-info h2{font-size:17px;line-height:1.4;margin:9px 0 13px}
   .host-event .event-facts{font-size:13px;line-height:1.5}
   .host-event-numbers{font-size:12px;line-height:1.5;gap:12px;margin-top:13px}
-  .host-event-actions{grid-column:1 / -1;display:grid;grid-template-columns:1fr 1fr;gap:9px}
+  .host-event-actions{grid-column:1 / -1;display:grid;grid-template-columns:repeat(2,minmax(0,1fr));align-items:stretch;gap:9px}
   .host-event-actions .button{font-size:13px;padding:11px 9px;min-height:46px}
   .host-event-actions .button svg{width:17px;height:17px}
-  .host-event-actions>.text-button{font-size:13px;grid-column:1 / -1;justify-self:center;min-height:40px;margin:0}
+  .host-event-actions>.text-button{font-size:13px;grid-column:auto;justify-self:stretch;align-self:stretch;justify-content:center;min-height:46px;margin:0;padding:11px 9px;border:1px solid var(--flow-border);border-radius:12px;background:var(--theme-raised,#f5f6f8);color:var(--theme-text,#32353b);text-align:center;line-height:1.5}
   .publication{font-size:var(--font-size-min)}
   .host-quick-actions>.button{font-size:14px;min-height:46px}
   .attendee-row{display:grid;grid-template-columns:36px minmax(0,1fr);column-gap:12px;row-gap:8px}
