@@ -739,6 +739,34 @@ body{font-size:16px;color:#222329;background:#fff}
     gap: 0 18px;
   }
 }
+@media (max-width: 760px) {
+  .flow-footer {
+    display: grid;
+    grid-template-columns: minmax(0, 1fr);
+    align-items: start;
+    gap: 8px;
+    padding: 16px 0;
+    font-size: 13px;
+  }
+  .flow-footer .flow-footer-links {
+    display: grid;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    align-items: stretch;
+    gap: 8px 16px;
+    width: 100%;
+  }
+  .flow-footer .flow-footer-links > a {
+    min-width: 0;
+    min-height: 44px;
+    padding: 7px 0;
+    font-size: 14px;
+    line-height: 1.5;
+    white-space: normal;
+  }
+  .flow-footer-links > a:first-child:nth-last-child(3) {
+    grid-column: 1 / -1;
+  }
+}
 
 .registration-card>.registration-role-note{display:block;font-size:14px;line-height:1.6}
 
