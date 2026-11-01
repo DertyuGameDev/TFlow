@@ -602,17 +602,17 @@ function OrganizerEvent({
         </button>
         <button className="button secondary" onClick={onMove}>
           <CalendarDays size={17} />
-          Перенести
+          <span>Перенести</span>
         </button>
         <button className="button danger-outline" onClick={onDelete}>
           <Trash2 size={17} />
-          Удалить мероприятие
+          <span>Удалить мероприятие</span>
         </button>
         <button
           className="text-button"
           onClick={() => go(published ? "manage" : "event", event.id)}
         >
-          {published ? "Участники и настройки" : "Предпросмотр"}
+          <span>{published ? "Участники и настройки" : "Предпросмотр"}</span>
           <ArrowRight size={16} />
         </button>
       </div>

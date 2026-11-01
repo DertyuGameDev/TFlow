@@ -446,6 +446,9 @@ body{font-size:16px;color:#222329;background:#fff}
   .host-event-actions .button{font-size:15px;padding:11px 9px;min-height:48px;line-height:1.4}
   .host-event-actions .button svg{width:17px;height:17px}
   .host-event-actions>.text-button{font-size:15px;font-weight:600;grid-column:auto;justify-self:stretch;align-self:stretch;justify-content:center;min-height:48px;margin:0;padding:11px 9px;border:1px solid var(--flow-border);border-radius:12px;background:var(--theme-raised,#f5f6f8);color:var(--theme-text,#32353b);text-align:center;line-height:1.4}
+  .host-event-actions>.button,.host-event-actions>.text-button{display:grid;grid-template-columns:minmax(0,1fr);grid-template-rows:18px minmax(42px,auto);align-items:center;justify-items:center;justify-content:stretch;gap:6px;padding:10px 8px;text-align:center;overflow-wrap:normal;word-break:normal}
+  .host-event-actions>button>svg{grid-column:1;grid-row:1;margin:0}
+  .host-event-actions>button>span{grid-column:1;grid-row:2;min-width:0;max-width:100%;text-wrap:balance}
   .publication{font-size:var(--font-size-min)}
   .host-quick-actions>.button{font-size:14px;min-height:46px}
   .attendee-row{display:grid;grid-template-columns:36px minmax(0,1fr);column-gap:12px;row-gap:8px}
@@ -494,7 +497,7 @@ body{font-size:16px;color:#222329;background:#fff}
 }
 @media(max-width:420px){.flow-account>.role-chip{display:none}}
 @media(max-width:310px){.flow-topbar .brand>span:last-child{display:none}}
-@media(max-width:380px){.host-event-actions>.button,.host-event-actions>.text-button{flex-direction:column;gap:6px;padding:10px 6px;overflow-wrap:normal;word-break:normal}}
+@media(max-width:380px){.host-event-actions>.button,.host-event-actions>.text-button{padding-inline:6px}}
 @media(max-width:350px){.flow-heading h1{font-size:29px}.host-event{padding:15px;grid-template-columns:58px minmax(0,1fr);gap:13px}.host-event-art{height:74px}.host-event-actions .button{font-size:15px}.host-event-numbers{gap:8px}.metric-grid>div{padding-inline:11px}.metric-grid strong{font-size:25px}.registration-card{padding-inline:16px;gap:10px}.registration-card>.button{font-size:12px}.mobile-bottom-nav{padding-inline:env(safe-area-inset-left) env(safe-area-inset-right)}.mobile-bottom-nav a{font-size:var(--font-size-min)}.personal-pass{padding-inline:20px}.pass-caption{margin-inline:-20px}.pass-top .brand{font-size:18px}.pass-top>span:last-child{font-size:var(--font-size-min)}}
 @media(prefers-reduced-motion:reduce){.flow-app *{scroll-behavior:auto!important}.spin{animation:none}}
 .role-switch{display:inline-flex;align-items:center;justify-content:center;gap:8px;min-height:40px;padding:8px 12px;border:1px solid #eadb92;border-radius:12px;background:#fffae4;font-size:12px;color:#5d5125;white-space:nowrap}
