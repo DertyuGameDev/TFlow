@@ -318,13 +318,19 @@ export function Calendar({
 
   return (
     <section className="calendar-page" aria-label="Личный календарь">
-      <header className="calendar-page-heading">
+      <header
+        className={`calendar-page-heading ${!canCreate ? "calendar-participant-heading" : ""}`}
+      >
         <div>
           <span className="calendar-kicker">
             <CalendarRange size={17} /> Всё по плану
           </span>
           <h1>Календарь</h1>
-          <p>Больше встреч. Меньше «когда это было?»</p>
+          <p>
+            {canCreate
+              ? "Больше встреч. Меньше «когда это было?»"
+              : "События и активности, на которые вы записались."}
+          </p>
         </div>
         {canCreate ? (
           <button
@@ -336,8 +342,8 @@ export function Calendar({
           </button>
         ) : (
           <button className="button secondary" onClick={onBrowse}>
-            <Plus size={18} />
-            Найти событие
+            В каталог событий
+            <ArrowRight size={18} />
           </button>
         )}
       </header>
