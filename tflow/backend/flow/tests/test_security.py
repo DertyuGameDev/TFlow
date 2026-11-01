@@ -263,7 +263,7 @@ class SecurityTests(Scenario, TestCase):
     def test_database_errors_do_not_expose_internal_details(self):
         for error, status, code in [
             (IntegrityError("private SQL"), 409, "CONFLICT"),
-            (OperationalError("private connection string"), 503, "DATABASE_BUSY"),
+            (OperationalError("private connection string"), 503, "DATABASE_UNAVAILABLE"),
         ]:
             with self.subTest(error=type(error).__name__), patch(
                 "flow.views.dispatch_api", side_effect=error

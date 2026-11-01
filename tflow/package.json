@@ -12,6 +12,7 @@
     "dev:backend": "node scripts/python.mjs manage.py runserver 127.0.0.1:8000",
     "build": "vite build",
     "check": "tsc --noEmit",
+    "check:local": "node scripts/python.mjs manage.py check_local_runtime",
     "setup": "node scripts/setup.mjs",
     "start": "node scripts/python.mjs manage.py runserver 127.0.0.1:5173",
     "test:backend": "node scripts/python.mjs manage.py test flow.tests --noinput",
