@@ -20,8 +20,22 @@ class LoginForm(AuthenticationForm):
         widget=forms.PasswordInput(attrs={"autocomplete": "current-password"}),
     )
 
+    def __init__(self, request=None, *args, **kwargs):
+        super().__init__(request, *args, **kwargs)
+        from .jury_demo import local_jury_login
+        self.jury_demo = local_jury_login(request)
+        if self.jury_demo:
+            self.fields["username"] = forms.CharField(
+                label="Почта или логин", validators=[validate_text],
+                widget=forms.TextInput(attrs={"autocomplete":"username", "autofocus":True}),
+            )
+
     def clean_username(self):
-        return self.cleaned_data["username"].strip().lower()
+        value = self.cleaned_data["username"].strip().lower()
+        if self.jury_demo:
+            from .jury_demo import ALIASES
+            return ALIASES.get(value) or forms.EmailField(validators=[validate_text]).clean(value)
+        return value
 
 
 class RegistrationRoleSelect(forms.RadioSelect):
