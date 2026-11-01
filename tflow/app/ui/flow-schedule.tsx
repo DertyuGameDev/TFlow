@@ -390,15 +390,6 @@ export function FlowSchedule({
                   </time>
                 </div>
               ))}
-              {day.gaps.map((gap) => (
-                <div
-                  key={gap.start}
-                  className="flow-time-gap"
-                  style={{ top: gap.top, height: gap.height }}
-                >
-                  <span>Нет активностей · {flowDuration(gap.end - gap.start)}</span>
-                </div>
-              ))}
             </div>
           ))}
           {nowY !== null && (

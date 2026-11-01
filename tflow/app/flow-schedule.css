@@ -287,21 +287,6 @@
 .flow-time-tick.is-near-now > time {
   visibility: hidden;
 }
-.flow-time-gap {
-  position: absolute;
-  left: var(--flow-gutter);
-  right: 12px;
-  display: grid;
-  place-items: center;
-  pointer-events: none;
-}
-.flow-time-gap span {
-  padding: 0 8px;
-  background: var(--theme-bg, #fff);
-  color: var(--flow-muted);
-  font-size: 12px;
-  line-height: 15px;
-}
 .flow-now-line {
   position: absolute;
   left: 0;
