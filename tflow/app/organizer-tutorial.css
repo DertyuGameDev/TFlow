@@ -225,19 +225,6 @@
 .tutorial-example-field span {
   font-size: 12px;
 }
-.tutorial-example-button {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  gap: 8px;
-  width: 100%;
-  border-radius: 8px;
-  padding: 10px;
-  background: #ffdd2d;
-  color: #272514;
-  font-size: 12px;
-  font-weight: 500;
-}
 .tutorial-example-times {
   display: flex;
   align-items: center;

@@ -42,9 +42,9 @@ function LessonPreview({ step, online }: { step: number; online: boolean }) {
             <small>Категория</small>
             <span>Искусство и дизайн</span>
           </div>
-          <span className="tutorial-example-button">
-            Создать черновик <ArrowRight size={15} />
-          </span>
+          <small className="tutorial-example-timezone">
+            Черновик виден только вам
+          </small>
         </>
       )}
       {step === 1 && (
@@ -109,11 +109,8 @@ function LessonPreview({ step, online }: { step: number; online: boolean }) {
             <CalendarDays size={32} />
             <span>10:00 · Библиотека</span>
           </div>
-          <span className="tutorial-example-button">
-            Записаться <ArrowRight size={15} />
-          </span>
           <small className="tutorial-example-timezone">
-            Так событие увидит участник
+            После публикации участники смогут записаться
           </small>
         </>
       )}
@@ -350,7 +347,7 @@ export function OrganizerTutorial({
                   <p>Обучение можно продолжить после сохранения черновика.</p>
                 )}
                 <button
-                  className="button secondary"
+                  className="button primary"
                   onClick={() => {
                     setOpen(false);
                     onAction(action, target);
