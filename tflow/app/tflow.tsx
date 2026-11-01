@@ -397,7 +397,7 @@ function ProfileView({
         title="Ваш профиль"
         text={
           <span className="profile-account-summary">
-            <span>{organizer ? "Аккаунт организатора" : "Аккаунт участника"}</span>
+            {organizer && <span>Аккаунт организатора</span>}
             <strong className="profile-role-note">
               <LockKeyhole size={15} aria-hidden="true" />
               Роль изменить нельзя
