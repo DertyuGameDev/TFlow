@@ -1973,11 +1973,11 @@ export function TFlow({ user }: { user: UserIdentity | null }) {
                           <ArrowRight size={18} />
                         </button>
                       </Empty>
-                    ) : webinarActivity && !organizer && !webinarActivity.registered ? (
+                    ) : webinarActivity && !organizer && webinarActivity.registration_required !== false && !webinarActivity.registered ? (
                       <Empty icon={Video} title="Запишитесь на этот флоу" text="Для входа в отдельный вебинар нужна запись на его онлайн-активность.">
                         <ActivityProgram activities={[webinarActivity]} {...programActions} />
                       </Empty>
-                    ) : !route.mode && detail.activities.some((activity) => activity.room_is_online) ? (
+                    ) : !route.mode && (organizer || detail.activities.some((activity) => activity.room_is_online)) ? (
                       <WebinarChannels event={detail.event}
                         activities={detail.activities.filter((activity) => activity.room_is_online)} {...programActions} />
                     ) : (

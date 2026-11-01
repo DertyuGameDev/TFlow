@@ -41,7 +41,7 @@ import { ProgramTimeline } from "./program-timeline";
 import { ProgramGraphEditor } from "./program-graph-editor";
 import { OrganizerProgramList } from "./organizer-program-list";
 import { ProgramSwap } from "./program-swap";
-import type { ProgramRange } from "../../lib/program-editing";
+import { NEW_ONLINE_ROOM, type ProgramRange } from "../../lib/program-editing";
 import { OrganizerTutorial } from "./organizer-tutorial";
 import "../event-management.css";
 
@@ -149,7 +149,7 @@ export function OrganizerManage({
           graphRoom?.id ??
           "",
         room_name:
-          graphRoom?.name ??
+          graphDraft.range.room_id === NEW_ONLINE_ROOM ? "Новый онлайн-поток" : graphRoom?.name ??
           (e.format === "Онлайн" ? "Онлайн" : "Основная площадка"),
       }
     : undefined;
@@ -506,6 +506,7 @@ export function OrganizerManage({
         <header className="management-section-heading">
           <div>
             <h2>Пункты программы</h2>
+            <p>Для онлайн-флоу выберите онлайн-аудиторию или «Создать онлайн-поток» в редакторе пункта.</p>
           </div>
           <button
             type="button"

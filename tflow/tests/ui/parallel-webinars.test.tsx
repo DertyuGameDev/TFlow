@@ -14,9 +14,9 @@ const first: Activity = { id: "python", event_id: event.id, room_id: "online-a",
   capacity: 20, taken: 1, registered: 1, waitlisted: 0, waiting_count: 0, waitlist_position: 0, updated_at: 1, room_is_online: true };
 const second = { ...first, id: "django", room_id: "online-b", room_name: "Django", title: "Флоу Django", registered: 0 };
 
-function mount(user = participant, mode = "") {
-  const activities = [first, second].map((a) => ({ ...a, registered: user.role === "participant" ? a.registered : 0 }));
-  const current = { ...event, format: "Гибрид", enrolled: Number(user.role === "participant") };
+function mount(user = participant, mode = "", options: { activities?: Activity[]; enrolled?: number; format?: string } = {}) {
+  const activities = (options.activities ?? [first, second]).map((a) => ({ ...a, registered: user.role === "participant" ? a.registered : 0 }));
+  const current = { ...event, format: options.format ?? "Гибрид", enrolled: options.enrolled ?? Number(user.role === "participant") };
   history.replaceState({}, "", `/#webinar/${event.id}${mode ? `/${mode}` : ""}`);
   vi.spyOn(window, "scrollTo").mockImplementation(() => {});
   const fetch = vi.fn(async (path: string) => {
@@ -75,5 +75,47 @@ describe("выбор параллельных онлайн-флоу", () => {
   it("сохраняет явный доступ к общему эфиру мероприятия", async () => {
     mount(owner, "general");
     expect(await screen.findByRole("region", { name: "Открытый эфир" })).toHaveTextContent("general");
+  });
+});
+
+
+describe("вход в открытый вебинар гибридного события", () => {
+  const open = { ...first, registered: 0, registration_required: false, event_enrolled: true };
+
+  it.each(["Гибрид", "Онлайн"])("ссылка на флоу без отдельной записи открывает эфир: %s", async (format) => {
+    mount(participant, "", { activities: [open], format });
+    const section = await screen.findByRole("region", { name: "Онлайн-флоу мероприятия" });
+    await userEvent.setup().click(within(section).getByRole("link", { name: "Войти в вебинар флоу" }));
+    expect(await screen.findByRole("region", { name: "Открытый эфир" })).toHaveTextContent(open.id);
+    expect(screen.queryByRole("heading", { name: "Запишитесь на этот флоу" })).not.toBeInTheDocument();
+  });
+
+  it("прямая ссылка пускает с билетом без добавления флоу в расписание", async () => {
+    mount(participant, open.id, { activities: [open] });
+    expect(await screen.findByRole("region", { name: "Открытый эфир" })).toHaveTextContent(open.id);
+  });
+
+  it("открытый флоу по-прежнему требует билет мероприятия", async () => {
+    mount(participant, open.id, { activities: [{ ...open, event_enrolled: false }], enrolled: 0 });
+    expect(await screen.findByRole("heading", { name: "Сначала зарегистрируйтесь" })).toBeVisible();
+    expect(screen.queryByRole("region", { name: "Открытый эфир" })).not.toBeInTheDocument();
+  });
+
+  it("гибридное событие с очной программой сохраняет общий онлайн-эфир", async () => {
+    mount(participant, "", { activities: [{ ...first, room_is_online: false }] });
+    expect(await screen.findByRole("region", { name: "Открытый эфир" })).toHaveTextContent("general");
+  });
+});
+
+describe("студия гибридного события без онлайн-программы", () => {
+  it("объясняет организатору, как добавить онлайн-флоу, и сохраняет общий эфир", async () => {
+    mount(owner, "", { activities: [{ ...first, room_is_online: false }] });
+    const section = await screen.findByRole("region", { name: "Онлайн-флоу мероприятия" });
+    expect(within(section).getByText("Онлайн-флоу пока нет")).toBeVisible();
+    expect(within(section).getByRole("link", { name: "Добавить онлайн-флоу" }))
+      .toHaveAttribute("href", `#manage/${event.id}/program`);
+    expect(within(section).getByRole("link", { name: "Студия общего эфира мероприятия" }))
+      .toHaveAttribute("href", `#webinar/${event.id}/general`);
+    expect(within(section).queryByText(first.title)).not.toBeInTheDocument();
   });
 });

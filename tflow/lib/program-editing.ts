@@ -7,6 +7,7 @@ export type ProgramRange = {
 };
 export type ProgramEdge = "start" | "end";
 export const PROGRAM_MINUTE = 60000;
+export const NEW_ONLINE_ROOM = "@new-online";
 
 export function moveProgramRange(
   activity: ProgramRange,
