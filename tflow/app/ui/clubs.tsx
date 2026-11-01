@@ -111,13 +111,17 @@ export function Clubs({
       (mode !== "mine" || item.joined) &&
       (mode !== "interests" || interests.includes(item.topic)),
   );
-  const events = club
-    ? data.events.filter(
-        (event) =>
-          event.community_id === club.id &&
-          (showPast || event.ends_at >= Date.now()),
-      )
+  const now = Date.now();
+  const clubEvents = club
+    ? data.events.filter((event) => event.community_id === club.id)
     : [];
+  const upcomingEvents = clubEvents
+    .filter((event) => event.ends_at > now)
+    .sort((a, b) => a.starts_at - b.starts_at);
+  const pastEvents = clubEvents
+    .filter((event) => event.ends_at <= now)
+    .sort((a, b) => b.ends_at - a.ends_at);
+  const events = showPast ? pastEvents : upcomingEvents;
   async function join(item: Community) {
     if (busy) return;
     setBusy(true);
@@ -262,14 +266,26 @@ export function Clubs({
               </div>
               <div className="clubs-events-heading">
                 <h2>События клуба</h2>
-                <label>
-                  <input
-                    type="checkbox"
-                    checked={showPast}
-                    onChange={(event) => setShowPast(event.target.checked)}
-                  />
-                  Показывать прошедшие
-                </label>
+                <div
+                  className="clubs-event-periods"
+                  role="group"
+                  aria-label="Период событий клуба"
+                >
+                  <button
+                    type="button"
+                    aria-pressed={!showPast}
+                    onClick={() => setShowPast(false)}
+                  >
+                    Предстоящие <span>{upcomingEvents.length}</span>
+                  </button>
+                  <button
+                    type="button"
+                    aria-pressed={showPast}
+                    onClick={() => setShowPast(true)}
+                  >
+                    Прошедшие <span>{pastEvents.length}</span>
+                  </button>
+                </div>
               </div>
               {events.length ? (
                 <div className="clubs-event-list">
@@ -295,10 +311,17 @@ export function Clubs({
               ) : (
                 <div className="clubs-empty">
                   <CalendarDays size={28} />
-                  <h2>Новые встречи ещё впереди</h2>
+                  <h2>
+                    {showPast
+                      ? "Прошедших событий пока нет"
+                      : "Новые встречи ещё впереди"}
+                  </h2>
                   <p>
-                    Здесь появятся события, которые организаторы добавят в этот
-                    клуб.
+                    {showPast
+                      ? "Завершённые встречи клуба появятся здесь."
+                      : pastEvents.length
+                        ? "Посмотрите предыдущие встречи в разделе «Прошедшие». Новые события появятся здесь."
+                        : "Здесь появятся события, которые организаторы добавят в этот клуб."}
                   </p>
                 </div>
               )}
