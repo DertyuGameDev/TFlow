@@ -19,6 +19,17 @@ it('открывает камеру сразу в простом сканере 
   view.unmount();expect(camera.stop).toHaveBeenCalled();
 });
 
+it('ждёт выбора события перед автоматическим включением камеры',async()=>{
+  const secondEvent={...event,id:'second-event',title:'Второе событие'};
+  render(<QRScanner events={[event,secondEvent]} activities={[]} send={vi.fn()} onScan={vi.fn()} simple autoStart/>);
+  expect(screen.getByRole('heading',{name:'На какое событие проверяем вход?'})).toBeVisible();
+  await act(async()=>{});
+  expect(camera.decode).not.toHaveBeenCalled();
+  await userEvent.click(screen.getByRole('button',{name:new RegExp(secondEvent.title)}));
+  await waitFor(()=>expect(camera.decode).toHaveBeenCalledOnce());
+  expect(screen.getByRole('button',{name:'Остановить камеру'})).toBeVisible();
+});
+
 it.each([
   ['NotAllowedError','Разрешите доступ к камере'],
   ['NotFoundError','Камера не найдена'],

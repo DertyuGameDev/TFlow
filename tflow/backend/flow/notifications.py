@@ -86,8 +86,11 @@ def activity_facts(activity):
 
 def broadcast_notice(event, activity=None, *, ended=False):
     label = "Эфир завершён" if ended else "Эфир начался"
+    people = event.enrollments.filter(user__is_active=True).exclude(user_id=event.owner_id)
+    if activity is not None and activity.registration_required:
+        people = people.filter(user__registrations__activity=activity)
     return notify_audience(event, label + ". " + (activity_facts(activity) if activity else event_facts(event)),
-        title=label, activity=activity, kind="webinar")
+        title=label, activity=activity, kind="webinar", recipients=people.values_list("user_id", flat=True).distinct())
 
 
 def online_attendance(user, event, activity=None):
